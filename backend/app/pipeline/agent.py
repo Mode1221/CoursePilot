@@ -7,7 +7,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 
 from app.adapters.map_service import MapService
-from app.pipeline.decomposition import parse_constraints
+from app.pipeline.llm import decompose
 from app.pipeline.validation import build_timeline
 from app.schemas import PlanConstraints, TimelineItem
 
@@ -23,7 +23,7 @@ class PlanResult:
 
 
 async def generate_course(text: str, map_service: MapService) -> PlanResult:
-    constraints = parse_constraints(text)
+    constraints = await decompose(text)
 
     timeline, relaxed = await _attempt(constraints, map_service)
 
