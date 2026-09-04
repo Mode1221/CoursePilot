@@ -32,6 +32,7 @@ class NaverMapService(MapService):
         self, region: str, keywords: list[str], limit: int = 10
     ) -> list[Place]:
         query = " ".join([region, *keywords]).strip()
+        # 네이버 지역검색 API 의 display 최대값은 5 (API 하드 제약)
         params = {"query": query, "display": min(limit, 5)}
         async with httpx.AsyncClient(timeout=10) as client:
             resp = await client.get(_SEARCH_URL, params=params, headers=self._headers)
@@ -39,14 +40,16 @@ class NaverMapService(MapService):
             items = resp.json().get("items", [])
 
         places: list[Place] = []
-        for i, it in enumerate(items):
+        for it in items:
             lat, lng = _katech_to_wgs84(it.get("mapx"), it.get("mapy"))
+            name = _strip_tags(it.get("title", ""))
+            address = it.get("roadAddress") or it.get("address") or ""
             places.append(
                 Place(
-                    id=f"naver-{region}-{i}",
-                    name=_strip_tags(it.get("title", "")),
+                    id=_place_id(name, address),  # 장소 정체성 기반 안정 id
+                    name=name,
                     category=it.get("category"),
-                    address=it.get("roadAddress") or it.get("address"),
+                    address=address,
                     lat=lat,
                     lng=lng,
                     # 영업시간/브레이크는 지역검색 API 미제공 → 상세는 별도 소스 필요
@@ -85,6 +88,14 @@ def _strip_tags(text: str) -> str:
     import re
 
     return re.sub(r"<[^>]+>", "", text)
+
+
+def _place_id(name: str, address: str) -> str:
+    """이름+주소 해시로 검색 반복에도 동일한 장소면 같은 id 를 갖게 한다."""
+    import hashlib
+
+    digest = hashlib.sha1(f"{name}|{address}".encode("utf-8")).hexdigest()[:12]
+    return f"naver-{digest}"
 
 
 def _katech_to_wgs84(mapx, mapy) -> tuple[float, float]:

@@ -41,22 +41,23 @@ async def build_timeline(
     prev: Place | None = None
 
     for place in places:
-        # 이전 장소로부터 이동
+        # 이전 장소로부터 이동. 아직 cursor 는 진전시키지 않는다(스킵 시 드리프트 방지).
         route: Route | None = None
+        arrive_dt = cursor
         if prev is not None:
             route = await map_service.get_route(prev, place, mode)
             if (
                 constraints.max_travel_min is not None
                 and route.duration_min > constraints.max_travel_min
             ):
-                continue  # 이동시간 조건 위반 → 폐기
-            cursor = cursor + timedelta(minutes=route.duration_min)
+                continue  # 이동시간 조건 위반 → 폐기 (cursor 유지)
+            arrive_dt = cursor + timedelta(minutes=route.duration_min)
 
-        arrive = cursor.time()
+        arrive = arrive_dt.time()
         if not is_open_at(place, arrive):
-            continue  # 영업시간/브레이크 위반 → 폐기
+            continue  # 영업시간/브레이크 위반 → 폐기 (cursor 유지)
 
-        depart_dt = cursor + timedelta(minutes=stay_min)
+        depart_dt = arrive_dt + timedelta(minutes=stay_min)
         if end_dt is not None and depart_dt > end_dt:
             break  # 전체 시간 초과 → 종료
 
@@ -66,7 +67,7 @@ async def build_timeline(
         timeline.append(
             TimelineItem(place=place, arrive=arrive, depart=depart_dt.time())
         )
-        cursor = depart_dt
+        cursor = depart_dt  # 확정된 경우에만 진전
         prev = place
 
     return timeline

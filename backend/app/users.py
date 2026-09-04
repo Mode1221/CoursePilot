@@ -91,6 +91,9 @@ class UserStore:
 
     def consume_credit(self, user_id: str) -> User:
         """AI 명령 1회 = 질문 1회 차감. 월 리셋 반영. 소진 시 CreditError."""
+        if self._db_ready:
+            return self._consume_credit_db(user_id)
+
         user = self.get(user_id)
         if user is None:
             raise CreditError("user not found")
@@ -102,6 +105,25 @@ class UserStore:
             raise CreditError("no credits left")
         user.credits_used += 1
         return self._save(user)
+
+    def _consume_credit_db(self, user_id: str) -> User:
+        """행 잠금으로 원자적 차감 → 동시 요청의 초과 사용 방지."""
+        from app.db import SessionLocal
+        from app.models import UserModel
+
+        period = _period_now()
+        with SessionLocal() as s:
+            row = s.get(UserModel, user_id, with_for_update=True)
+            if row is None:
+                raise CreditError("user not found")
+            if row.credit_period != period:  # 매월 리셋(이월 불가)
+                row.credit_period = period
+                row.credits_used = 0
+            if row.credits_limit - row.credits_used <= 0:
+                raise CreditError("no credits left")
+            row.credits_used += 1
+            s.commit()
+            return self._to_user(row)
 
     def _save(self, user: User) -> User:
         if self._db_ready:

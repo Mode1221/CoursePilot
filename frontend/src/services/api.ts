@@ -48,6 +48,16 @@ export const api = {
     return res.json();
   },
 
+  async reorder(id: string, placeIds: string[]): Promise<Course> {
+    const res = await fetch(`${BASE}/courses/${id}/reorder`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ place_ids: placeIds }),
+    });
+    if (!res.ok) throw new ApiError(res.status, "reorder failed");
+    return res.json();
+  },
+
   async messages(id: string): Promise<{ role: "user" | "ai"; text: string }[]> {
     const res = await fetch(`${BASE}/courses/${id}/messages`);
     if (!res.ok) throw new ApiError(res.status, "messages failed");

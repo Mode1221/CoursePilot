@@ -41,7 +41,9 @@ def parse_constraints(text: str) -> PlanConstraints:
         c.duration_min = int(dm.group(1)) * 60
         if c.start_time:
             end_hour = c.start_time.hour + int(dm.group(1))
-            c.end_time = time(min(end_hour, 23), c.start_time.minute)
+            # 자정을 넘기면 시각으로 절단하지 않고 종료 미지정(같은 날 내 열림)으로 둔다.
+            if end_hour < 24:
+                c.end_time = time(end_hour, c.start_time.minute)
 
     # 이동수단 + 이동시간 상한
     tm = _TRAVEL_RE.search(text)

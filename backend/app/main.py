@@ -4,6 +4,8 @@
 """
 from __future__ import annotations
 
+from datetime import time
+
 import socketio
 from fastapi import FastAPI, Header, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
@@ -68,7 +70,12 @@ async def health() -> dict:
 @api.post("/signup")
 async def signup(req: SignupRequest) -> dict:
     user = user_store.create(req.phone)
-    if req.referrer_id:  # 신규 가입 시 초대자에게 보너스 크레딧
+    # 신규 가입 시 초대자에게 보너스 크레딧. 자기추천 방지 + 실존 초대자만.
+    if (
+        req.referrer_id
+        and req.referrer_id != user.id
+        and user_store.get(req.referrer_id) is not None
+    ):
         user_store.grant_credits(req.referrer_id, REFERRAL_BONUS)
     return {"user_id": user.id, "credits_left": user.credits_left}
 
@@ -167,21 +174,27 @@ async def generate(
     AI 명령은 생성자(로그인 회원)만 가능하며 크레딧 1회 차감(9-3).
     참여자(비로그인)는 수동 편집만 가능 → 403.
     """
-    course = store.get(course_id)
-    if course is None:
+    # 존재 확인은 큐 밖에서 빠르게(단, 실제 상태는 lock 안에서 재조회한다)
+    if store.get(course_id) is None:
         raise HTTPException(status_code=404, detail="course not found")
-
     if x_user_id is None:
         raise HTTPException(status_code=403, detail="AI 챗봇은 생성자만 사용할 수 있습니다")
-    try:
-        user = user_store.consume_credit(x_user_id)
-    except CreditError:
-        raise HTTPException(
-            status_code=402, detail="AI에게 질문하려면 포인트를 구매해주세요"
-        )
-    prefs = user.preferences.model_dump()
 
     async def action() -> GenerateResponse:
+        # 최신 상태를 lock 안에서 재조회 → 동시 요청 간 lost update 방지
+        course = store.get(course_id)
+        if course is None:
+            raise HTTPException(status_code=404, detail="course not found")
+
+        # 크레딧 소비도 lock 안에서: 원자적 차감 + 실패 시 환불
+        try:
+            user = user_store.consume_credit(x_user_id)
+        except CreditError:
+            raise HTTPException(
+                status_code=402, detail="AI에게 질문하려면 포인트를 구매해주세요"
+            )
+        prefs = user.preferences.model_dump()
+
         course.locked = True
         await broadcast_lock(course_id, True)
         chat_store.append(course_id, "user", req.text)  # append-only 로그
@@ -205,6 +218,11 @@ async def generate(
                 needs_confirmation = result.needs_confirmation
                 if result.constraints.region:
                     course.region = result.constraints.region
+        except Exception:
+            user_store.grant_credits(x_user_id, 1)  # 실패 시 크레딧 환불
+            course.locked = False
+            await broadcast_lock(course_id, False)
+            raise
         finally:
             course.locked = False
         store.save(course)
@@ -229,6 +247,45 @@ def _ai_reply(course: Course, relaxed: bool, needs_confirmation: bool) -> str:
     if relaxed:
         base += " 일부 조건은 완화했어요."
     return base
+
+
+class ReorderRequest(BaseModel):
+    place_ids: list[str]  # 원하는 최종 순서. 빠진 id 는 삭제로 처리.
+
+
+@api.post("/courses/{course_id}/reorder", response_model=Course)
+async def manual_reorder(course_id: str, req: ReorderRequest) -> Course:
+    """수동 편집(드래그/삭제). AI 미호출·무료지만 서버 큐로 직렬화 + broadcast (5-1).
+
+    참여자(비로그인)도 가능하므로 인증/크레딧 불필요.
+    """
+    if store.get(course_id) is None:
+        raise HTTPException(status_code=404, detail="course not found")
+
+    async def action() -> Course:
+        course = store.get(course_id)
+        if course is None:
+            raise HTTPException(status_code=404, detail="course not found")
+        if course.locked:
+            raise HTTPException(status_code=409, detail="AI 처리 중에는 편집할 수 없습니다")
+
+        from app.pipeline.edit import _infer_mode
+        from app.pipeline.validation import recompute
+
+        by_id = {it.place.id: it for it in course.items}
+        ordered = [by_id[pid] for pid in req.place_ids if pid in by_id]
+        if ordered:
+            start = ordered[0].arrive or time(12, 0)
+            course.items = await recompute(
+                [it.place for it in ordered], start, _infer_mode(ordered), get_map_service()
+            )
+        else:
+            course.items = []
+        store.save(course)
+        await broadcast_state(course_id, course.model_dump(mode="json"))
+        return course
+
+    return await queues.run(course_id, action)
 
 
 @api.get("/courses/{course_id}/messages", response_model=list[ChatMessage])
