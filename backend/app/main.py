@@ -13,7 +13,7 @@ from app.adapters.map_service import get_map_service
 from app.config import settings
 from app.pipeline.agent import generate_course
 from app.queue import queues
-from app.realtime import broadcast_lock, broadcast_state, sio
+from app.realtime import broadcast_lock, broadcast_progress, broadcast_state, sio
 from app.schemas import Course
 from app.bookmarks import bookmark_store
 from app.store import store
@@ -175,8 +175,11 @@ async def generate(
     async def action() -> GenerateResponse:
         course.locked = True
         await broadcast_lock(course_id, True)
+        async def on_progress(stage: str) -> None:
+            await broadcast_progress(course_id, stage)
+
         try:
-            result = await generate_course(req.text, get_map_service(), prefs)
+            result = await generate_course(req.text, get_map_service(), prefs, on_progress)
             course.items = result.timeline
             if result.constraints.region:
                 course.region = result.constraints.region

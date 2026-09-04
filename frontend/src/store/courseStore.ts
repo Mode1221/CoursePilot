@@ -7,8 +7,10 @@ import type { Course, TimelineItem } from "@/types";
 interface CourseState {
   course: Course | null;
   locked: boolean; // AI 처리 중 UI 편집 잠금 (5-3)
+  stage: string | null; // AI 처리 단계 (5-4)
   setCourse: (course: Course) => void;
   setLocked: (locked: boolean) => void;
+  setStage: (stage: string | null) => void;
   // 수동 편집: 드래그로 순서 변경 후 이동시간 재계산 (4-3). AI 호출 없음 → 무료.
   reorder: (from: number, to: number) => Promise<void>;
   remove: (index: number) => Promise<void>;
@@ -26,8 +28,10 @@ async function recalcRoutes(items: TimelineItem[]): Promise<TimelineItem[]> {
 export const useCourseStore = create<CourseState>((set, get) => ({
   course: null,
   locked: false,
+  stage: null,
   setCourse: (course) => set({ course, locked: course.locked }),
   setLocked: (locked) => set({ locked }),
+  setStage: (stage) => set({ stage }),
 
   reorder: async (from, to) => {
     const { course, locked } = get();

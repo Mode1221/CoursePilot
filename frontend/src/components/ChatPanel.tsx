@@ -7,12 +7,25 @@ import { shareService } from "@/services/shareService";
 import { useCourseStore } from "@/store/courseStore";
 import { useUserStore } from "@/store/userStore";
 
+const STAGE_LABELS: Record<string, string> = {
+  decomposition: "조건 분석",
+  search: "후보 수집",
+  validation: "영업시간·이동 검증",
+  relaxing: "조건 완화 재시도",
+  done: "마무리",
+};
+
+function stageLabel(stage: string | null): string {
+  return stage ? STAGE_LABELS[stage] ?? stage : "";
+}
+
 export default function ChatPanel({ courseId }: { courseId: string }) {
   const [text, setText] = useState("");
   const [sending, setSending] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const locked = useCourseStore((s) => s.locked);
+  const stage = useCourseStore((s) => s.stage);
   const setCourse = useCourseStore((s) => s.setCourse);
   const course = useCourseStore((s) => s.course);
 
@@ -65,7 +78,7 @@ export default function ChatPanel({ courseId }: { courseId: string }) {
         {userId == null && (
           <p style={{ color: "#888", fontSize: 13 }}>참여자는 수동 편집만 가능합니다.</p>
         )}
-        {locked && <p style={{ color: "#c60" }}>AI 처리 중… 편집이 잠깁니다.</p>}
+        {locked && <p style={{ color: "#c60" }}>AI 처리 중… {stageLabel(stage)} · 편집이 잠깁니다.</p>}
         {notice && <p style={{ color: "#c60" }}>{notice}</p>}
         {error && <p style={{ color: "#c00" }}>{error}</p>}
       </div>

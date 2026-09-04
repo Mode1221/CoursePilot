@@ -32,6 +32,19 @@ def test_is_open_at_break_time():
 
 
 @pytest.mark.asyncio
+async def test_generate_course_emits_progress():
+    stages: list[str] = []
+
+    async def on_progress(stage: str) -> None:
+        stages.append(stage)
+
+    await generate_course("성수동 오전 10시 5시간 코스", MockMapService(), on_progress=on_progress)
+    assert stages[0] == "decomposition"
+    assert "search" in stages and "validation" in stages
+    assert stages[-1] == "done"
+
+
+@pytest.mark.asyncio
 async def test_generate_course_returns_timeline():
     result = await generate_course("성수동 오전 10시 5시간 코스", MockMapService())
     assert len(result.timeline) >= 3

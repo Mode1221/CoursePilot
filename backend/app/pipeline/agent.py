@@ -5,6 +5,7 @@ Decomposition → Tool-Use → Validation → 조건 완화 재시도 → Final.
 from __future__ import annotations
 
 from dataclasses import dataclass
+from typing import Awaitable, Callable
 
 from app.adapters.map_service import MapService
 from app.pipeline.llm import decompose
@@ -12,6 +13,13 @@ from app.pipeline.validation import build_timeline
 from app.schemas import PlanConstraints, TimelineItem
 
 MIN_VALID = 3  # 유효 후보가 이 개수 미만이면 조건 완화
+
+# 진행 단계 콜백 (5-4 실시간 상태 표시). 미지정 시 무동작.
+ProgressFn = Callable[[str], Awaitable[None]]
+
+
+async def _noop(_stage: str) -> None:
+    pass
 
 
 @dataclass
@@ -23,24 +31,35 @@ class PlanResult:
 
 
 async def generate_course(
-    text: str, map_service: MapService, preferences: dict | None = None
+    text: str,
+    map_service: MapService,
+    preferences: dict | None = None,
+    on_progress: ProgressFn | None = None,
 ) -> PlanResult:
+    progress = on_progress or _noop
+
+    await progress("decomposition")  # 문장 분해
     constraints = await decompose(text)
     if preferences:
         _apply_preferences(constraints, preferences)
 
+    await progress("search")  # 후보 수집
     timeline, relaxed = await _attempt(constraints, map_service)
+    await progress("validation")  # 물리 제약 검증
 
     if len(timeline) >= MIN_VALID:
+        await progress("done")
         return PlanResult(constraints, timeline, relaxed, needs_confirmation=False)
 
     # 7-4 조건 완화: 소프트 제약(이동시간 여유폭)부터 단계적 완화. 하드 제약(예산)은 유지.
+    await progress("relaxing")
     relaxed_c = constraints.model_copy(deep=True)
     if relaxed_c.max_travel_min is not None:
         relaxed_c.max_travel_min = int(relaxed_c.max_travel_min * 1.5)
     timeline, _ = await _attempt(relaxed_c, map_service)
 
     needs_confirmation = len(timeline) < MIN_VALID
+    await progress("done")
     return PlanResult(relaxed_c, timeline, relaxed=True, needs_confirmation=needs_confirmation)
 
 

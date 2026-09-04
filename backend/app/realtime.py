@@ -32,3 +32,8 @@ async def broadcast_state(course_id: str, course_dict: dict) -> None:
 async def broadcast_lock(course_id: str, locked: bool) -> None:
     event = "locked" if locked else "unlocked"
     await sio.emit(event, {"course_id": course_id}, room=course_id)
+
+
+async def broadcast_progress(course_id: str, stage: str) -> None:
+    """AI 처리 단계 실시간 전송 (5-4)."""
+    await sio.emit("progress", {"course_id": course_id, "stage": stage}, room=course_id)
