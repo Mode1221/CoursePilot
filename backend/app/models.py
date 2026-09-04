@@ -25,6 +25,20 @@ class CourseModel(Base):
     )
 
 
+class UserModel(Base):
+    """전화번호 인증 회원. 크레딧/선호 프로필 보유 (9장)."""
+
+    __tablename__ = "users"
+
+    id: Mapped[str] = mapped_column(String, primary_key=True)
+    phone: Mapped[str] = mapped_column(String, unique=True, index=True)
+    credits_limit: Mapped[int] = mapped_column(Integer, default=5)  # 월 무료 N회
+    credits_used: Mapped[int] = mapped_column(Integer, default=0)
+    credit_period: Mapped[str] = mapped_column(String, default="")  # YYYY-MM
+    preferences: Mapped[dict] = mapped_column(JSON, default=dict)  # 온보딩 프로필
+    created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
+
+
 class ReviewModel(Base):
     """RAG 용 리뷰. 협찬 필터링 후 임베딩 저장 (8장)."""
 

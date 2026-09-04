@@ -22,8 +22,12 @@ class PlanResult:
     needs_confirmation: bool  # 완화로도 부족 → 사용자 확인 필요
 
 
-async def generate_course(text: str, map_service: MapService) -> PlanResult:
+async def generate_course(
+    text: str, map_service: MapService, preferences: dict | None = None
+) -> PlanResult:
     constraints = await decompose(text)
+    if preferences:
+        _apply_preferences(constraints, preferences)
 
     timeline, relaxed = await _attempt(constraints, map_service)
 
@@ -38,6 +42,21 @@ async def generate_course(text: str, map_service: MapService) -> PlanResult:
 
     needs_confirmation = len(timeline) < MIN_VALID
     return PlanResult(relaxed_c, timeline, relaxed=True, needs_confirmation=needs_confirmation)
+
+
+def _apply_preferences(constraints: PlanConstraints, prefs: dict) -> None:
+    """온보딩 선호 프로필로 미입력 조건을 자동 보완 (9-6). 명시값은 유지."""
+    if not constraints.region and prefs.get("region"):
+        constraints.region = prefs["region"]
+    if prefs.get("mood") and prefs["mood"] not in constraints.keywords:
+        constraints.keywords.append(prefs["mood"])
+    for diet in prefs.get("diet") or []:
+        if diet not in constraints.keywords:
+            constraints.keywords.append(diet)
+    if prefs.get("transport") == "차량":
+        from app.schemas import TravelMode
+
+        constraints.travel_mode = TravelMode.CAR
 
 
 async def _attempt(
