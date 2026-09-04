@@ -1,18 +1,24 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
 import { api } from "@/services/api";
+import { useUserStore } from "@/store/userStore";
 
 export default function Home() {
   const router = useRouter();
   const [loading, setLoading] = useState(false);
+  const { userId, load } = useUserStore();
+
+  useEffect(() => {
+    load();
+  }, [load]);
 
   async function start() {
     setLoading(true);
     try {
-      const course = await api.createCourse();
+      const course = await api.createCourse(userId ?? undefined);
       router.push(`/plan/${course.id}`);
     } finally {
       setLoading(false);

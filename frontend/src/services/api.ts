@@ -3,8 +3,10 @@ import type { Course } from "@/types";
 const BASE = process.env.NEXT_PUBLIC_API_BASE || "http://localhost:8000";
 
 export const api = {
-  async createCourse(): Promise<Course> {
-    const res = await fetch(`${BASE}/courses`, { method: "POST" });
+  async createCourse(userId?: string): Promise<Course> {
+    const headers: Record<string, string> = {};
+    if (userId) headers["X-User-Id"] = userId;
+    const res = await fetch(`${BASE}/courses`, { method: "POST", headers });
     if (!res.ok) throw new Error("createCourse failed");
     return res.json();
   },
@@ -57,6 +59,23 @@ export const api = {
       body: JSON.stringify(prefs),
     });
     if (!res.ok) throw new ApiError(res.status, "setPreferences failed");
+  },
+
+  async myCourses(userId: string): Promise<Course[]> {
+    const res = await fetch(`${BASE}/users/${userId}/courses`);
+    if (!res.ok) throw new ApiError(res.status, "myCourses failed");
+    return res.json();
+  },
+
+  async myBookmarks(userId: string): Promise<Course[]> {
+    const res = await fetch(`${BASE}/users/${userId}/bookmarks`);
+    if (!res.ok) throw new ApiError(res.status, "myBookmarks failed");
+    return res.json();
+  },
+
+  async addBookmark(userId: string, courseId: string): Promise<void> {
+    const res = await fetch(`${BASE}/users/${userId}/bookmarks/${courseId}`, { method: "PUT" });
+    if (!res.ok) throw new ApiError(res.status, "addBookmark failed");
   },
 
   async credits(userId: string): Promise<{ questions_left: number }> {
