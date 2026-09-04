@@ -11,6 +11,7 @@ export default function ChatPanel({ courseId }: { courseId: string }) {
   const [text, setText] = useState("");
   const [sending, setSending] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [notice, setNotice] = useState<string | null>(null);
   const locked = useCourseStore((s) => s.locked);
   const setCourse = useCourseStore((s) => s.setCourse);
   const course = useCourseStore((s) => s.course);
@@ -28,11 +29,17 @@ export default function ChatPanel({ courseId }: { courseId: string }) {
   async function send() {
     if (!text.trim() || sending) return;
     setError(null);
+    setNotice(null);
     setSending(true);
     try {
-      const updated = await api.generate(courseId, text, userId ?? undefined);
-      setCourse(updated);
+      const res = await api.generate(courseId, text, userId ?? undefined);
+      setCourse(res.course);
       setText("");
+      if (res.needs_confirmation) {
+        setNotice("조건에 맞는 장소가 부족합니다. 조건을 완화할까요?");
+      } else if (res.relaxed) {
+        setNotice("일부 조건을 완화해 코스를 구성했습니다.");
+      }
       if (userId) api.credits(userId).then((c) => setQuestionsLeft(c.questions_left)).catch(() => {});
     } catch (e) {
       setError(e instanceof ApiError ? e.message : "요청 실패");
@@ -59,6 +66,7 @@ export default function ChatPanel({ courseId }: { courseId: string }) {
           <p style={{ color: "#888", fontSize: 13 }}>참여자는 수동 편집만 가능합니다.</p>
         )}
         {locked && <p style={{ color: "#c60" }}>AI 처리 중… 편집이 잠깁니다.</p>}
+        {notice && <p style={{ color: "#c60" }}>{notice}</p>}
         {error && <p style={{ color: "#c00" }}>{error}</p>}
       </div>
 

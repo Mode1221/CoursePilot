@@ -141,12 +141,18 @@ async def review_summary(req: ReviewSummaryRequest) -> dict:
     return {"summary": summary, "count": len(found)}
 
 
-@api.post("/courses/{course_id}/generate", response_model=Course)
+class GenerateResponse(BaseModel):
+    course: Course
+    relaxed: bool  # 조건이 완화되었는지
+    needs_confirmation: bool  # 완화로도 부족 → 사용자 확인 필요 (7-4)
+
+
+@api.post("/courses/{course_id}/generate", response_model=GenerateResponse)
 async def generate(
     course_id: str,
     req: GenerateRequest,
     x_user_id: str | None = Header(default=None),
-) -> Course:
+) -> GenerateResponse:
     """챗봇 명령: AI 파이프라인 실행. 액션 큐 직렬화 + Lock broadcast.
 
     AI 명령은 생성자(로그인 회원)만 가능하며 크레딧 1회 차감(9-3).
@@ -166,7 +172,7 @@ async def generate(
         )
     prefs = user.preferences.model_dump()
 
-    async def action() -> Course:
+    async def action() -> GenerateResponse:
         course.locked = True
         await broadcast_lock(course_id, True)
         try:
@@ -179,7 +185,11 @@ async def generate(
         store.save(course)
         await broadcast_state(course_id, course.model_dump(mode="json"))
         await broadcast_lock(course_id, False)
-        return course
+        return GenerateResponse(
+            course=course,
+            relaxed=result.relaxed,
+            needs_confirmation=result.needs_confirmation,
+        )
 
     return await queues.run(course_id, action)
 

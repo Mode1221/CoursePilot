@@ -1,5 +1,11 @@
 import type { Course } from "@/types";
 
+export interface GenerateResponse {
+  course: Course;
+  relaxed: boolean;
+  needs_confirmation: boolean;
+}
+
 const BASE = process.env.NEXT_PUBLIC_API_BASE || "http://localhost:8000";
 
 export const api = {
@@ -17,7 +23,7 @@ export const api = {
     return res.json();
   },
 
-  async generate(id: string, text: string, userId?: string): Promise<Course> {
+  async generate(id: string, text: string, userId?: string): Promise<GenerateResponse> {
     const headers: Record<string, string> = { "Content-Type": "application/json" };
     if (userId) headers["X-User-Id"] = userId;
     const res = await fetch(`${BASE}/courses/${id}/generate`, {
