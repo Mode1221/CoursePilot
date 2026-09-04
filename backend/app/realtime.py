@@ -37,3 +37,8 @@ async def broadcast_lock(course_id: str, locked: bool) -> None:
 async def broadcast_progress(course_id: str, stage: str) -> None:
     """AI 처리 단계 실시간 전송 (5-4)."""
     await sio.emit("progress", {"course_id": course_id, "stage": stage}, room=course_id)
+
+
+async def broadcast_message(course_id: str, role: str, text: str) -> None:
+    """채팅 메시지 실시간 전송 (5-2)."""
+    await sio.emit("message", {"role": role, "text": text}, room=course_id)

@@ -40,6 +40,18 @@ class UserModel(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
 
 
+class ChatMessageModel(Base):
+    """채팅 로그. append-only (5-2)."""
+
+    __tablename__ = "chat_messages"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    course_id: Mapped[str] = mapped_column(String, index=True)
+    role: Mapped[str] = mapped_column(String)  # user | ai
+    text: Mapped[str] = mapped_column(Text)
+    created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
+
+
 class BookmarkModel(Base):
     """북마크: 내 코스뿐 아니라 타인이 공유한 코스도 저장 (9-4)."""
 

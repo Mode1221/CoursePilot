@@ -48,6 +48,12 @@ export const api = {
     return res.json();
   },
 
+  async messages(id: string): Promise<{ role: "user" | "ai"; text: string }[]> {
+    const res = await fetch(`${BASE}/courses/${id}/messages`);
+    if (!res.ok) throw new ApiError(res.status, "messages failed");
+    return res.json();
+  },
+
   async reviewSummary(placeId: string, placeName: string): Promise<{ summary: string; count: number }> {
     const res = await fetch(`${BASE}/reviews/summary`, {
       method: "POST",

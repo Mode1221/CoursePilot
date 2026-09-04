@@ -14,9 +14,12 @@ export default function PlanPage({ params }: { params: { id: string } }) {
   const setCourse = useCourseStore((s) => s.setCourse);
   const setLocked = useCourseStore((s) => s.setLocked);
   const setStage = useCourseStore((s) => s.setStage);
+  const setMessages = useCourseStore((s) => s.setMessages);
+  const appendMessage = useCourseStore((s) => s.appendMessage);
 
   useEffect(() => {
     api.getCourse(id).then(setCourse).catch(() => {});
+    api.messages(id).then(setMessages).catch(() => {});
 
     const socket = getSocket();
     socket.emit("join", { course_id: id });
@@ -27,14 +30,16 @@ export default function PlanPage({ params }: { params: { id: string } }) {
       setStage(null);
     });
     socket.on("progress", (d: { stage: string }) => setStage(d.stage));
+    socket.on("message", (m: { role: "user" | "ai"; text: string }) => appendMessage(m));
 
     return () => {
       socket.off("state");
       socket.off("locked");
       socket.off("unlocked");
       socket.off("progress");
+      socket.off("message");
     };
-  }, [id, setCourse, setLocked, setStage]);
+  }, [id, setCourse, setLocked, setStage, setMessages, appendMessage]);
 
   return (
     <div style={{ display: "flex", height: "100vh" }}>

@@ -14,7 +14,14 @@ from app.config import settings
 from app.pipeline.agent import generate_course
 from app.pipeline.edit import EditCommand, apply_edit, parse_edit
 from app.queue import queues
-from app.realtime import broadcast_lock, broadcast_progress, broadcast_state, sio
+from app.chat import ChatMessage, chat_store
+from app.realtime import (
+    broadcast_lock,
+    broadcast_message,
+    broadcast_progress,
+    broadcast_state,
+    sio,
+)
 from app.schemas import Course
 from app.bookmarks import bookmark_store
 from app.store import store
@@ -31,6 +38,7 @@ async def _startup() -> None:
     store.enable_db(ready)
     user_store.enable_db(ready)
     bookmark_store.enable_db(ready)
+    chat_store.enable_db(ready)
 
 
 api.add_middleware(
@@ -176,6 +184,9 @@ async def generate(
     async def action() -> GenerateResponse:
         course.locked = True
         await broadcast_lock(course_id, True)
+        chat_store.append(course_id, "user", req.text)  # append-only 로그
+        await broadcast_message(course_id, "user", req.text)
+
         async def on_progress(stage: str) -> None:
             await broadcast_progress(course_id, stage)
 
@@ -197,13 +208,33 @@ async def generate(
         finally:
             course.locked = False
         store.save(course)
+
+        ai_text = _ai_reply(course, relaxed, needs_confirmation)
+        chat_store.append(course_id, "ai", ai_text)
         await broadcast_state(course_id, course.model_dump(mode="json"))
+        await broadcast_message(course_id, "ai", ai_text)
         await broadcast_lock(course_id, False)
         return GenerateResponse(
             course=course, relaxed=relaxed, needs_confirmation=needs_confirmation
         )
 
     return await queues.run(course_id, action)
+
+
+def _ai_reply(course: Course, relaxed: bool, needs_confirmation: bool) -> str:
+    n = len(course.items)
+    if needs_confirmation:
+        return "조건에 맞는 장소가 부족합니다. 조건을 완화할까요?"
+    base = f"{n}곳으로 코스를 구성했어요."
+    if relaxed:
+        base += " 일부 조건은 완화했어요."
+    return base
+
+
+@api.get("/courses/{course_id}/messages", response_model=list[ChatMessage])
+async def get_messages(course_id: str) -> list[ChatMessage]:
+    """채팅 로그 조회 (append-only). 공유 뷰에서는 노출하지 않음."""
+    return chat_store.list(course_id)
 
 
 # Socket.IO 를 FastAPI 에 마운트한 ASGI 앱

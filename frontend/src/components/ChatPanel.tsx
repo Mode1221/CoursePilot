@@ -27,6 +27,7 @@ export default function ChatPanel({ courseId }: { courseId: string }) {
   const [notice, setNotice] = useState<string | null>(null);
   const locked = useCourseStore((s) => s.locked);
   const stage = useCourseStore((s) => s.stage);
+  const messages = useCourseStore((s) => s.messages);
   const setCourse = useCourseStore((s) => s.setCourse);
   const course = useCourseStore((s) => s.course);
 
@@ -71,13 +72,33 @@ export default function ChatPanel({ courseId }: { courseId: string }) {
         </button>
       </div>
 
-      <div style={{ flex: 1, padding: 12, overflow: "auto", color: "#666" }}>
-        예: &quot;토요일 오후 1시 성수동, 3시간짜리 코스, 도보 10분 이내&quot;
+      <div style={{ flex: 1, padding: 12, overflow: "auto", display: "flex", flexDirection: "column", gap: 8 }}>
+        {messages.length === 0 && (
+          <p style={{ color: "#999", fontSize: 13 }}>
+            예: &quot;토요일 오후 1시 성수동, 3시간짜리 코스, 도보 10분 이내&quot;
+          </p>
+        )}
+        {messages.map((m, i) => (
+          <div
+            key={i}
+            style={{
+              alignSelf: m.role === "user" ? "flex-end" : "flex-start",
+              maxWidth: "85%",
+              padding: "8px 11px",
+              borderRadius: 12,
+              fontSize: 14,
+              background: m.role === "user" ? "#0f9d84" : "#f2f4f7",
+              color: m.role === "user" ? "#fff" : "#222",
+            }}
+          >
+            {m.text}
+          </div>
+        ))}
         {userId != null && questionsLeft != null && (
-          <p style={{ color: "#888", fontSize: 13 }}>질문 {questionsLeft}회 남음</p>
+          <p style={{ color: "#888", fontSize: 12 }}>질문 {questionsLeft}회 남음</p>
         )}
         {userId == null && (
-          <p style={{ color: "#888", fontSize: 13 }}>참여자는 수동 편집만 가능합니다.</p>
+          <p style={{ color: "#888", fontSize: 12 }}>참여자는 수동 편집만 가능합니다.</p>
         )}
         {locked && <p style={{ color: "#c60" }}>AI 처리 중… {stageLabel(stage)} · 편집이 잠깁니다.</p>}
         {notice && <p style={{ color: "#c60" }}>{notice}</p>}
