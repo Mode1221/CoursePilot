@@ -16,3 +16,7 @@ pnpm-debug.log*
 
 # Misc
 .DS_Store
+
+# TS
+*.tsbuildinfo
+next-env.d.ts
