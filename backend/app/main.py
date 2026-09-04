@@ -15,6 +15,7 @@ from app.pipeline.agent import generate_course
 from app.queue import queues
 from app.realtime import broadcast_lock, broadcast_state, sio
 from app.schemas import Course
+from app.bookmarks import bookmark_store
 from app.store import store
 from app.users import CreditError, Preferences, user_store
 
@@ -28,6 +29,7 @@ async def _startup() -> None:
     ready = init_db()
     store.enable_db(ready)
     user_store.enable_db(ready)
+    bookmark_store.enable_db(ready)
 
 
 api.add_middleware(
@@ -44,6 +46,9 @@ class GenerateRequest(BaseModel):
 
 class SignupRequest(BaseModel):
     phone: str  # 전화번호 인증은 별도 프로세스 가정, 여기선 인증 완료 후 호출
+    referrer_id: str | None = None  # 초대한 회원 id (9-4 레퍼럴)
+
+REFERRAL_BONUS = 1
 
 
 @api.get("/health")
@@ -54,6 +59,8 @@ async def health() -> dict:
 @api.post("/signup")
 async def signup(req: SignupRequest) -> dict:
     user = user_store.create(req.phone)
+    if req.referrer_id:  # 신규 가입 시 초대자에게 보너스 크레딧
+        user_store.grant_credits(req.referrer_id, REFERRAL_BONUS)
     return {"user_id": user.id, "credits_left": user.credits_left}
 
 
@@ -75,8 +82,34 @@ async def get_credits(user_id: str) -> dict:
 
 
 @api.post("/courses", response_model=Course)
-async def create_course() -> Course:
-    return store.create()
+async def create_course(x_user_id: str | None = Header(default=None)) -> Course:
+    return store.create(owner_id=x_user_id)
+
+
+@api.get("/users/{user_id}/courses", response_model=list[Course])
+async def my_courses(user_id: str) -> list[Course]:
+    """마이페이지: 내가 생성한 코스 히스토리 (9-4)."""
+    return store.list_by_owner(user_id)
+
+
+@api.get("/users/{user_id}/bookmarks", response_model=list[Course])
+async def my_bookmarks(user_id: str) -> list[Course]:
+    ids = bookmark_store.list_course_ids(user_id)
+    return [c for c in (store.get(cid) for cid in ids) if c is not None]
+
+
+@api.put("/users/{user_id}/bookmarks/{course_id}")
+async def add_bookmark(user_id: str, course_id: str) -> dict:
+    if store.get(course_id) is None:
+        raise HTTPException(status_code=404, detail="course not found")
+    bookmark_store.add(user_id, course_id)
+    return {"ok": True}
+
+
+@api.delete("/users/{user_id}/bookmarks/{course_id}")
+async def remove_bookmark(user_id: str, course_id: str) -> dict:
+    bookmark_store.remove(user_id, course_id)
+    return {"ok": True}
 
 
 @api.get("/courses/{course_id}", response_model=Course)

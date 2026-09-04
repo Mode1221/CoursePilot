@@ -62,6 +62,14 @@ class UserStore:
         )
         return self._save(user)
 
+    def grant_credits(self, user_id: str, amount: int) -> User | None:
+        """레퍼럴 등으로 무료 크레딧 추가 지급 (9-4)."""
+        user = self.get(user_id)
+        if user is None:
+            return None
+        user.credits_limit += amount
+        return self._save(user)
+
     def get(self, user_id: str) -> User | None:
         if self._db_ready:
             from app.db import SessionLocal

@@ -18,9 +18,25 @@ class CourseStore:
     def enable_db(self, ready: bool) -> None:
         self._db_ready = ready
 
-    def create(self, title: str = "새 코스") -> Course:
-        course = Course(id=secrets.token_urlsafe(8), title=title)
+    def create(self, title: str = "새 코스", owner_id: str | None = None) -> Course:
+        course = Course(id=secrets.token_urlsafe(8), title=title, owner_id=owner_id)
         return self.save(course)
+
+    def list_by_owner(self, owner_id: str) -> list[Course]:
+        if self._db_ready:
+            from sqlalchemy import select
+
+            from app.db import SessionLocal
+            from app.models import CourseModel
+
+            with SessionLocal() as s:
+                rows = s.execute(
+                    select(CourseModel.state)
+                    .where(CourseModel.owner_id == owner_id)
+                    .order_by(CourseModel.updated_at.desc())
+                ).all()
+                return [Course.model_validate(r[0]) for r in rows]
+        return [c for c in self._mem.values() if c.owner_id == owner_id]
 
     def get(self, course_id: str) -> Course | None:
         if self._db_ready:
@@ -47,6 +63,7 @@ class CourseStore:
                     s.add(row)
                 row.title = course.title
                 row.region = course.region
+                row.owner_id = course.owner_id
                 row.state = state
                 s.commit()
             return course

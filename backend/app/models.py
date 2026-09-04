@@ -18,6 +18,7 @@ class CourseModel(Base):
     id: Mapped[str] = mapped_column(String, primary_key=True)
     title: Mapped[str] = mapped_column(String, default="새 코스")
     region: Mapped[str | None] = mapped_column(String, nullable=True)
+    owner_id: Mapped[str | None] = mapped_column(String, index=True, nullable=True)
     state: Mapped[dict] = mapped_column(JSON)  # Course 전체 JSON 스냅샷
     created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
     updated_at: Mapped[datetime] = mapped_column(
@@ -36,6 +37,17 @@ class UserModel(Base):
     credits_used: Mapped[int] = mapped_column(Integer, default=0)
     credit_period: Mapped[str] = mapped_column(String, default="")  # YYYY-MM
     preferences: Mapped[dict] = mapped_column(JSON, default=dict)  # 온보딩 프로필
+    created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
+
+
+class BookmarkModel(Base):
+    """북마크: 내 코스뿐 아니라 타인이 공유한 코스도 저장 (9-4)."""
+
+    __tablename__ = "bookmarks"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    user_id: Mapped[str] = mapped_column(String, index=True)
+    course_id: Mapped[str] = mapped_column(String, index=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
 
 

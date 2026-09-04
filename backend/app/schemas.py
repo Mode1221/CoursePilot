@@ -55,6 +55,7 @@ class Course(BaseModel):
     id: str
     title: str = "새 코스"
     region: Optional[str] = None
+    owner_id: Optional[str] = None  # 생성자(로그인 회원) id
     items: list[TimelineItem] = Field(default_factory=list)
     locked: bool = False
 
