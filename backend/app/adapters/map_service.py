@@ -70,9 +70,31 @@ class MockMapService(MapService):
         )
 
 
+class SafeMapService(MapService):
+    """실 구현체 호출 실패 시 Mock 으로 폴백하는 래퍼(파이프라인 무중단)."""
+
+    def __init__(self, primary: MapService, fallback: MapService) -> None:
+        self._primary = primary
+        self._fallback = fallback
+
+    async def search_places(self, region, keywords, limit=10):
+        try:
+            result = await self._primary.search_places(region, keywords, limit)
+            return result or await self._fallback.search_places(region, keywords, limit)
+        except Exception:
+            return await self._fallback.search_places(region, keywords, limit)
+
+    async def get_route(self, origin, dest, mode):
+        try:
+            return await self._primary.get_route(origin, dest, mode)
+        except Exception:
+            return await self._fallback.get_route(origin, dest, mode)
+
+
 def get_map_service() -> MapService:
-    """설정에 따라 구현체 선택. 키 없으면 Mock 폴백."""
+    """설정에 따라 구현체 선택. 키 없으면 Mock, 있으면 Naver(+Mock 폴백)."""
     if settings.map_provider == "naver" and settings.naver_client_id:
-        # TODO: NaverMapService 구현
-        return MockMapService()
+        from app.adapters.naver import NaverMapService
+
+        return SafeMapService(NaverMapService(), MockMapService())
     return MockMapService()
