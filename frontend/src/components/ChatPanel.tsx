@@ -12,6 +12,7 @@ const STAGE_LABELS: Record<string, string> = {
   search: "후보 수집",
   validation: "영업시간·이동 검증",
   relaxing: "조건 완화 재시도",
+  editing: "부분 수정 반영",
   done: "마무리",
 };
 

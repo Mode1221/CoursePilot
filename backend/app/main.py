@@ -12,6 +12,7 @@ from pydantic import BaseModel
 from app.adapters.map_service import get_map_service
 from app.config import settings
 from app.pipeline.agent import generate_course
+from app.pipeline.edit import EditCommand, apply_edit, parse_edit
 from app.queue import queues
 from app.realtime import broadcast_lock, broadcast_progress, broadcast_state, sio
 from app.schemas import Course
@@ -178,20 +179,28 @@ async def generate(
         async def on_progress(stage: str) -> None:
             await broadcast_progress(course_id, stage)
 
+        relaxed = False
+        needs_confirmation = False
         try:
-            result = await generate_course(req.text, get_map_service(), prefs, on_progress)
-            course.items = result.timeline
-            if result.constraints.region:
-                course.region = result.constraints.region
+            edit_cmd = parse_edit(req.text) if course.items else EditCommand(action="none")
+            if edit_cmd.action != "none":
+                # 부분 수정: 해당 카드만 교체/삭제 후 전체 동선 재계산 (4-3)
+                await on_progress("editing")
+                course.items = await apply_edit(course, edit_cmd, get_map_service())
+            else:
+                result = await generate_course(req.text, get_map_service(), prefs, on_progress)
+                course.items = result.timeline
+                relaxed = result.relaxed
+                needs_confirmation = result.needs_confirmation
+                if result.constraints.region:
+                    course.region = result.constraints.region
         finally:
             course.locked = False
         store.save(course)
         await broadcast_state(course_id, course.model_dump(mode="json"))
         await broadcast_lock(course_id, False)
         return GenerateResponse(
-            course=course,
-            relaxed=result.relaxed,
-            needs_confirmation=result.needs_confirmation,
+            course=course, relaxed=relaxed, needs_confirmation=needs_confirmation
         )
 
     return await queues.run(course_id, action)

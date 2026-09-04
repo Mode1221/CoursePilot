@@ -72,5 +72,36 @@ async def build_timeline(
     return timeline
 
 
+async def recompute(
+    places: list[Place],
+    start_time: time,
+    mode: TravelMode,
+    map_service: MapService,
+    stay_min: int = 60,
+) -> list[TimelineItem]:
+    """주어진 장소 순서를 그대로 유지하며 도착/출발/이동만 재계산한다(드롭 없음).
+
+    수동 편집·부분 교체 후 동기화용 (4-3).
+    """
+    cursor = _as_datetime(start_time)
+    timeline: list[TimelineItem] = []
+    prev: Place | None = None
+
+    for place in places:
+        route: Route | None = None
+        if prev is not None:
+            route = await map_service.get_route(prev, place, mode)
+            cursor = cursor + timedelta(minutes=route.duration_min)
+            timeline[-1].travel_to_next = route
+
+        arrive = cursor.time()
+        depart_dt = cursor + timedelta(minutes=stay_min)
+        timeline.append(TimelineItem(place=place, arrive=arrive, depart=depart_dt.time()))
+        cursor = depart_dt
+        prev = place
+
+    return timeline
+
+
 def _as_datetime(t: time) -> datetime:
     return datetime.combine(date.today(), t)
