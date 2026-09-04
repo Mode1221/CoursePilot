@@ -19,6 +19,14 @@ from app.store import store
 
 api = FastAPI(title="CoursePilot API")
 
+
+@api.on_event("startup")
+async def _startup() -> None:
+    from app.db import init_db
+
+    store.enable_db(init_db())
+
+
 api.add_middleware(
     CORSMiddleware,
     allow_origins=settings.cors_origins,
