@@ -42,9 +42,28 @@ export default function MapView({
         />
       )}
 
+      {/* 구간 이동시간 라벨 */}
+      {pts.map((p, i) => {
+        const route = items[i].travel_to_next;
+        if (i >= pts.length - 1 || !route) return null;
+        const next = pts[i + 1];
+        const mx = (p.x + next.x) / 2;
+        const my = (p.y + next.y) / 2;
+        const label = `${MODE_LABEL[route.mode] ?? ""} ${route.duration_min}분`.trim();
+        const w = label.length * 7 + 14;
+        return (
+          <g key={`leg-${i}`}>
+            <rect x={mx - w / 2} y={my - 11} width={w} height={20} rx={10} fill="#ffffff" stroke="#0f9d84" />
+            <text x={mx} y={my + 3} textAnchor="middle" fontSize={11} fill="#0a6d5c">
+              {label}
+            </text>
+          </g>
+        );
+      })}
+
       {pts.map((p, i) => (
         <g key={items[i].place.id} style={{ cursor: "pointer" }} onClick={() => onSelect?.(i)}>
-          <circle cx={p.x} cy={p.y} r={14} fill="#e0533a" stroke="#fff" strokeWidth={3} />
+          <circle cx={p.x} cy={p.y} r={14} fill={pinColor(items[i].place.category)} stroke="#fff" strokeWidth={3} />
           <text x={p.x} y={p.y + 5} textAnchor="middle" fontSize={13} fill="#fff" fontWeight={700}>
             {i + 1}
           </text>
@@ -52,6 +71,13 @@ export default function MapView({
       ))}
     </svg>
   );
+}
+
+const MODE_LABEL: Record<string, string> = { walk: "도보", car: "차량", transit: "대중교통" };
+
+function pinColor(category?: string | null): string {
+  if (!category) return "#e0533a";
+  return /카페|cafe|디저트|베이커리|빵/i.test(category) ? "#3a6ee0" : "#e0533a";
 }
 
 function project(items: TimelineItem[]): { x: number; y: number }[] {
