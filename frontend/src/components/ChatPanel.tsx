@@ -1,25 +1,41 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
-import { api } from "@/services/api";
+import { api, ApiError } from "@/services/api";
 import { shareService } from "@/services/shareService";
 import { useCourseStore } from "@/store/courseStore";
+import { useUserStore } from "@/store/userStore";
 
 export default function ChatPanel({ courseId }: { courseId: string }) {
   const [text, setText] = useState("");
   const [sending, setSending] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const locked = useCourseStore((s) => s.locked);
   const setCourse = useCourseStore((s) => s.setCourse);
   const course = useCourseStore((s) => s.course);
 
+  const { userId, questionsLeft, load, setQuestionsLeft } = useUserStore();
+
+  useEffect(() => {
+    load();
+  }, [load]);
+
+  useEffect(() => {
+    if (userId) api.credits(userId).then((c) => setQuestionsLeft(c.questions_left)).catch(() => {});
+  }, [userId, setQuestionsLeft]);
+
   async function send() {
     if (!text.trim() || sending) return;
+    setError(null);
     setSending(true);
     try {
-      const updated = await api.generate(courseId, text);
+      const updated = await api.generate(courseId, text, userId ?? undefined);
       setCourse(updated);
       setText("");
+      if (userId) api.credits(userId).then((c) => setQuestionsLeft(c.questions_left)).catch(() => {});
+    } catch (e) {
+      setError(e instanceof ApiError ? e.message : "요청 실패");
     } finally {
       setSending(false);
     }
@@ -34,7 +50,14 @@ export default function ChatPanel({ courseId }: { courseId: string }) {
 
       <div style={{ flex: 1, padding: 12, overflow: "auto", color: "#666" }}>
         예: &quot;토요일 오후 1시 성수동, 3시간짜리 코스, 도보 10분 이내&quot;
+        {userId != null && questionsLeft != null && (
+          <p style={{ color: "#888", fontSize: 13 }}>질문 {questionsLeft}회 남음</p>
+        )}
+        {userId == null && (
+          <p style={{ color: "#888", fontSize: 13 }}>참여자는 수동 편집만 가능합니다.</p>
+        )}
         {locked && <p style={{ color: "#c60" }}>AI 처리 중… 편집이 잠깁니다.</p>}
+        {error && <p style={{ color: "#c00" }}>{error}</p>}
       </div>
 
       <div style={{ padding: 12, borderTop: "1px solid #eee", display: "flex", gap: 8 }}>
