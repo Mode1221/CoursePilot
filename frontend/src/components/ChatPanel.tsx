@@ -45,7 +45,9 @@ export default function ChatPanel({ courseId }: { courseId: string }) {
     <div style={{ display: "flex", flexDirection: "column", height: "100%" }}>
       <div style={{ padding: 12, borderBottom: "1px solid #eee", display: "flex", justifyContent: "space-between" }}>
         <strong>{course?.title ?? "코스"}</strong>
-        <button onClick={() => shareService.share(window.location.href)}>공유</button>
+        <button onClick={() => shareService.share(`${window.location.origin}/share/${courseId}`)}>
+          공유
+        </button>
       </div>
 
       <div style={{ flex: 1, padding: 12, overflow: "auto", color: "#666" }}>

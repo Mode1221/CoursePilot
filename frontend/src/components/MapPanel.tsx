@@ -7,12 +7,13 @@ import { useCourseStore } from "@/store/courseStore";
 import type { Place } from "@/types";
 
 // 시각화 패널: 지도 + 타임라인. 지도 SDK 는 mapService 어댑터를 통해 추후 연결.
-export default function MapPanel() {
+export default function MapPanel({ readOnly = false }: { readOnly?: boolean }) {
   const course = useCourseStore((s) => s.course);
   const locked = useCourseStore((s) => s.locked);
   const reorder = useCourseStore((s) => s.reorder);
   const remove = useCourseStore((s) => s.remove);
   const [selected, setSelected] = useState<Place | null>(null);
+  const editDisabled = readOnly || locked;
 
   if (!course) return <div style={{ padding: 24 }}>불러오는 중…</div>;
 
@@ -57,17 +58,19 @@ export default function MapPanel() {
                 → 다음까지 {item.travel_to_next.duration_min}분 ({item.travel_to_next.mode})
               </div>
             )}
-            <div style={{ marginTop: 6, display: "flex", gap: 6 }}>
-              <button disabled={locked || i === 0} onClick={() => reorder(i, i - 1)}>
-                ↑
-              </button>
-              <button disabled={locked || i === course.items.length - 1} onClick={() => reorder(i, i + 1)}>
-                ↓
-              </button>
-              <button disabled={locked} onClick={() => remove(i)}>
-                삭제
-              </button>
-            </div>
+            {!readOnly && (
+              <div style={{ marginTop: 6, display: "flex", gap: 6 }}>
+                <button disabled={editDisabled || i === 0} onClick={() => reorder(i, i - 1)}>
+                  ↑
+                </button>
+                <button disabled={editDisabled || i === course.items.length - 1} onClick={() => reorder(i, i + 1)}>
+                  ↓
+                </button>
+                <button disabled={editDisabled} onClick={() => remove(i)}>
+                  삭제
+                </button>
+              </div>
+            )}
           </li>
         ))}
       </ol>
