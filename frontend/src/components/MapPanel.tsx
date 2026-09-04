@@ -2,37 +2,33 @@
 
 import { useState } from "react";
 
+import MapView from "@/components/MapView";
 import PlaceDetailModal from "@/components/PlaceDetailModal";
 import { useCourseStore } from "@/store/courseStore";
 import type { Place } from "@/types";
 
-// 시각화 패널: 지도 + 타임라인. 지도 SDK 는 mapService 어댑터를 통해 추후 연결.
+// 시각화 패널: 지도(SVG 렌더) + 타임라인. 실제 지도 SDK 는 mapService 어댑터로 교체 예정.
 export default function MapPanel({ readOnly = false }: { readOnly?: boolean }) {
   const course = useCourseStore((s) => s.course);
   const locked = useCourseStore((s) => s.locked);
   const reorder = useCourseStore((s) => s.reorder);
   const remove = useCourseStore((s) => s.remove);
   const [selected, setSelected] = useState<Place | null>(null);
+  const [dragIndex, setDragIndex] = useState<number | null>(null);
   const editDisabled = readOnly || locked;
 
   if (!course) return <div style={{ padding: 24 }}>불러오는 중…</div>;
 
+  function onDrop(to: number) {
+    if (dragIndex === null || dragIndex === to || editDisabled) return;
+    reorder(dragIndex, to);
+    setDragIndex(null);
+  }
+
   return (
     <div style={{ padding: 16 }}>
-      {/* TODO: Naver/Google 지도 렌더링 (mapService 경유). 지금은 타임라인 리스트만. */}
-      <div
-        style={{
-          height: 240,
-          background: "#f2f4f7",
-          borderRadius: 8,
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "center",
-          color: "#999",
-          marginBottom: 16,
-        }}
-      >
-        지도 영역 (핀 · 동선 선분)
+      <div style={{ marginBottom: 16 }}>
+        <MapView items={course.items} onSelect={(i) => setSelected(course.items[i].place)} />
       </div>
 
       <h3>타임라인 {locked && <span style={{ color: "#c60" }}>(잠금)</span>}</h3>
@@ -40,7 +36,21 @@ export default function MapPanel({ readOnly = false }: { readOnly?: boolean }) {
 
       <ol style={{ listStyle: "none", padding: 0 }}>
         {course.items.map((item, i) => (
-          <li key={item.place.id} style={{ border: "1px solid #eee", borderRadius: 8, padding: 12, marginBottom: 8 }}>
+          <li
+            key={item.place.id}
+            draggable={!editDisabled}
+            onDragStart={() => setDragIndex(i)}
+            onDragOver={(e) => e.preventDefault()}
+            onDrop={() => onDrop(i)}
+            style={{
+              border: "1px solid #eee",
+              borderRadius: 8,
+              padding: 12,
+              marginBottom: 8,
+              cursor: editDisabled ? "default" : "grab",
+              opacity: dragIndex === i ? 0.5 : 1,
+            }}
+          >
             <div style={{ display: "flex", justifyContent: "space-between" }}>
               <strong
                 onClick={() => setSelected(item.place)}
