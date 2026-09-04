@@ -40,6 +40,25 @@ export const api = {
     return res.json();
   },
 
+  async reviewSummary(placeId: string, placeName: string): Promise<{ summary: string; count: number }> {
+    const res = await fetch(`${BASE}/reviews/summary`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ place_id: placeId, place_name: placeName }),
+    });
+    if (!res.ok) throw new ApiError(res.status, "reviewSummary failed");
+    return res.json();
+  },
+
+  async setPreferences(userId: string, prefs: Record<string, unknown>): Promise<void> {
+    const res = await fetch(`${BASE}/users/${userId}/preferences`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(prefs),
+    });
+    if (!res.ok) throw new ApiError(res.status, "setPreferences failed");
+  },
+
   async credits(userId: string): Promise<{ questions_left: number }> {
     const res = await fetch(`${BASE}/users/${userId}/credits`);
     if (!res.ok) throw new ApiError(res.status, "credits failed");

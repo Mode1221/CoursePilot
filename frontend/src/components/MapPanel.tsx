@@ -1,6 +1,10 @@
 "use client";
 
+import { useState } from "react";
+
+import PlaceDetailModal from "@/components/PlaceDetailModal";
 import { useCourseStore } from "@/store/courseStore";
+import type { Place } from "@/types";
 
 // 시각화 패널: 지도 + 타임라인. 지도 SDK 는 mapService 어댑터를 통해 추후 연결.
 export default function MapPanel() {
@@ -8,6 +12,7 @@ export default function MapPanel() {
   const locked = useCourseStore((s) => s.locked);
   const reorder = useCourseStore((s) => s.reorder);
   const remove = useCourseStore((s) => s.remove);
+  const [selected, setSelected] = useState<Place | null>(null);
 
   if (!course) return <div style={{ padding: 24 }}>불러오는 중…</div>;
 
@@ -36,7 +41,10 @@ export default function MapPanel() {
         {course.items.map((item, i) => (
           <li key={item.place.id} style={{ border: "1px solid #eee", borderRadius: 8, padding: 12, marginBottom: 8 }}>
             <div style={{ display: "flex", justifyContent: "space-between" }}>
-              <strong>
+              <strong
+                onClick={() => setSelected(item.place)}
+                style={{ cursor: "pointer", textDecoration: "underline" }}
+              >
                 {i + 1}. {item.place.name}
               </strong>
               <span style={{ color: "#888" }}>
@@ -63,6 +71,8 @@ export default function MapPanel() {
           </li>
         ))}
       </ol>
+
+      {selected && <PlaceDetailModal place={selected} onClose={() => setSelected(null)} />}
     </div>
   );
 }

@@ -87,6 +87,27 @@ async def get_course(course_id: str) -> Course:
     return course
 
 
+class ReviewSummaryRequest(BaseModel):
+    place_id: str
+    place_name: str
+    query: str = "분위기 방문 후기"
+
+
+@api.post("/reviews/summary")
+async def review_summary(req: ReviewSummaryRequest) -> dict:
+    """장소 상세 모달용 리뷰 요약 (4-2 + 8장 RAG)."""
+    from app.reviews.rag import ingest_place_reviews, retrieve, summarize_reviews
+
+    db_ready = store._db_ready
+    found = await retrieve(req.place_id, req.query, db_ready=db_ready)
+    if not found:
+        # 최초 조회 시 수집 후 재검색
+        await ingest_place_reviews(req.place_id, req.place_name, db_ready)
+        found = await retrieve(req.place_id, req.query, db_ready=db_ready)
+    summary = await summarize_reviews(found)
+    return {"summary": summary, "count": len(found)}
+
+
 @api.post("/courses/{course_id}/generate", response_model=Course)
 async def generate(
     course_id: str,

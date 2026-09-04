@@ -40,6 +40,39 @@ async def ingest_place_reviews(place_id: str, place_name: str, db_ready: bool) -
     return stored
 
 
+async def summarize_reviews(reviews: list[str]) -> str:
+    """검색된 비협찬 리뷰를 요약. 2차 LLM 필터로 협찬 의심 제외 지시 (8장).
+
+    키 없으면 단순 결합으로 폴백.
+    """
+    if not reviews:
+        return "참고할 리뷰가 없습니다."
+
+    from app.config import settings
+
+    if not settings.openai_api_key:
+        return " ".join(reviews)[:300]
+
+    try:
+        from openai import AsyncOpenAI
+
+        client = AsyncOpenAI(api_key=settings.openai_api_key)
+        joined = "\n".join(f"- {r}" for r in reviews)
+        resp = await client.chat.completions.create(
+            model=settings.openai_model,
+            messages=[
+                {
+                    "role": "system",
+                    "content": "리뷰를 2~3문장으로 요약. 협찬/체험단 의심 리뷰는 제외하고 참고용으로만 정리.",
+                },
+                {"role": "user", "content": joined},
+            ],
+        )
+        return resp.choices[0].message.content or ""
+    except Exception:
+        return " ".join(reviews)[:300]
+
+
 async def retrieve(place_id: str, query: str, k: int = 3, db_ready: bool = False) -> list[str]:
     """질의와 유사한 비협찬 리뷰 top-k 반환 (pgvector 코사인 거리)."""
     if not db_ready:
