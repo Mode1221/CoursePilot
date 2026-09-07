@@ -1,10 +1,11 @@
 "use client";
 
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 
 import ChatPanel from "@/components/ChatPanel";
 import ConnectionBanner from "@/components/ConnectionBanner";
 import MapPanel from "@/components/MapPanel";
+import { useIsNarrow } from "@/hooks/useIsNarrow";
 import { api } from "@/services/api";
 import { getSocket } from "@/services/socket";
 import { useCourseStore } from "@/store/courseStore";
@@ -20,6 +21,8 @@ export default function PlanPage({ params }: { params: { id: string } }) {
   const setConnected = useCourseStore((s) => s.setConnected);
   const setNotFound = useCourseStore((s) => s.setNotFound);
   const notFound = useCourseStore((s) => s.notFound);
+  const narrow = useIsNarrow();
+  const [tab, setTab] = useState<"map" | "chat">("map");
 
   useEffect(() => {
     // 캐시 유실/재연결 시 서버에서 현재 상태 refetch (5-4)
@@ -65,6 +68,39 @@ export default function PlanPage({ params }: { params: { id: string } }) {
         <p style={{ color: "#888" }}>링크가 잘못되었거나 삭제된 코스일 수 있어요.</p>
         <a href="/">새 코스 시작하기</a>
       </main>
+    );
+  }
+
+  // 좁은 화면(웹뷰/모바일): 지도·챗봇을 탭 전환식 세로 레이아웃으로
+  if (narrow) {
+    return (
+      <div style={{ display: "flex", flexDirection: "column", height: "100vh" }}>
+        <ConnectionBanner />
+        <div style={{ display: "flex", borderBottom: "1px solid #eee" }}>
+          {(["map", "chat"] as const).map((t) => (
+            <button
+              key={t}
+              onClick={() => setTab(t)}
+              style={{
+                flex: 1,
+                padding: 12,
+                border: "none",
+                background: tab === t ? "#fff" : "#f2f4f7",
+                fontWeight: tab === t ? 600 : 400,
+                borderBottom: tab === t ? "2px solid #0f9d84" : "2px solid transparent",
+              }}
+            >
+              {t === "map" ? "지도·타임라인" : "AI 챗봇"}
+            </button>
+          ))}
+        </div>
+        <div style={{ flex: 1, overflow: "auto", display: tab === "map" ? "block" : "none" }}>
+          <MapPanel />
+        </div>
+        <div style={{ flex: 1, overflow: "hidden", display: tab === "chat" ? "flex" : "none", flexDirection: "column" }}>
+          <ChatPanel courseId={id} />
+        </div>
+      </div>
     );
   }
 

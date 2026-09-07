@@ -6,6 +6,11 @@ export const metadata: Metadata = {
   description: "검증된 모임 동선 플래너",
 };
 
+export const viewport = {
+  width: "device-width",
+  initialScale: 1,
+};
+
 export default function RootLayout({ children }: { children: ReactNode }) {
   return (
     <html lang="ko">
