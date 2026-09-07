@@ -55,6 +55,17 @@ class FeedbackStore:
                     agg[e.kind] += 1
         return dict(agg)
 
+    def acceptance_rate(self, default: float = 0.5) -> float:
+        """완화 수용률(#16). accepted/(accepted+rejected). 표본 없으면 default.
+
+        높을수록 사용자가 완화를 잘 받아들인다 → 완화를 더 과감히 적용.
+        """
+        c = self.counts()
+        acc = c.get("relax_accepted", 0)
+        rej = c.get("relax_rejected", 0)
+        total = acc + rej
+        return acc / total if total else default
+
     @staticmethod
     def _db_ready() -> bool:
         from app.db import is_ready

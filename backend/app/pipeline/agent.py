@@ -15,6 +15,9 @@ from app.schemas import PlanConstraints, TimelineItem
 
 MIN_VALID = 3  # 유효 후보가 이 개수 미만이면 조건 완화
 
+# 완화해도 유지할 하드성 키워드(식이 제한 등 타협 불가)
+_HARD_KEYWORDS = {"비건", "채식", "할랄", "글루텐프리", "노키즈"}
+
 # 진행 단계 콜백 (5-4 실시간 상태 표시). 미지정 시 무동작.
 ProgressFn = Callable[[str], Awaitable[None]]
 
@@ -53,11 +56,20 @@ async def generate_course(
         return PlanResult(constraints, timeline, relaxed=False, needs_confirmation=False)
 
     # 7-4 조건 완화: 소프트 제약(이동시간 여유폭)부터 단계적 완화. 하드 제약(예산)은 유지.
+    # #16 학습: 완화 수용률이 높을수록 이동시간을 더 과감히(1.5~2.0x) 완화.
     await progress("relaxing")
+    from app.feedback import feedback_store
+
+    factor = 1.5 + 0.5 * feedback_store.acceptance_rate()  # 1.75 기본, 2.0 상한
     relaxed_c = constraints.model_copy(deep=True)
     if relaxed_c.max_travel_min is not None:
-        relaxed_c.max_travel_min = int(relaxed_c.max_travel_min * 1.5)
+        relaxed_c.max_travel_min = int(relaxed_c.max_travel_min * factor)
     timeline = await _attempt(relaxed_c, map_service)
+
+    # 그래도 부족하면 소프트 키워드 제약을 완화(다이어트 등 하드성 키워드는 유지)
+    if len(timeline) < MIN_VALID and relaxed_c.keywords:
+        relaxed_c.keywords = [k for k in relaxed_c.keywords if k in _HARD_KEYWORDS]
+        timeline = await _attempt(relaxed_c, map_service)
 
     needs_confirmation = len(timeline) < MIN_VALID
     await progress("done")
