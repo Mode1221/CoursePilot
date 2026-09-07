@@ -123,6 +123,16 @@ class OutcomeModel(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
 
 
+class CooccurrenceModel(Base):
+    """장소 공동 채택(경량 협업 필터링). place_a < place_b 정규화 저장."""
+
+    __tablename__ = "place_cooccurrence"
+
+    place_a: Mapped[str] = mapped_column(String, primary_key=True)
+    place_b: Mapped[str] = mapped_column(String, primary_key=True)
+    count: Mapped[float] = mapped_column(Float, default=0.0)
+
+
 class ChatMessageModel(Base):
     """채팅 로그. append-only (5-2)."""
 

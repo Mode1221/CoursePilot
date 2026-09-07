@@ -35,7 +35,12 @@ def test_score_place_rewards_context():
 
 @pytest.mark.asyncio
 async def test_planner_prefers_context_match(monkeypatch):
+    from app.cooccurrence import cooccurrence_store
+    from app.popularity import popularity_store
+
     time_context_store._mem.clear()
+    cooccurrence_store._mem.clear()
+    popularity_store._mem.clear()
     cands = await MockMapService().search_places("성수동", [], limit=6)
     target = cands[-1]
     # 저녁 시간대에 강하게 채택된 장소

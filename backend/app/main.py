@@ -293,6 +293,11 @@ async def generate(
             from app.pipeline.planner import classify
 
             behavior_store.bump(x_user_id, [classify(it.place) for it in course.items])
+        # 협업 필터링(활용): 함께 채택된 장소 쌍 공동 채택 누적
+        if len(new_ids) >= 2:
+            from app.cooccurrence import cooccurrence_store
+
+            cooccurrence_store.bump_course(new_ids)
         # 피드백(#16): 완화 제안/적용 로깅
         if needs_confirmation:
             feedback_store.log(course_id, "relax_offered")

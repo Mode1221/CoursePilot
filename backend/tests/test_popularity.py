@@ -43,7 +43,10 @@ def test_score_place_rewards_popularity():
 @pytest.mark.asyncio
 async def test_planner_prefers_popular_place(monkeypatch):
     # 동일 평점 후보들 중 인기 높은 장소가 상위 채택되는지
+    from app.cooccurrence import cooccurrence_store
+
     popularity_store._mem.clear()
+    cooccurrence_store._mem.clear()
     cands = await MockMapService().search_places("성수동", [], limit=6)
     popular = cands[-1]  # 임의 장소에 큰 인기 부여
     popularity_store.bump(popular.id, weight=100)
