@@ -20,6 +20,13 @@ def test_parse_constraints():
     assert "조용한" in c.keywords
 
 
+def test_duration_only_not_parsed_as_hour():
+    # "5시간"의 '시'를 시각으로 오인하지 않아야 함
+    c = parse_constraints("5시간 코스")
+    assert c.start_time is None
+    assert c.duration_min == 300
+
+
 def test_is_open_at_break_time():
     p = Place(
         id="x", name="x", lat=0, lng=0,

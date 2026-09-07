@@ -9,7 +9,8 @@ from datetime import time
 
 from app.schemas import PlanConstraints, TravelMode
 
-_HOUR_RE = re.compile(r"(오전|오후)?\s*(\d{1,2})\s*시")
+# "5시간"의 '시'를 시각으로 오인하지 않도록 뒤에 '간'이 오면 제외
+_HOUR_RE = re.compile(r"(오전|오후)?\s*(\d{1,2})\s*시(?!간)")
 _DURATION_RE = re.compile(r"(\d{1,2})\s*시간")
 _TRAVEL_RE = re.compile(r"(도보|차량|대중교통)?\s*(\d{1,3})\s*분")
 _BUDGET_RE = re.compile(r"(\d+)\s*만\s*원")
