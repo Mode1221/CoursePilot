@@ -32,6 +32,28 @@ def test_midnight_am_parsing():
     assert c.start_time == time(0, 0)
 
 
+def test_parse_minute_and_half():
+    assert parse_constraints("오후 1시 30분 코스").start_time == time(13, 30)
+    assert parse_constraints("오후 7시반 강남역").start_time == time(19, 30)
+
+
+def test_duration_half_and_end_time():
+    c = parse_constraints("오후 1시 2시간 반 코스")
+    assert c.duration_min == 150
+    assert c.end_time == time(15, 30)
+
+
+def test_budget_won_and_man_cheon():
+    assert parse_constraints("예산 3만 5천원").budget_max == 35_000
+    assert parse_constraints("1인 20000원 이하").budget_max == 20_000
+
+
+def test_companion_and_new_keywords():
+    c = parse_constraints("여친이랑 루프탑 야경 데이트")
+    assert c.companion == "데이트"
+    assert "루프탑" in c.keywords and "야경" in c.keywords
+
+
 def test_is_open_at_break_time():
     p = Place(
         id="x", name="x", lat=0, lng=0,

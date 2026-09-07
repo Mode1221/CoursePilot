@@ -9,21 +9,27 @@ from datetime import time
 
 from app.schemas import PlanConstraints, TravelMode
 
-# "5시간"의 '시'를 시각으로 오인하지 않도록 뒤에 '간'이 오면 제외
-_HOUR_RE = re.compile(r"(오전|오후)?\s*(\d{1,2})\s*시(?!간)")
-_DURATION_RE = re.compile(r"(\d{1,2})\s*시간")
+# "5시간"의 '시'를 시각으로 오인하지 않도록 뒤에 '간'이 오면 제외.
+# 분("1시 30분") / 반("1시반") 도 함께 캡처.
+_HOUR_RE = re.compile(r"(오전|오후)?\s*(\d{1,2})\s*시(?!간)\s*(?:(\d{1,2})\s*분|(반))?")
+_DURATION_RE = re.compile(r"(\d{1,2})\s*시간\s*(반)?")
 _TRAVEL_RE = re.compile(r"(도보|차량|대중교통)?\s*(\d{1,3})\s*분")
-_BUDGET_RE = re.compile(r"(\d+)\s*만\s*원")
+# "3만원", "3만 5천원" 은 만원, 그 외 "20000원" 은 원 단위
+_BUDGET_MAN_RE = re.compile(r"(\d+)\s*만\s*(?:(\d)\s*천)?\s*원")
+_BUDGET_WON_RE = re.compile(r"(\d{4,})\s*원")
 
 _MODE_MAP = {"도보": TravelMode.WALK, "차량": TravelMode.CAR, "대중교통": TravelMode.TRANSIT}
-_SOFT_KEYWORDS = ["조용한", "활기찬", "비건", "분위기", "가성비", "뷰", "데이트"]
+_SOFT_KEYWORDS = [
+    "조용한", "활기찬", "비건", "채식", "분위기", "가성비", "뷰", "데이트",
+    "루프탑", "감성", "이색", "브런치", "노키즈", "반려동물", "주차", "야경", "핫플",
+]
 
 # 동행유형(컨텍스트 신호): 표현 → 정규화 라벨
 _COMPANION_MAP = {
-    "데이트": ["데이트", "여자친구", "남자친구", "연인", "썸"],
-    "회식": ["회식", "단체", "팀", "동료", "술자리"],
-    "가족": ["가족", "부모님", "엄마", "아빠", "아이", "아기"],
-    "친구": ["친구", "친구들", "동창"],
+    "데이트": ["데이트", "여자친구", "남자친구", "여친", "남친", "연인", "썸", "부부", "아내", "남편"],
+    "회식": ["회식", "단체", "팀", "동료", "술자리", "부서"],
+    "가족": ["가족", "부모님", "엄마", "아빠", "아이", "아기", "부모", "조부모"],
+    "친구": ["친구", "친구들", "동창", "친구랑"],
     "혼자": ["혼자", "혼밥", "혼술", "나홀로"],
 }
 
@@ -37,26 +43,28 @@ def parse_constraints(text: str) -> PlanConstraints:
     if region_m:
         c.region = region_m.group(1)
 
-    # 시작 시각
+    # 시작 시각 (분/반 포함)
     hm = _HOUR_RE.search(text)
     if hm:
         hour = int(hm.group(2))
         ampm = hm.group(1)
+        minute = 30 if hm.group(4) else (int(hm.group(3)) if hm.group(3) else 0)
+        minute = min(minute, 59)
         if ampm == "오후" and hour < 12:
             hour += 12
         elif ampm == "오전" and hour == 12:
             hour = 0  # 오전 12시 = 자정
-        c.start_time = time(hour % 24, 0)
+        c.start_time = time(hour % 24, minute)
 
-    # 소요 시간 → 종료 시각
+    # 소요 시간 → 종료 시각 (N시간 / N시간 반)
     dm = _DURATION_RE.search(text)
     if dm:
-        c.duration_min = int(dm.group(1)) * 60
+        c.duration_min = int(dm.group(1)) * 60 + (30 if dm.group(2) else 0)
         if c.start_time:
-            end_hour = c.start_time.hour + int(dm.group(1))
+            total = c.start_time.hour * 60 + c.start_time.minute + c.duration_min
             # 자정을 넘기면 시각으로 절단하지 않고 종료 미지정(같은 날 내 열림)으로 둔다.
-            if end_hour < 24:
-                c.end_time = time(end_hour, c.start_time.minute)
+            if total < 24 * 60:
+                c.end_time = time(total // 60, total % 60)
 
     # 이동수단 + 이동시간 상한
     tm = _TRAVEL_RE.search(text)
@@ -65,10 +73,14 @@ def parse_constraints(text: str) -> PlanConstraints:
             c.travel_mode = _MODE_MAP[tm.group(1)]
         c.max_travel_min = int(tm.group(2))
 
-    # 예산 (하드 제약)
-    bm = _BUDGET_RE.search(text)
+    # 예산 (하드 제약): 만원 단위 우선, 없으면 원 단위
+    bm = _BUDGET_MAN_RE.search(text)
     if bm:
-        c.budget_max = int(bm.group(1)) * 10_000
+        c.budget_max = int(bm.group(1)) * 10_000 + (int(bm.group(2)) * 1_000 if bm.group(2) else 0)
+    else:
+        wm = _BUDGET_WON_RE.search(text)
+        if wm:
+            c.budget_max = int(wm.group(1))
 
     # 동행유형(컨텍스트)
     for label, exprs in _COMPANION_MAP.items():
