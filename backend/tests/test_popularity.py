@@ -16,7 +16,21 @@ def test_popularity_accumulates():
     ps.bump("a", weight=2)
     ps.bump_many(["b", "c"])
     scores = ps.scores(["a", "b", "z"])
-    assert scores == {"a": 3, "b": 1, "z": 0}
+    # 최근 즉시 누적이라 감쇠 거의 없음 → 근사 비교
+    assert abs(scores["a"] - 3.0) < 0.01
+    assert abs(scores["b"] - 1.0) < 0.01
+    assert scores["z"] == 0.0
+
+
+def test_popularity_time_decay():
+    import app.popularity as pop
+
+    ps = pop.PopularityStore()
+    ps.bump("a", weight=4)
+    # 마지막 갱신 시각을 한 반감기 전으로 위조
+    score, ts = ps._mem["a"]
+    ps._mem["a"] = (score, ts - pop._HALF_LIFE_SEC)
+    assert abs(ps.scores(["a"])["a"] - 2.0) < 0.05  # 반감
 
 
 def test_score_place_rewards_popularity():

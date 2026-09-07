@@ -4,7 +4,7 @@ from __future__ import annotations
 from datetime import datetime
 
 from pgvector.sqlalchemy import Vector
-from sqlalchemy import JSON, DateTime, Integer, String, Text, func
+from sqlalchemy import JSON, DateTime, Float, Integer, String, Text, func
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.db import Base
@@ -69,7 +69,8 @@ class PopularityModel(Base):
     __tablename__ = "place_popularity"
 
     place_id: Mapped[str] = mapped_column(String, primary_key=True)
-    score: Mapped[int] = mapped_column(Integer, default=0)
+    score: Mapped[float] = mapped_column(Float, default=0.0)
+    updated_at: Mapped[float] = mapped_column(Float, default=0.0)  # unix ts(시간 감쇠용)
 
 
 class ChatMessageModel(Base):

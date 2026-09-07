@@ -175,8 +175,17 @@ async def plan_course(
 
     ids = [p.id for p in candidates]
     raw = popularity_store.scores(ids)
-    peak = max(raw.values(), default=0) or 1
-    pop = {pid: v / peak for pid, v in raw.items()}
+    # 카테고리(식당/카페/…)별 최댓값으로 정규화 → 절대 인기 편향 제거(상대 인기)
+    cat_peak: dict[str, float] = {}
+    for p in candidates:
+        c = classify(p)
+        cat_peak[c] = max(cat_peak.get(c, 0.0), raw.get(p.id, 0.0))
+    pop = {
+        p.id: (raw.get(p.id, 0.0) / cat_peak[classify(p)])
+        if cat_peak.get(classify(p))
+        else 0.0
+        for p in candidates
+    }
     self_ratings = rating_store.averages(ids)  # 자체 원탭 별점
 
     ranked = sorted(
