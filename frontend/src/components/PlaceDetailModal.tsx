@@ -9,6 +9,7 @@ import type { Place } from "@/types";
 export default function PlaceDetailModal({ place, onClose }: { place: Place; onClose: () => void }) {
   const [summary, setSummary] = useState<string>("불러오는 중…");
   const [myStars, setMyStars] = useState<number | null>(null);
+  const [revisit, setRevisit] = useState(false);
   const closeRef = useRef<HTMLButtonElement>(null);
   const dialogRef = useRef<HTMLDivElement>(null);
   const titleId = `place-${place.id}`;
@@ -105,6 +106,18 @@ export default function PlaceDetailModal({ place, onClose }: { place: Place; onC
           ))}
         </div>
         {myStars != null && <p style={{ color: "#3a7", fontSize: 13 }}>평가 감사합니다!</p>}
+
+        <button
+          aria-pressed={revisit}
+          onClick={() => {
+            if (revisit) return;
+            setRevisit(true);
+            api.revisit(place.id).catch(() => {});
+          }}
+          style={{ marginTop: 8, marginRight: 8 }}
+        >
+          {revisit ? "또 가고 싶은 곳 ✓" : "또 가고 싶어요"}
+        </button>
 
         <button ref={closeRef} onClick={onClose} style={{ marginTop: 8 }}>
           닫기

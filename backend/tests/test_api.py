@@ -155,6 +155,15 @@ def test_satisfaction_signal(client):
     assert client.post("/courses/none/satisfaction", json={"liked": True}).status_code == 404
 
 
+def test_revisit_signal(client):
+    from app.popularity import popularity_store
+
+    before = popularity_store.scores(["place-revisit"])["place-revisit"]
+    assert client.post("/places/place-revisit/revisit").status_code == 200
+    after = popularity_store.scores(["place-revisit"])["place-revisit"]
+    assert after - before > 1.5  # 재방문 의사 강한 가점
+
+
 def test_bookmark_flow(client):
     uid = _signup(client)
     course_id = client.post("/courses", headers={"X-User-Id": uid}).json()["id"]

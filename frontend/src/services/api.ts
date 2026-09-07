@@ -83,6 +83,9 @@ export const api = {
       body: { stars },
     }),
 
+  revisit: (placeId: string) =>
+    request<{ ok: boolean }>(`/places/${placeId}/revisit`, { method: "POST" }),
+
   feedback: (courseId: string, kind: string, detail = "") =>
     request<{ ok: boolean }>(`/courses/${courseId}/feedback`, {
       method: "POST",
