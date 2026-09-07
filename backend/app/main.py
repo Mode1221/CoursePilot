@@ -4,6 +4,8 @@
 """
 from __future__ import annotations
 
+from contextlib import asynccontextmanager
+
 import socketio
 from fastapi import FastAPI, Header, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
@@ -28,14 +30,16 @@ from app.schemas import Course
 from app.store import store
 from app.users import CreditError, Preferences, user_store
 
-api = FastAPI(title="CoursePilot API")
 
-
-@api.on_event("startup")
-async def _startup() -> None:
+@asynccontextmanager
+async def lifespan(_app: FastAPI):
     from app.db import init_db, set_ready
 
     set_ready(init_db())  # 전 스토어가 참조하는 단일 readiness
+    yield
+
+
+api = FastAPI(title="CoursePilot API", lifespan=lifespan)
 
 
 api.add_middleware(
