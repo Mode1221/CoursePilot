@@ -1,9 +1,11 @@
 """물리적 제약 검증 (7-3) 및 타임라인 계산."""
 from __future__ import annotations
 
+import asyncio
 from datetime import date, datetime, time, timedelta
 
 from app.adapters.map_service import MapService
+from app.constants import DEFAULT_START_TIME
 from app.schemas import Place, PlanConstraints, Route, TimelineItem, TravelMode
 
 
@@ -43,7 +45,7 @@ async def build_timeline(
     조건 위반 장소는 폐기(스킵)한다.
     """
     mode = constraints.travel_mode
-    cursor = _as_datetime(constraints.start_time or time(12, 0))
+    cursor = _as_datetime(constraints.start_time or DEFAULT_START_TIME)
     end_dt = _as_datetime(constraints.end_time) if constraints.end_time else None
 
     timeline: list[TimelineItem] = []
@@ -102,22 +104,26 @@ async def recompute(
 
     수동 편집·부분 교체 후 동기화용 (4-3). 체류시간은 카테고리별로 계산.
     """
+    # 구간 순서는 고정이고 각 경로 계산은 서로 독립 → 병렬 조회 후 순차 배치
+    routes: list[Route] = []
+    if len(places) > 1:
+        routes = await asyncio.gather(
+            *(
+                map_service.get_route(places[i], places[i + 1], mode)
+                for i in range(len(places) - 1)
+            )
+        )
+
     cursor = _as_datetime(start_time)
     timeline: list[TimelineItem] = []
-    prev: Place | None = None
-
-    for place in places:
-        route: Route | None = None
-        if prev is not None:
-            route = await map_service.get_route(prev, place, mode)
-            cursor = cursor + timedelta(minutes=route.duration_min)
-            timeline[-1].travel_to_next = route
-
+    for i, place in enumerate(places):
+        if i > 0:
+            cursor = cursor + timedelta(minutes=routes[i - 1].duration_min)
+            timeline[-1].travel_to_next = routes[i - 1]
         arrive = cursor.time()
         depart_dt = cursor + timedelta(minutes=stay_minutes(place))
         timeline.append(TimelineItem(place=place, arrive=arrive, depart=depart_dt.time()))
         cursor = depart_dt
-        prev = place
 
     return timeline
 

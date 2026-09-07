@@ -4,8 +4,6 @@
 """
 from __future__ import annotations
 
-from datetime import time
-
 import socketio
 from fastapi import FastAPI, Header, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
@@ -13,6 +11,7 @@ from pydantic import BaseModel
 
 from app.adapters.map_service import get_map_service
 from app.config import settings
+from app.constants import DEFAULT_START_TIME
 from app.pipeline.agent import generate_course
 from app.pipeline.edit import EditCommand, apply_edit, parse_edit
 from app.queue import queues
@@ -286,7 +285,7 @@ async def manual_reorder(course_id: str, req: ReorderRequest) -> Course:
         if ordered:
             # 앵커는 코스의 원래 시작 시각(전체 최소 도착시각) — 순서가 바뀌어도 유지.
             arrivals = [it.arrive for it in course.items if it.arrive]
-            start = min(arrivals) if arrivals else time(12, 0)
+            start = min(arrivals) if arrivals else DEFAULT_START_TIME
             course.items = await recompute(
                 [it.place for it in ordered], start, _infer_mode(ordered), get_map_service()
             )

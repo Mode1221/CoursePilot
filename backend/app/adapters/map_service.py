@@ -7,8 +7,10 @@ from __future__ import annotations
 
 from abc import ABC, abstractmethod
 from datetime import time
+from functools import lru_cache
 
 from app.config import settings
+from app.constants import TRAVEL_SPEED_M_PER_MIN
 from app.schemas import Place, Route, TravelMode
 
 
@@ -60,7 +62,7 @@ class MockMapService(MapService):
         dlat = abs(origin.lat - dest.lat)
         dlng = abs(origin.lng - dest.lng)
         distance_m = int((dlat + dlng) * 111_000)
-        speed_m_per_min = {"walk": 67, "car": 500, "transit": 250}[mode.value]
+        speed_m_per_min = TRAVEL_SPEED_M_PER_MIN[mode.value]
         duration_min = max(1, round(distance_m / speed_m_per_min))
         return Route(
             from_place_id=origin.id,
@@ -92,8 +94,9 @@ class SafeMapService(MapService):
             return await self._fallback.get_route(origin, dest, mode)
 
 
+@lru_cache(maxsize=1)
 def get_map_service() -> MapService:
-    """설정에 따라 구현체 선택. 키 없으면 Mock, 있으면 Naver(+Mock 폴백)."""
+    """설정에 따라 구현체 선택(싱글턴). 키 없으면 Mock, 있으면 Naver(+Mock 폴백)."""
     if settings.map_provider == "naver" and settings.naver_client_id:
         from app.adapters.naver import NaverMapService
 

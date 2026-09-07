@@ -8,6 +8,7 @@ from dataclasses import dataclass
 from typing import Awaitable, Callable
 
 from app.adapters.map_service import MapService
+from app.constants import DEFAULT_REGION
 from app.pipeline.llm import decompose
 from app.pipeline.validation import build_timeline
 from app.schemas import PlanConstraints, TimelineItem
@@ -44,19 +45,19 @@ async def generate_course(
         _apply_preferences(constraints, preferences)
 
     await progress("search")  # 후보 수집
-    timeline, relaxed = await _attempt(constraints, map_service)
+    timeline = await _attempt(constraints, map_service)
     await progress("validation")  # 물리 제약 검증
 
     if len(timeline) >= MIN_VALID:
         await progress("done")
-        return PlanResult(constraints, timeline, relaxed, needs_confirmation=False)
+        return PlanResult(constraints, timeline, relaxed=False, needs_confirmation=False)
 
     # 7-4 조건 완화: 소프트 제약(이동시간 여유폭)부터 단계적 완화. 하드 제약(예산)은 유지.
     await progress("relaxing")
     relaxed_c = constraints.model_copy(deep=True)
     if relaxed_c.max_travel_min is not None:
         relaxed_c.max_travel_min = int(relaxed_c.max_travel_min * 1.5)
-    timeline, _ = await _attempt(relaxed_c, map_service)
+    timeline = await _attempt(relaxed_c, map_service)
 
     needs_confirmation = len(timeline) < MIN_VALID
     await progress("done")
@@ -80,8 +81,7 @@ def _apply_preferences(constraints: PlanConstraints, prefs: dict) -> None:
 
 async def _attempt(
     constraints: PlanConstraints, map_service: MapService
-) -> tuple[list[TimelineItem], bool]:
-    region = constraints.region or "성수동"
+) -> list[TimelineItem]:
+    region = constraints.region or DEFAULT_REGION
     candidates = await map_service.search_places(region, constraints.keywords, limit=10)
-    timeline = await build_timeline(candidates, constraints, map_service)
-    return timeline, False
+    return await build_timeline(candidates, constraints, map_service)

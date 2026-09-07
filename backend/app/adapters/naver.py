@@ -14,6 +14,7 @@ import math
 import httpx
 
 from app.config import settings
+from app.constants import TRAVEL_SPEED_M_PER_MIN
 from app.schemas import Place, Route, TravelMode
 from app.adapters.map_service import MapService
 
@@ -27,6 +28,8 @@ class NaverMapService(MapService):
             "X-Naver-Client-Id": settings.naver_client_id,
             "X-Naver-Client-Secret": settings.naver_client_secret,
         }
+        # 요청 간 재사용하는 keep-alive 커넥션 풀
+        self._client = httpx.AsyncClient(timeout=10)
 
     async def search_places(
         self, region: str, keywords: list[str], limit: int = 10
@@ -34,10 +37,9 @@ class NaverMapService(MapService):
         query = " ".join([region, *keywords]).strip()
         # 네이버 지역검색 API 의 display 최대값은 5 (API 하드 제약)
         params = {"query": query, "display": min(limit, 5)}
-        async with httpx.AsyncClient(timeout=10) as client:
-            resp = await client.get(_SEARCH_URL, params=params, headers=self._headers)
-            resp.raise_for_status()
-            items = resp.json().get("items", [])
+        resp = await self._client.get(_SEARCH_URL, params=params, headers=self._headers)
+        resp.raise_for_status()
+        items = resp.json().get("items", [])
 
         places: list[Place] = []
         for it in items:
@@ -71,10 +73,9 @@ class NaverMapService(MapService):
             "X-NCP-APIGW-API-KEY-ID": settings.naver_client_id,
             "X-NCP-APIGW-API-KEY": settings.naver_client_secret,
         }
-        async with httpx.AsyncClient(timeout=10) as client:
-            resp = await client.get(_DIRECTIONS_URL, params=params, headers=headers)
-            resp.raise_for_status()
-            summary = resp.json()["route"]["traoptimal"][0]["summary"]
+        resp = await self._client.get(_DIRECTIONS_URL, params=params, headers=headers)
+        resp.raise_for_status()
+        summary = resp.json()["route"]["traoptimal"][0]["summary"]
         return Route(
             from_place_id=origin.id,
             to_place_id=dest.id,
@@ -111,7 +112,7 @@ def _katech_to_wgs84(mapx, mapy) -> tuple[float, float]:
 def _straight_line_route(origin: Place, dest: Place, mode: TravelMode) -> Route:
     """도보/대중교통 근사: 하버사인 직선거리 기반."""
     distance_m = _haversine_m(origin.lat, origin.lng, dest.lat, dest.lng)
-    speed = {"walk": 67, "car": 500, "transit": 250}[mode.value]  # m/분
+    speed = TRAVEL_SPEED_M_PER_MIN[mode.value]  # m/분
     return Route(
         from_place_id=origin.id,
         to_place_id=dest.id,

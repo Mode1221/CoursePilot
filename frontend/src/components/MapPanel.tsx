@@ -5,7 +5,7 @@ import { useState } from "react";
 import MapView from "@/components/MapView";
 import PlaceDetailModal from "@/components/PlaceDetailModal";
 import { useCourseStore } from "@/store/courseStore";
-import type { Place } from "@/types";
+import { MODE_LABEL, type Place } from "@/types";
 
 // 시각화 패널: 지도(SVG 렌더) + 타임라인. 실제 지도 SDK 는 mapService 어댑터로 교체 예정.
 export default function MapPanel({ readOnly = false }: { readOnly?: boolean }) {
@@ -74,7 +74,7 @@ export default function MapPanel({ readOnly = false }: { readOnly?: boolean }) {
             {item.place.category && <div style={{ color: "#888", fontSize: 13 }}>{item.place.category}</div>}
             {item.travel_to_next && (
               <div style={{ color: "#3a7", fontSize: 13 }}>
-                → 다음까지 {item.travel_to_next.duration_min}분 ({item.travel_to_next.mode})
+                → 다음까지 {item.travel_to_next.duration_min}분 ({MODE_LABEL[item.travel_to_next.mode]})
               </div>
             )}
             {!readOnly && (

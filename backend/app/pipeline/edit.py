@@ -7,9 +7,9 @@ from __future__ import annotations
 
 import re
 from dataclasses import dataclass
-from datetime import time
 
 from app.adapters.map_service import MapService
+from app.constants import DEFAULT_REGION, DEFAULT_START_TIME
 from app.pipeline.validation import recompute
 from app.schemas import Course, TimelineItem, TravelMode
 
@@ -68,7 +68,7 @@ async def apply_edit(
         items.pop(cmd.index)
     elif cmd.action == "replace":
         existing_ids = {it.place.id for it in items}
-        region = course.region or "성수동"
+        region = course.region or DEFAULT_REGION
         candidates = await map_service.search_places(
             region, [cmd.keyword] if cmd.keyword else [], limit=10
         )
@@ -77,7 +77,7 @@ async def apply_edit(
             return items
         items[cmd.index] = TimelineItem(place=replacement)
 
-    start = items[0].arrive if items and items[0].arrive else time(12, 0)
+    start = items[0].arrive if items and items[0].arrive else DEFAULT_START_TIME
     mode = _infer_mode(items)
     return await recompute([it.place for it in items], start, mode, map_service)
 

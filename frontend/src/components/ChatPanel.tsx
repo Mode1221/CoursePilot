@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 
 import { api, ApiError } from "@/services/api";
 import { shareService } from "@/services/shareService";
@@ -33,13 +33,17 @@ export default function ChatPanel({ courseId }: { courseId: string }) {
 
   const { userId, questionsLeft, load, setQuestionsLeft } = useUserStore();
 
+  const refreshCredits = useCallback(() => {
+    if (userId) api.credits(userId).then((c) => setQuestionsLeft(c.questions_left)).catch(() => {});
+  }, [userId, setQuestionsLeft]);
+
   useEffect(() => {
     load();
   }, [load]);
 
   useEffect(() => {
-    if (userId) api.credits(userId).then((c) => setQuestionsLeft(c.questions_left)).catch(() => {});
-  }, [userId, setQuestionsLeft]);
+    refreshCredits();
+  }, [refreshCredits]);
 
   async function send() {
     if (!text.trim() || sending) return;
@@ -55,7 +59,7 @@ export default function ChatPanel({ courseId }: { courseId: string }) {
       } else if (res.relaxed) {
         setNotice("일부 조건을 완화해 코스를 구성했습니다.");
       }
-      if (userId) api.credits(userId).then((c) => setQuestionsLeft(c.questions_left)).catch(() => {});
+      refreshCredits();
     } catch (e) {
       setError(e instanceof ApiError ? e.message : "요청 실패");
     } finally {

@@ -35,13 +35,13 @@ _TOOL = {
 
 async def decompose(text: str) -> PlanConstraints:
     """자연어 → PlanConstraints. 키 없거나 실패 시 규칙 기반 폴백."""
-    if not settings.openai_api_key:
+    from app.llm_client import get_openai_client
+
+    client = get_openai_client()
+    if client is None:
         return parse_constraints(text)
 
     try:
-        from openai import AsyncOpenAI
-
-        client = AsyncOpenAI(api_key=settings.openai_api_key)
         resp = await client.chat.completions.create(
             model=settings.openai_model,
             messages=[

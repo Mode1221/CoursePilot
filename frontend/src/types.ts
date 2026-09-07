@@ -2,6 +2,12 @@
 
 export type TravelMode = "walk" | "car" | "transit";
 
+export const MODE_LABEL: Record<TravelMode, string> = {
+  walk: "도보",
+  car: "차량",
+  transit: "대중교통",
+};
+
 export interface Place {
   id: string;
   name: string;

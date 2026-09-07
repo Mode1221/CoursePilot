@@ -3,23 +3,28 @@ from __future__ import annotations
 
 import hashlib
 
-from app.config import settings
 from app.models import EMBED_DIM
+
+_EMBED_MODEL = "text-embedding-3-small"
 
 
 async def embed(text: str) -> list[float]:
-    if settings.openai_api_key:
-        try:
-            from openai import AsyncOpenAI
+    """단건 임베딩. 배치가 필요하면 embed_many 사용."""
+    return (await embed_many([text]))[0]
 
-            client = AsyncOpenAI(api_key=settings.openai_api_key)
-            resp = await client.embeddings.create(
-                model="text-embedding-3-small", input=text
-            )
-            return resp.data[0].embedding
+
+async def embed_many(texts: list[str]) -> list[list[float]]:
+    """여러 텍스트를 한 번의 API 호출로 임베딩. 키 없거나 실패 시 해시 폴백."""
+    from app.llm_client import get_openai_client
+
+    client = get_openai_client()
+    if client is not None:
+        try:
+            resp = await client.embeddings.create(model=_EMBED_MODEL, input=texts)
+            return [d.embedding for d in resp.data]
         except Exception:
             pass
-    return _hash_embed(text)
+    return [_hash_embed(t) for t in texts]
 
 
 def _hash_embed(text: str) -> list[float]:

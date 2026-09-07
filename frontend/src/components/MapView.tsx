@@ -1,6 +1,6 @@
 "use client";
 
-import type { TimelineItem } from "@/types";
+import { MODE_LABEL, type TimelineItem } from "@/types";
 
 // 벤더 무관 SVG 지도 렌더. 실제 Naver/Google 지도는 mapService 어댑터로 교체 예정이나,
 // 키 없이도 핀·동선을 시각화하기 위한 기본 렌더러.
@@ -49,7 +49,7 @@ export default function MapView({
         const next = pts[i + 1];
         const mx = (p.x + next.x) / 2;
         const my = (p.y + next.y) / 2;
-        const label = `${MODE_LABEL[route.mode] ?? ""} ${route.duration_min}분`.trim();
+        const label = `${MODE_LABEL[route.mode]} ${route.duration_min}분`;
         const w = label.length * 7 + 14;
         return (
           <g key={`leg-${i}`}>
@@ -72,8 +72,6 @@ export default function MapView({
     </svg>
   );
 }
-
-const MODE_LABEL: Record<string, string> = { walk: "도보", car: "차량", transit: "대중교통" };
 
 function pinColor(category?: string | null): string {
   if (!category) return "#e0533a";

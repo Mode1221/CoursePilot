@@ -1,10 +1,9 @@
 "use client";
 
-import { useEffect } from "react";
-
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
 import MapPanel from "@/components/MapPanel";
+import NotFound from "@/components/NotFound";
 import { api } from "@/services/api";
 import { useCourseStore } from "@/store/courseStore";
 import { useUserStore } from "@/store/userStore";
@@ -23,12 +22,7 @@ export default function SharePage({ params }: { params: { id: string } }) {
   }, [params.id, setCourse, setNotFound, load]);
 
   if (notFound) {
-    return (
-      <main style={{ padding: 48, maxWidth: 640, margin: "0 auto" }}>
-        <h1>코스를 찾을 수 없습니다</h1>
-        <p style={{ color: "#888" }}>공유 링크가 만료되었거나 삭제되었을 수 있어요.</p>
-      </main>
-    );
+    return <NotFound message="공유 링크가 만료되었거나 삭제되었을 수 있어요." />;
   }
 
   async function bookmark() {

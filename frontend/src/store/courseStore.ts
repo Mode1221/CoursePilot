@@ -33,9 +33,11 @@ async function recalcRoutes(items: TimelineItem[]): Promise<TimelineItem[]> {
   // 기존 구간에서 이동수단을 먼저 확보(원본 기준). 없으면 walk.
   const mode: TravelMode = items.find((it) => it.travel_to_next)?.travel_to_next?.mode ?? "walk";
   const next = items.map((it) => ({ ...it, travel_to_next: null as TimelineItem["travel_to_next"] }));
-  for (let i = 0; i < next.length - 1; i++) {
-    next[i].travel_to_next = await mapService.getRoute(next[i].place, next[i + 1].place, mode);
-  }
+  // 구간 계산은 서로 독립 → 병렬 조회 후 배치
+  const routes = await Promise.all(
+    next.slice(0, -1).map((it, i) => mapService.getRoute(it.place, next[i + 1].place, mode)),
+  );
+  routes.forEach((r, i) => (next[i].travel_to_next = r));
   return next;
 }
 

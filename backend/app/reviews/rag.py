@@ -4,7 +4,7 @@ DB 미사용 환경에서는 저장은 생략되고 검색은 빈 결과를 반�
 """
 from __future__ import annotations
 
-from app.reviews.embedding import embed
+from app.reviews.embedding import embed, embed_many
 from app.reviews.source import get_review_source
 from app.reviews.sponsored import is_sponsored
 
@@ -12,32 +12,27 @@ from app.reviews.sponsored import is_sponsored
 async def ingest_place_reviews(place_id: str, place_name: str, db_ready: bool) -> int:
     """장소 리뷰 수집 후 비협찬 리뷰만 임베딩하여 저장. 저장 건수 반환."""
     reviews = await get_review_source().fetch(place_name)
-    stored = 0
-    rows = []
-    for r in reviews:
-        sponsored = is_sponsored(r.content)
-        if sponsored:
-            continue  # 1차 필터에서 명백한 협찬 제외
-        vector = await embed(r.content)
-        rows.append((r.source, r.content, vector))
+    kept = [r for r in reviews if not is_sponsored(r.content)]  # 1차 협찬 필터
+    if not kept:
+        return 0
+    vectors = await embed_many([r.content for r in kept])  # 배치 임베딩(단일 호출)
 
     if not db_ready:
-        return len(rows)  # 개발용: 저장 대신 필터 통과 건수만
+        return len(kept)  # 개발용: 저장 대신 필터 통과 건수만
 
     from app.db import SessionLocal
     from app.models import ReviewModel
 
     with SessionLocal() as s:
-        for source, content, vector in rows:
+        for r, vector in zip(kept, vectors):
             s.add(
                 ReviewModel(
-                    place_id=place_id, source=source, content=content,
+                    place_id=place_id, source=r.source, content=r.content,
                     is_sponsored=0, embedding=vector,
                 )
             )
-            stored += 1
         s.commit()
-    return stored
+    return len(kept)
 
 
 async def fetch_filtered(place_name: str, limit: int = 5) -> list[str]:
@@ -55,14 +50,13 @@ async def summarize_reviews(reviews: list[str]) -> str:
         return "참고할 리뷰가 없습니다."
 
     from app.config import settings
+    from app.llm_client import get_openai_client
 
-    if not settings.openai_api_key:
+    client = get_openai_client()
+    if client is None:
         return " ".join(reviews)[:300]
 
     try:
-        from openai import AsyncOpenAI
-
-        client = AsyncOpenAI(api_key=settings.openai_api_key)
         joined = "\n".join(f"- {r}" for r in reviews)
         resp = await client.chat.completions.create(
             model=settings.openai_model,

@@ -22,8 +22,3 @@ _COMPILED = [re.compile(p) for p in _SPONSORED_PATTERNS]
 def is_sponsored(text: str) -> bool:
     """1차 필터: 표기 의무 문구가 포함되면 협찬으로 판단."""
     return any(p.search(text) for p in _COMPILED)
-
-
-def matched_signals(text: str) -> list[str]:
-    """탐지된 패턴 목록(디버깅/설명용)."""
-    return [p.pattern for p in _COMPILED if p.search(text)]

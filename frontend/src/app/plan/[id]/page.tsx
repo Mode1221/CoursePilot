@@ -5,6 +5,7 @@ import { useEffect, useState } from "react";
 import ChatPanel from "@/components/ChatPanel";
 import ConnectionBanner from "@/components/ConnectionBanner";
 import MapPanel from "@/components/MapPanel";
+import NotFound from "@/components/NotFound";
 import { useIsNarrow } from "@/hooks/useIsNarrow";
 import { api } from "@/services/api";
 import { getSocket } from "@/services/socket";
@@ -62,13 +63,7 @@ export default function PlanPage({ params }: { params: { id: string } }) {
   }, [id, setCourse, setLocked, setStage, setMessages, appendMessage, setConnected, setNotFound]);
 
   if (notFound) {
-    return (
-      <main style={{ padding: 48, maxWidth: 640, margin: "0 auto" }}>
-        <h1>코스를 찾을 수 없습니다</h1>
-        <p style={{ color: "#888" }}>링크가 잘못되었거나 삭제된 코스일 수 있어요.</p>
-        <a href="/">새 코스 시작하기</a>
-      </main>
-    );
+    return <NotFound message="링크가 잘못되었거나 삭제된 코스일 수 있어요." />;
   }
 
   // 좁은 화면(웹뷰/모바일): 지도·챗봇을 탭 전환식 세로 레이아웃으로
