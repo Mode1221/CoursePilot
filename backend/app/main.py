@@ -235,6 +235,10 @@ async def generate(
                 status_code=402, detail="AI에게 질문하려면 포인트를 구매해주세요"
             ) from None
         prefs = user.preferences.model_dump()
+        # 행동 선호(#13): 이 사용자가 실제 자주 채택한 카테고리를 스코어링에 주입
+        from app.behavior import behavior_store
+
+        prefs["behavior_cats"] = behavior_store.top_categories(x_user_id)
 
         course.locked = True
         await broadcast_lock(course_id, True)
@@ -280,6 +284,11 @@ async def generate(
             first = course.items[0].arrive
             if first:
                 time_context_store.bump_many(new_ids, daypart_of(first.hour))
+        # 행동 선호(#13): 채택된 장소의 카테고리를 사용자 행동 프로필에 누적
+        if course.items:
+            from app.pipeline.planner import classify
+
+            behavior_store.bump(x_user_id, [classify(it.place) for it in course.items])
         # 피드백(#16): 완화 제안/적용 로깅
         if needs_confirmation:
             feedback_store.log(course_id, "relax_offered")

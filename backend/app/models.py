@@ -93,6 +93,16 @@ class TimeContextModel(Base):
     count: Mapped[float] = mapped_column(Float, default=0.0)
 
 
+class BehaviorModel(Base):
+    """행동 선호 — 사용자×카테고리 채택 누적 (data #13)."""
+
+    __tablename__ = "user_behavior"
+
+    user_id: Mapped[str] = mapped_column(String, primary_key=True)
+    category: Mapped[str] = mapped_column(String, primary_key=True)
+    count: Mapped[float] = mapped_column(Float, default=0.0)
+
+
 class ChatMessageModel(Base):
     """채팅 로그. append-only (5-2)."""
 
