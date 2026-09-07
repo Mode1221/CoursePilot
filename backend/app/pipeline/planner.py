@@ -70,6 +70,11 @@ def score_place(
     if prefs.get("mood") and prefs["mood"].lower() in haystack:
         score += 0.1
 
+    # 행동 선호(#13): 사용자가 실제 자주 채택한 카테고리면 가점(선언보다 행동 신뢰)
+    behavior_cats = prefs.get("behavior_cats") or []
+    if behavior_cats and classify(place) in behavior_cats:
+        score += 0.15
+
     # 동행유형 컨텍스트: 상황에 맞는 장소 특성 가점
     comp_kw = _COMPANION_KEYWORDS.get(constraints.companion or "", ())
     if comp_kw and any(k in haystack for k in comp_kw):
