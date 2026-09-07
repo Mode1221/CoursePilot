@@ -93,6 +93,29 @@ def test_manual_removal_demotes_place(client):
     assert abs(after - (before - 1)) < 0.05  # -1 상쇄(미세 감쇠 허용)
 
 
+def test_completion_signal_boosts_places(client):
+    from app.popularity import popularity_store
+
+    uid = _signup(client)
+    course_id = client.post("/courses", headers={"X-User-Id": uid}).json()["id"]
+    client.post(
+        f"/courses/{course_id}/generate",
+        headers={"X-User-Id": uid},
+        json={"text": "성수동 오전 10시 5시간 도보"},
+    )
+    items = client.get(f"/courses/{course_id}").json()["items"]
+    pid = items[0]["place"]["id"]
+    before = popularity_store.scores([pid])[pid]
+
+    res = client.post(f"/courses/{course_id}/complete")
+    assert res.status_code == 200
+    assert res.json()["places"] == len(items)
+    after = popularity_store.scores([pid])[pid]
+    assert after - before > 2.5  # 완주 가중(+3) 반영
+
+    assert client.post("/courses/none/complete").status_code == 404
+
+
 def test_bookmark_flow(client):
     uid = _signup(client)
     course_id = client.post("/courses", headers={"X-User-Id": uid}).json()["id"]
