@@ -20,3 +20,8 @@ pnpm-debug.log*
 # TS
 *.tsbuildinfo
 next-env.d.ts
+
+# Playwright
+frontend/test-results/
+frontend/playwright-report/
+frontend/.playwright/
