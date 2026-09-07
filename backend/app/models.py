@@ -103,6 +103,15 @@ class BehaviorModel(Base):
     count: Mapped[float] = mapped_column(Float, default=0.0)
 
 
+class StrategyModel(Base):
+    """Best-of-N 시드 전략 채택 누적 (data #15)."""
+
+    __tablename__ = "seed_strategy"
+
+    label: Mapped[str] = mapped_column(String, primary_key=True)
+    count: Mapped[int] = mapped_column(Integer, default=0)
+
+
 class ChatMessageModel(Base):
     """채팅 로그. append-only (5-2)."""
 
