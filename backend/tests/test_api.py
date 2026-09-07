@@ -178,6 +178,35 @@ def test_admin_signals_shape(client):
     assert 0.0 <= body["relax_acceptance_rate"] <= 1.0
 
 
+def test_add_place_from_repo(client):
+    from app.places import place_repo
+    from app.schemas import Place
+
+    uid = _signup(client)
+    course_id = client.post("/courses", headers={"X-User-Id": uid}).json()["id"]
+    client.post(
+        f"/courses/{course_id}/generate",
+        headers={"X-User-Id": uid},
+        json={"text": "성수동 오전 10시 5시간 도보"},
+    )
+    before = len(client.get(f"/courses/{course_id}").json()["items"])
+    place_repo.upsert_many(
+        [Place(id="extra-1", name="추가장소", category="카페", lat=37.5, lng=127.0, rating=4.0)]
+    )
+
+    res = client.post(f"/courses/{course_id}/places", json={"place_id": "extra-1"})
+    assert res.status_code == 200
+    items = res.json()["items"]
+    assert len(items) == before + 1
+    assert any(it["place"]["id"] == "extra-1" for it in items)
+
+    # 중복 추가 방지
+    dup = client.post(f"/courses/{course_id}/places", json={"place_id": "extra-1"})
+    assert dup.status_code == 409
+    # 미등록 장소
+    assert client.post(f"/courses/{course_id}/places", json={"place_id": "nope"}).status_code == 404
+
+
 def test_bookmark_flow(client):
     uid = _signup(client)
     course_id = client.post("/courses", headers={"X-User-Id": uid}).json()["id"]

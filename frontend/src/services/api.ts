@@ -55,6 +55,9 @@ export const api = {
   reorder: (id: string, placeIds: string[]) =>
     request<Course>(`/courses/${id}/reorder`, { method: "POST", body: { place_ids: placeIds } }),
 
+  addPlace: (id: string, placeId: string) =>
+    request<Course>(`/courses/${id}/places`, { method: "POST", body: { place_id: placeId } }),
+
   messages: (id: string) =>
     request<{ role: "user" | "ai"; text: string }[]>(`/courses/${id}/messages`),
 

@@ -11,6 +11,15 @@ from starlette.middleware.base import BaseHTTPMiddleware
 
 logger = logging.getLogger("coursepilot")
 
+# 생성된 rate limiter 인스턴스 레지스트리(테스트 격리용 리셋 훅)
+_RATE_LIMITERS: list[RateLimitMiddleware] = []
+
+
+def reset_rate_limits() -> None:
+    """모든 rate limiter의 카운터 초기화. 테스트 간 격리에 사용."""
+    for mw in _RATE_LIMITERS:
+        mw._hits.clear()
+
 
 class RequestLogMiddleware(BaseHTTPMiddleware):
     """메서드/경로/상태/소요시간 구조적 로깅."""
@@ -40,6 +49,7 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
         self._limit = limit
         self._window = window_sec
         self._hits: dict[str, deque[float]] = {}
+        _RATE_LIMITERS.append(self)
 
     async def dispatch(self, request: Request, call_next):
         # 헬스체크/문서는 제외

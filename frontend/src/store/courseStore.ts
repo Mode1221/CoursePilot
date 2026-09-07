@@ -27,6 +27,7 @@ interface CourseState {
   // 수동 편집: 드래그로 순서 변경 후 이동시간 재계산 (4-3). AI 호출 없음 → 무료.
   reorder: (from: number, to: number) => Promise<void>;
   remove: (index: number) => Promise<void>;
+  addPlace: (placeId: string) => Promise<void>;
 }
 
 async function recalcRoutes(items: TimelineItem[]): Promise<TimelineItem[]> {
@@ -71,6 +72,18 @@ export const useCourseStore = create<CourseState>((set, get) => ({
     if (!course || locked) return;
     const items = course.items.filter((_, i) => i !== index);
     await applyManualEdit(get, set, course, items);
+  },
+
+  // 추천("함께 가요") 장소 추가: 서버가 동선 재계산 후 최종 상태 반환.
+  addPlace: async (placeId) => {
+    const { course, locked } = get();
+    if (!course || locked) return;
+    try {
+      const updated = await api.addPlace(course.id, placeId);
+      set({ course: updated });
+    } catch {
+      /* 이미 포함/오프라인 등: 무시 */
+    }
   },
 }));
 

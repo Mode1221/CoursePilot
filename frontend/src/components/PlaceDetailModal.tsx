@@ -3,11 +3,21 @@
 import { useEffect, useRef, useState } from "react";
 
 import { api } from "@/services/api";
+import { useCourseStore } from "@/store/courseStore";
 import type { Place } from "@/types";
 
 
 // 장소 상세 모달 (4-2). 리뷰 요약은 RAG(협찬 필터 후) 결과.
-export default function PlaceDetailModal({ place, onClose }: { place: Place; onClose: () => void }) {
+export default function PlaceDetailModal({
+  place,
+  onClose,
+  editable = false,
+}: {
+  place: Place;
+  onClose: () => void;
+  editable?: boolean;
+}) {
+  const addPlace = useCourseStore((s) => s.addPlace);
   const [summary, setSummary] = useState<string>("불러오는 중…");
   const [myStars, setMyStars] = useState<number | null>(null);
   const [revisit, setRevisit] = useState(false);
@@ -115,9 +125,22 @@ export default function PlaceDetailModal({ place, onClose }: { place: Place; onC
             <h4>함께 가요</h4>
             <ul style={{ margin: 0, paddingLeft: 18, color: "#444", fontSize: 13 }}>
               {related.map((r) => (
-                <li key={r.id}>
-                  {r.name}
-                  {r.category ? ` · ${r.category}` : ""}
+                <li key={r.id} style={{ display: "flex", justifyContent: "space-between", gap: 8 }}>
+                  <span>
+                    {r.name}
+                    {r.category ? ` · ${r.category}` : ""}
+                  </span>
+                  {editable && (
+                    <button
+                      onClick={() => {
+                        addPlace(r.id);
+                        onClose();
+                      }}
+                      style={{ fontSize: 12 }}
+                    >
+                      추가
+                    </button>
+                  )}
                 </li>
               ))}
             </ul>

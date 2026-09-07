@@ -94,7 +94,9 @@ export default function MapPanel({ readOnly = false }: { readOnly?: boolean }) {
         ))}
       </ol>
 
-      {selected && <PlaceDetailModal place={selected} onClose={() => setSelected(null)} />}
+      {selected && (
+        <PlaceDetailModal place={selected} onClose={() => setSelected(null)} editable={!editDisabled} />
+      )}
     </div>
   );
 }
