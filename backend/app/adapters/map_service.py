@@ -44,6 +44,7 @@ class MockMapService(MapService):
                     lat=base_lat + i * 0.001,
                     lng=base_lng + i * 0.001,
                     rating=4.0 + (i % 5) * 0.1,
+                    price=10_000 + (i % 5) * 5_000,  # 1만~3만원
                     open_time=time(10, 0),
                     close_time=time(22, 0),
                     break_start=time(15, 0) if i % 3 == 0 else None,

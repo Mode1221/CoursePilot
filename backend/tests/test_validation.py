@@ -3,7 +3,7 @@ from datetime import time
 import pytest
 
 from app.adapters.map_service import MapService
-from app.pipeline.validation import build_timeline
+from app.pipeline.validation import build_timeline, stay_minutes
 from app.schemas import Place, PlanConstraints, Route, TravelMode
 
 
@@ -18,9 +18,25 @@ class FixedRouteService(MapService):
                      duration_min=10, distance_m=100)
 
 
-def _p(pid, open_t=None, close_t=None, bs=None, be=None):
-    return Place(id=pid, name=pid, lat=37.5, lng=127.0,
+def _p(pid, open_t=None, close_t=None, bs=None, be=None, price=None, category=None):
+    return Place(id=pid, name=pid, lat=37.5, lng=127.0, price=price, category=category,
                  open_time=open_t, close_time=close_t, break_start=bs, break_end=be)
+
+
+def test_stay_minutes_by_category():
+    assert stay_minutes(_p("a", category="restaurant")) == 90
+    assert stay_minutes(_p("b", category="술집")) == 120
+    assert stay_minutes(_p("c", category="cafe")) == 60
+
+
+@pytest.mark.asyncio
+async def test_budget_hard_constraint_drops_expensive():
+    # 예산 3만원: 2만+2만 이면 두 번째에서 누적 4만 초과 → 폐기
+    places = [_p("A", price=20_000), _p("B", price=20_000), _p("C", price=5_000)]
+    c = PlanConstraints(start_time=time(12, 0), budget_max=30_000)
+    tl = await build_timeline(places, c, FixedRouteService())
+    ids = [it.place.id for it in tl]
+    assert "A" in ids and "B" not in ids and "C" in ids  # 2만+5천=2.5만 ≤ 3만
 
 
 @pytest.mark.asyncio

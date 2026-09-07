@@ -14,6 +14,16 @@ def _overlaps_break(t: time, place: Place) -> bool:
     return False
 
 
+def stay_minutes(place: Place) -> int:
+    """카테고리별 기본 체류시간. 식당은 길게, 카페/전시는 보통."""
+    cat = (place.category or "").lower()
+    if any(k in cat for k in ("restaurant", "식당", "음식", "고기", "한식", "일식", "중식")):
+        return 90
+    if any(k in cat for k in ("bar", "술", "펍", "포차")):
+        return 120
+    return 60  # 카페·전시·기타
+
+
 def is_open_at(place: Place, t: time) -> bool:
     """해당 시각에 영업 중인지 (영업시간 + 브레이크 타임 반영)."""
     if place.open_time and t < place.open_time:
@@ -33,14 +43,22 @@ async def build_timeline(
     조건 위반 장소는 폐기(스킵)한다.
     """
     mode = constraints.travel_mode
-    stay_min = 60  # 장소당 기본 체류시간
     cursor = _as_datetime(constraints.start_time or time(12, 0))
     end_dt = _as_datetime(constraints.end_time) if constraints.end_time else None
 
     timeline: list[TimelineItem] = []
     prev: Place | None = None
+    spent = 0  # 누적 예상 비용(예산 하드 제약)
 
     for place in places:
+        # 예산 하드 제약: 누적 비용이 상한을 넘으면 폐기 (가격 미상 장소는 통과)
+        if (
+            constraints.budget_max is not None
+            and place.price is not None
+            and spent + place.price > constraints.budget_max
+        ):
+            continue
+
         # 이전 장소로부터 이동. 아직 cursor 는 진전시키지 않는다(스킵 시 드리프트 방지).
         route: Route | None = None
         arrive_dt = cursor
@@ -57,7 +75,7 @@ async def build_timeline(
         if not is_open_at(place, arrive):
             continue  # 영업시간/브레이크 위반 → 폐기 (cursor 유지)
 
-        depart_dt = arrive_dt + timedelta(minutes=stay_min)
+        depart_dt = arrive_dt + timedelta(minutes=stay_minutes(place))
         if end_dt is not None and depart_dt > end_dt:
             break  # 전체 시간 초과 → 종료
 
@@ -68,6 +86,7 @@ async def build_timeline(
             TimelineItem(place=place, arrive=arrive, depart=depart_dt.time())
         )
         cursor = depart_dt  # 확정된 경우에만 진전
+        spent += place.price or 0
         prev = place
 
     return timeline
@@ -78,11 +97,10 @@ async def recompute(
     start_time: time,
     mode: TravelMode,
     map_service: MapService,
-    stay_min: int = 60,
 ) -> list[TimelineItem]:
     """주어진 장소 순서를 그대로 유지하며 도착/출발/이동만 재계산한다(드롭 없음).
 
-    수동 편집·부분 교체 후 동기화용 (4-3).
+    수동 편집·부분 교체 후 동기화용 (4-3). 체류시간은 카테고리별로 계산.
     """
     cursor = _as_datetime(start_time)
     timeline: list[TimelineItem] = []
@@ -96,7 +114,7 @@ async def recompute(
             timeline[-1].travel_to_next = route
 
         arrive = cursor.time()
-        depart_dt = cursor + timedelta(minutes=stay_min)
+        depart_dt = cursor + timedelta(minutes=stay_minutes(place))
         timeline.append(TimelineItem(place=place, arrive=arrive, depart=depart_dt.time()))
         cursor = depart_dt
         prev = place

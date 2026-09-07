@@ -10,6 +10,7 @@ export interface Place {
   lat: number;
   lng: number;
   rating?: number | null;
+  price?: number | null;
   open_time?: string | null;
   close_time?: string | null;
   break_start?: string | null;

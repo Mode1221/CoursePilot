@@ -37,6 +37,7 @@ export default function PlaceDetailModal({ place, onClose }: { place: Place; onC
         {place.category && <div style={{ color: "#888" }}>{place.category}</div>}
         {place.address && <div style={{ color: "#888", fontSize: 13 }}>{place.address}</div>}
         {place.rating != null && <div>⭐ {place.rating.toFixed(1)}</div>}
+        {place.price != null && <div style={{ fontSize: 13 }}>1인 약 {place.price.toLocaleString()}원</div>}
         {(place.open_time || place.close_time) && (
           <div style={{ fontSize: 13 }}>
             영업 {place.open_time?.slice(0, 5)}~{place.close_time?.slice(0, 5)}

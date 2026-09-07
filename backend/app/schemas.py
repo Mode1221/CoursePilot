@@ -24,6 +24,7 @@ class Place(BaseModel):
     lat: float
     lng: float
     rating: Optional[float] = None
+    price: Optional[int] = None  # 1인 예상 비용(원). 없으면 예산 검증에서 제외
     open_time: Optional[time] = None
     close_time: Optional[time] = None
     break_start: Optional[time] = None
