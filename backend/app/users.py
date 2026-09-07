@@ -31,11 +31,17 @@ class User(BaseModel):
     credits_limit: int = 5
     credits_used: int = 0
     credit_period: str = ""
+    points: int = 0  # 구매 포인트(이월). 무료 크레딧 소진 후 사용
     preferences: Preferences = Preferences()
 
     @property
-    def credits_left(self) -> int:
+    def free_left(self) -> int:
         return max(0, self.credits_limit - self.credits_used)
+
+    @property
+    def credits_left(self) -> int:
+        """사용자에게 노출되는 '질문 N회' = 무료 잔여 + 구매 포인트."""
+        return self.free_left + self.points
 
 
 class CreditError(Exception):
@@ -69,11 +75,14 @@ class UserStore:
         return self._save(user)
 
     def refund_credit(self, user_id: str) -> User | None:
-        """소비한 크레딧 1회 되돌리기(사용량 감소). 실패한 AI 요청 보상용."""
+        """소비한 크레딧 1회 되돌리기. 무료 사용분을 먼저 복원, 없으면 포인트로 환불."""
         user = self.get(user_id)
         if user is None:
             return None
-        user.credits_used = max(0, user.credits_used - 1)
+        if user.credits_used > 0:
+            user.credits_used -= 1
+        else:
+            user.points += 1
         return self._save(user)
 
     def get(self, user_id: str) -> User | None:
@@ -104,12 +113,23 @@ class UserStore:
         if user is None:
             raise CreditError("user not found")
         period = _period_now()
-        if user.credit_period != period:  # 매월 리셋(이월 불가)
+        if user.credit_period != period:  # 무료 크레딧만 매월 리셋(포인트는 이월)
             user.credit_period = period
             user.credits_used = 0
-        if user.credits_left <= 0:
+        if user.free_left > 0:
+            user.credits_used += 1  # 무료 크레딧 우선 소비
+        elif user.points > 0:
+            user.points -= 1  # 무료 소진 시 구매 포인트 사용
+        else:
             raise CreditError("no credits left")
-        user.credits_used += 1
+        return self._save(user)
+
+    def purchase_points(self, user_id: str, amount: int) -> User | None:
+        """포인트 구매/충전 (9-2). 결제 성공 후 호출 가정. 이월된다."""
+        user = self.get(user_id)
+        if user is None:
+            return None
+        user.points += amount
         return self._save(user)
 
     def _consume_credit_db(self, user_id: str) -> User:
@@ -122,12 +142,15 @@ class UserStore:
             row = s.get(UserModel, user_id, with_for_update=True)
             if row is None:
                 raise CreditError("user not found")
-            if row.credit_period != period:  # 매월 리셋(이월 불가)
+            if row.credit_period != period:  # 무료 크레딧만 매월 리셋
                 row.credit_period = period
                 row.credits_used = 0
-            if row.credits_limit - row.credits_used <= 0:
+            if row.credits_limit - row.credits_used > 0:
+                row.credits_used += 1  # 무료 우선
+            elif row.points > 0:
+                row.points -= 1  # 포인트 사용
+            else:
                 raise CreditError("no credits left")
-            row.credits_used += 1
             s.commit()
             return self._to_user(row)
 
@@ -145,6 +168,7 @@ class UserStore:
                 row.credits_limit = user.credits_limit
                 row.credits_used = user.credits_used
                 row.credit_period = user.credit_period
+                row.points = user.points
                 row.preferences = user.preferences.model_dump()
                 s.commit()
             return user
@@ -159,6 +183,7 @@ class UserStore:
             credits_limit=row.credits_limit,
             credits_used=row.credits_used,
             credit_period=row.credit_period,
+            points=row.points,
             preferences=Preferences.model_validate(row.preferences or {}),
         )
 

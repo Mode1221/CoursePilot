@@ -96,6 +96,21 @@ async def get_credits(user_id: str) -> dict:
     return {"questions_left": user.credits_left}
 
 
+class PurchaseRequest(BaseModel):
+    points: int  # 구매할 포인트(질문 횟수). 결제 검증은 별도 프로세스 가정
+
+
+@api.post("/users/{user_id}/purchase")
+async def purchase_points(user_id: str, req: PurchaseRequest) -> dict:
+    """포인트 구매/충전 (9-2). 결제 성공 후 호출. 포인트는 이월된다."""
+    if req.points <= 0:
+        raise HTTPException(status_code=400, detail="포인트는 1 이상이어야 합니다")
+    user = user_store.purchase_points(user_id, req.points)
+    if user is None:
+        raise HTTPException(status_code=404, detail="user not found")
+    return {"questions_left": user.credits_left}
+
+
 @api.post("/courses", response_model=Course)
 async def create_course(x_user_id: str | None = Header(default=None)) -> Course:
     return store.create(owner_id=x_user_id)

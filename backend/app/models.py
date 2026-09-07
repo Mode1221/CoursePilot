@@ -36,6 +36,7 @@ class UserModel(Base):
     credits_limit: Mapped[int] = mapped_column(Integer, default=5)  # 월 무료 N회
     credits_used: Mapped[int] = mapped_column(Integer, default=0)
     credit_period: Mapped[str] = mapped_column(String, default="")  # YYYY-MM
+    points: Mapped[int] = mapped_column(Integer, default=0)  # 구매 포인트(이월, 리셋 없음)
     preferences: Mapped[dict] = mapped_column(JSON, default=dict)  # 온보딩 프로필
     created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
 

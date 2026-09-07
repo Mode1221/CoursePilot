@@ -67,6 +67,16 @@ export default function ChatPanel({ courseId }: { courseId: string }) {
     }
   }
 
+  async function buyPoints() {
+    if (!userId) return;
+    // 데모: 결제 없이 5회 충전. 실서비스에선 결제 성공 후 호출.
+    const res = await api.purchase(userId, 5).catch(() => null);
+    if (res) {
+      setQuestionsLeft(res.questions_left);
+      setError(null);
+    }
+  }
+
   return (
     <div style={{ display: "flex", flexDirection: "column", height: "100%" }}>
       <div style={{ padding: 12, borderBottom: "1px solid #eee", display: "flex", justifyContent: "space-between" }}>
@@ -98,8 +108,16 @@ export default function ChatPanel({ courseId }: { courseId: string }) {
             {m.text}
           </div>
         ))}
-        {userId != null && questionsLeft != null && (
+        {userId != null && questionsLeft != null && questionsLeft > 0 && (
           <p style={{ color: "#888", fontSize: 12 }}>질문 {questionsLeft}회 남음</p>
+        )}
+        {userId != null && questionsLeft === 0 && (
+          <p style={{ color: "#c60", fontSize: 12 }}>
+            AI에게 질문하려면 포인트를 구매해주세요.{" "}
+            <button onClick={buyPoints} style={{ fontSize: 12 }}>
+              포인트 구매
+            </button>
+          </p>
         )}
         {userId == null && (
           <p style={{ color: "#888", fontSize: 12 }}>참여자는 수동 편집만 가능합니다.</p>
