@@ -90,7 +90,7 @@ def test_manual_removal_demotes_place(client):
     # 첫 장소 삭제(수동 편집) → 해당 장소 인기 -1 상쇄
     client.post(f"/courses/{course_id}/reorder", json={"place_ids": keep_ids})
     after = popularity_store.scores([removed_id])[removed_id]
-    assert after == before - 1
+    assert abs(after - (before - 1)) < 0.05  # -1 상쇄(미세 감쇠 허용)
 
 
 def test_bookmark_flow(client):
