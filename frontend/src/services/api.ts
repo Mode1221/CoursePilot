@@ -89,6 +89,11 @@ export const api = {
       body: { kind, detail },
     }),
 
+  complete: (courseId: string) =>
+    request<{ ok: boolean; places: number }>(`/courses/${courseId}/complete`, {
+      method: "POST",
+    }),
+
   purchase: (userId: string, points: number) =>
     request<{ questions_left: number }>(`/users/${userId}/purchase`, {
       method: "POST",

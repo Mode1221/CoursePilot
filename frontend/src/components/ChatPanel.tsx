@@ -80,6 +80,11 @@ export default function ChatPanel({ courseId }: { courseId: string }) {
     }
   }
 
+  async function markCompleted() {
+    const res = await api.complete(courseId).catch(() => null);
+    if (res) setNotice("다녀오셨군요! 코스 반영에 참고할게요.");
+  }
+
   async function buyPoints() {
     if (!userId) return;
     // 데모: 결제 없이 5회 충전. 실서비스에선 결제 성공 후 호출.
@@ -94,9 +99,14 @@ export default function ChatPanel({ courseId }: { courseId: string }) {
     <div style={{ display: "flex", flexDirection: "column", height: "100%" }}>
       <div style={{ padding: 12, borderBottom: "1px solid #eee", display: "flex", justifyContent: "space-between" }}>
         <strong>{course?.title ?? "코스"}</strong>
-        <button onClick={() => shareService.share(`${window.location.origin}/share/${courseId}`)}>
-          공유
-        </button>
+        <span style={{ display: "flex", gap: 8 }}>
+          {course != null && course.items.length > 0 && (
+            <button onClick={markCompleted}>다녀왔어요</button>
+          )}
+          <button onClick={() => shareService.share(`${window.location.origin}/share/${courseId}`)}>
+            공유
+          </button>
+        </span>
       </div>
 
       <div style={{ flex: 1, padding: 12, overflow: "auto", display: "flex", flexDirection: "column", gap: 8 }}>

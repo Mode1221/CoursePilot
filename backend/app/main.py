@@ -331,6 +331,24 @@ async def post_feedback(course_id: str, req: FeedbackRequest) -> dict:
     return {"ok": True}
 
 
+COMPLETION_WEIGHT = 3  # 완주(실제 방문)는 채택/북마크보다 강한 긍정 신호
+
+
+@api.post("/courses/{course_id}/complete")
+async def complete_course(course_id: str) -> dict:
+    """완주 신호("다녀왔어요") (data #6). 실제 방문한 코스의 장소에 강한 인기 가점.
+
+    비로그인 참여자도 누를 수 있어 인증/크레딧 불필요.
+    """
+    course = store.get(course_id)
+    if course is None:
+        raise HTTPException(status_code=404, detail="course not found")
+    place_ids = [it.place.id for it in course.items]
+    popularity_store.bump_many(place_ids, weight=COMPLETION_WEIGHT)
+    feedback_store.log(course_id, "completed", detail=f"{len(place_ids)}곳")
+    return {"ok": True, "places": len(place_ids)}
+
+
 class ReorderRequest(BaseModel):
     # 원하는 최종 순서. 빠진 id 는 삭제로 처리.
     place_ids: list[str] = Field(max_length=50)
