@@ -34,6 +34,7 @@ def score_place(
     popularity: float = 0.0,
     self_rating: float | None = None,
     context_pop: float = 0.0,
+    cold_start: bool = False,
 ) -> float:
     prefs = prefs or {}
     score = 0.0
@@ -47,6 +48,11 @@ def score_place(
         score += 0.4 * own
     elif ext is not None:
         score += 0.4 * ext
+
+    # 콜드스타트 폴백(활용): 행동 신호가 전무하면 외부 평점에 더 의존(폴백 체인).
+    # 신호가 쌓이면 자동으로 가중이 사라져 행동 기반으로 이행.
+    if cold_start and ext is not None:
+        score += 0.2 * ext
 
     # 자체 정량 신호: 인기(코스 채택·북마크). 이미 0~1 로 정규화되어 들어옴
     score += 0.25 * popularity
@@ -268,11 +274,19 @@ async def plan_course(
             for p in candidates
         }
 
+    # 콜드스타트 판정(활용): 행동 신호(인기·자체별점·시간대)가 전무하면 외부 평점 폴백
+    behavioral_mass = (
+        sum(raw.values())
+        + sum(v for v in self_ratings.values() if v is not None)
+        + sum(ctx_pop.values())
+    )
+    cold_start = behavioral_mass <= 0.0
+
     ranked = sorted(
         candidates,
         key=lambda p: score_place(
             p, constraints, prefs, pop.get(p.id, 0.0), self_ratings.get(p.id),
-            ctx_pop.get(p.id, 0.0),
+            ctx_pop.get(p.id, 0.0), cold_start,
         ),
         reverse=True,
     )
