@@ -9,7 +9,16 @@
 
 ## 빠른 시작
 
-### 1. DB (선택)
+### 옵션 A. Docker 전체 스택 (원커맨드)
+```bash
+docker compose up --build
+# frontend http://localhost:3000 · backend http://localhost:8000 · db(pgvector) :5432
+```
+OpenAI/Naver 키는 선택 — 없으면 Mock/폴백으로 동작한다.
+
+### 옵션 B. 로컬 개발
+
+#### 1. DB (선택)
 ```bash
 docker compose up -d db
 ```

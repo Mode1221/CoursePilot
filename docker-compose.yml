@@ -15,5 +15,26 @@ services:
       timeout: 5s
       retries: 5
 
+  backend:
+    build: ./backend
+    environment:
+      DATABASE_URL: postgresql+psycopg://coursepilot:coursepilot@db:5432/coursepilot
+      CORS_ORIGINS: '["http://localhost:3000"]'
+      # OPENAI_API_KEY / NAVER_* 는 필요 시 .env 로 주입 (없으면 Mock/폴백)
+    ports:
+      - "8000:8000"
+    depends_on:
+      db:
+        condition: service_healthy
+
+  frontend:
+    build: ./frontend
+    environment:
+      NEXT_PUBLIC_API_BASE: http://localhost:8000
+    ports:
+      - "3000:3000"
+    depends_on:
+      - backend
+
 volumes:
   pgdata:
