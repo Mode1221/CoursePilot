@@ -77,6 +77,12 @@ export const api = {
   credits: (userId: string) =>
     request<{ questions_left: number }>(`/users/${userId}/credits`),
 
+  feedback: (courseId: string, kind: string, detail = "") =>
+    request<{ ok: boolean }>(`/courses/${courseId}/feedback`, {
+      method: "POST",
+      body: { kind, detail },
+    }),
+
   purchase: (userId: string, points: number) =>
     request<{ questions_left: number }>(`/users/${userId}/purchase`, {
       method: "POST",

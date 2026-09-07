@@ -17,6 +17,7 @@ from app.bookmarks import bookmark_store
 from app.chat import ChatMessage, chat_store
 from app.config import settings
 from app.constants import DEFAULT_START_TIME
+from app.feedback import feedback_store
 from app.middleware import RateLimitMiddleware, RequestLogMiddleware
 from app.pipeline.agent import generate_course
 from app.pipeline.edit import EditCommand, apply_edit, parse_edit
@@ -271,6 +272,11 @@ async def generate(
         new_ids = [it.place.id for it in course.items]
         # 코스에 채택된 장소에 인기 가점(암묵적 정량 신호)
         popularity_store.bump_many(new_ids)
+        # 피드백(#16): 완화 제안/적용 로깅
+        if needs_confirmation:
+            feedback_store.log(course_id, "relax_offered")
+        elif relaxed:
+            feedback_store.log(course_id, "relax_applied")
         # 생존율(#3): AI 편집으로 교체/삭제돼 밀려난 장소는 -1 로 상쇄(추천 미적중)
         if is_edit:
             dropped = [pid for pid in old_ids if pid not in set(new_ids)]
@@ -296,6 +302,20 @@ def _ai_reply(course: Course, relaxed: bool, needs_confirmation: bool) -> str:
     if relaxed:
         base += " 일부 조건은 완화했어요."
     return base
+
+
+class FeedbackRequest(BaseModel):
+    kind: str = Field(min_length=1, max_length=40)
+    detail: str = Field(default="", max_length=200)
+
+
+@api.post("/courses/{course_id}/feedback")
+async def post_feedback(course_id: str, req: FeedbackRequest) -> dict:
+    """사용자 피드백 기록(#15/#16). 예: 완화 수락/거부."""
+    if store.get(course_id) is None:
+        raise HTTPException(status_code=404, detail="course not found")
+    feedback_store.log(course_id, req.kind, req.detail)
+    return {"ok": True}
 
 
 class ReorderRequest(BaseModel):

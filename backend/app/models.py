@@ -41,6 +41,18 @@ class UserModel(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
 
 
+class FeedbackModel(Base):
+    """피드백 이벤트(조건 완화 수락/거부 등). 제약 하드니스 학습용."""
+
+    __tablename__ = "feedback_events"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    course_id: Mapped[str] = mapped_column(String, index=True)
+    kind: Mapped[str] = mapped_column(String, index=True)
+    detail: Mapped[str] = mapped_column(String, default="")
+    created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
+
+
 class PopularityModel(Base):
     """장소 인기(암묵적 정량 신호). 코스 채택·북마크로 누적."""
 

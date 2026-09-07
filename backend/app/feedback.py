@@ -1,0 +1,65 @@
+"""피드백 이벤트 로깅 (data #15/#16).
+
+조건 완화 제안·수락·거부 등 사용자 반응을 기록해 "어떤 제약이 진짜 하드인지"를
+학습할 데이터로 축적한다. DB/인메모리 폴백.
+
+kind 예시:
+  relax_offered   — 완화 제안(needs_confirmation)
+  relax_accepted  — 사용자가 완화 결과 수락
+  relax_rejected  — 사용자가 조건을 직접 바꿈(완화 거부)
+"""
+from __future__ import annotations
+
+from collections import defaultdict
+
+from pydantic import BaseModel
+
+
+class FeedbackEvent(BaseModel):
+    kind: str
+    detail: str = ""
+
+
+class FeedbackStore:
+    def __init__(self) -> None:
+        self._mem: dict[str, list[FeedbackEvent]] = defaultdict(list)
+
+    def log(self, course_id: str, kind: str, detail: str = "") -> None:
+        if self._db_ready():
+            from app.db import SessionLocal
+            from app.models import FeedbackModel
+
+            with SessionLocal() as s:
+                s.add(FeedbackModel(course_id=course_id, kind=kind, detail=detail))
+                s.commit()
+            return
+        self._mem[course_id].append(FeedbackEvent(kind=kind, detail=detail))
+
+    def counts(self, kind: str | None = None) -> dict[str, int]:
+        """kind별 집계(간단 학습용). DB/인메모리 공통."""
+        if self._db_ready():
+            from sqlalchemy import func, select
+
+            from app.db import SessionLocal
+            from app.models import FeedbackModel
+
+            with SessionLocal() as s:
+                stmt = select(FeedbackModel.kind, func.count()).group_by(FeedbackModel.kind)
+                if kind:
+                    stmt = stmt.where(FeedbackModel.kind == kind)
+                return {k: n for k, n in s.execute(stmt).all()}
+        agg: dict[str, int] = defaultdict(int)
+        for events in self._mem.values():
+            for e in events:
+                if kind is None or e.kind == kind:
+                    agg[e.kind] += 1
+        return dict(agg)
+
+    @staticmethod
+    def _db_ready() -> bool:
+        from app.db import is_ready
+
+        return is_ready()
+
+
+feedback_store = FeedbackStore()

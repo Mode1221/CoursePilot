@@ -25,6 +25,7 @@ export default function ChatPanel({ courseId }: { courseId: string }) {
   const [sending, setSending] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
+  const [confirmRelax, setConfirmRelax] = useState(false);
   const locked = useCourseStore((s) => s.locked);
   const stage = useCourseStore((s) => s.stage);
   const messages = useCourseStore((s) => s.messages);
@@ -56,14 +57,26 @@ export default function ChatPanel({ courseId }: { courseId: string }) {
       setText("");
       if (res.needs_confirmation) {
         setNotice("조건에 맞는 장소가 부족합니다. 조건을 완화할까요?");
-      } else if (res.relaxed) {
-        setNotice("일부 조건을 완화해 코스를 구성했습니다.");
+        setConfirmRelax(true);
+      } else {
+        setConfirmRelax(false);
+        if (res.relaxed) setNotice("일부 조건을 완화해 코스를 구성했습니다.");
       }
       refreshCredits();
     } catch (e) {
       setError(e instanceof ApiError ? e.message : "요청 실패");
     } finally {
       setSending(false);
+    }
+  }
+
+  async function relaxFeedback(accepted: boolean) {
+    setConfirmRelax(false);
+    api.feedback(courseId, accepted ? "relax_accepted" : "relax_rejected").catch(() => {});
+    if (accepted) {
+      setNotice("완화된 조건으로 진행합니다.");
+    } else {
+      setNotice("조건을 다시 입력해 주세요.");
     }
   }
 
@@ -124,6 +137,12 @@ export default function ChatPanel({ courseId }: { courseId: string }) {
         )}
         {locked && <p style={{ color: "#c60" }}>AI 처리 중… {stageLabel(stage)} · 편집이 잠깁니다.</p>}
         {notice && <p style={{ color: "#c60" }}>{notice}</p>}
+        {confirmRelax && (
+          <div style={{ display: "flex", gap: 8 }}>
+            <button onClick={() => relaxFeedback(true)}>완화 수락</button>
+            <button onClick={() => relaxFeedback(false)}>직접 수정</button>
+          </div>
+        )}
         {error && <p style={{ color: "#c00" }}>{error}</p>}
       </div>
 
