@@ -32,13 +32,20 @@ def score_place(
     constraints: PlanConstraints,
     prefs: dict | None,
     popularity: float = 0.0,
+    self_rating: float | None = None,
 ) -> float:
     prefs = prefs or {}
     score = 0.0
 
-    # 평점 (0~5 → 0~1)
-    if place.rating is not None:
-        score += 0.4 * (place.rating / 5.0)
+    # 평점: 자체 원탭 별점이 있으면 외부 별점과 블렌드(자체 우선), 없으면 외부만
+    ext = (place.rating / 5.0) if place.rating is not None else None
+    own = (self_rating / 5.0) if self_rating is not None else None
+    if own is not None and ext is not None:
+        score += 0.4 * (0.6 * own + 0.4 * ext)
+    elif own is not None:
+        score += 0.4 * own
+    elif ext is not None:
+        score += 0.4 * ext
 
     # 자체 정량 신호: 인기(코스 채택·북마크). 이미 0~1 로 정규화되어 들어옴
     score += 0.25 * popularity
@@ -140,14 +147,19 @@ async def plan_course(
 
     # 자체 인기 신호 조회 후 0~1 로 정규화(최댓값 대비 상대값)
     from app.popularity import popularity_store
+    from app.ratings import rating_store
 
-    raw = popularity_store.scores([p.id for p in candidates])
+    ids = [p.id for p in candidates]
+    raw = popularity_store.scores(ids)
     peak = max(raw.values(), default=0) or 1
     pop = {pid: v / peak for pid, v in raw.items()}
+    self_ratings = rating_store.averages(ids)  # 자체 원탭 별점
 
     ranked = sorted(
         candidates,
-        key=lambda p: score_place(p, constraints, prefs, pop.get(p.id, 0.0)),
+        key=lambda p: score_place(
+            p, constraints, prefs, pop.get(p.id, 0.0), self_ratings.get(p.id)
+        ),
         reverse=True,
     )
     slots = desired_slots(constraints)

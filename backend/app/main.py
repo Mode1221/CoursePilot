@@ -23,6 +23,7 @@ from app.pipeline.agent import generate_course
 from app.pipeline.edit import EditCommand, apply_edit, parse_edit
 from app.popularity import popularity_store
 from app.queue import queues
+from app.ratings import rating_store
 from app.realtime import (
     broadcast_lock,
     broadcast_message,
@@ -302,6 +303,18 @@ def _ai_reply(course: Course, relaxed: bool, needs_confirmation: bool) -> str:
     if relaxed:
         base += " 일부 조건은 완화했어요."
     return base
+
+
+class RatingRequest(BaseModel):
+    stars: int = Field(ge=1, le=5)
+
+
+@api.post("/places/{place_id}/rating")
+async def rate_place(place_id: str, req: RatingRequest) -> dict:
+    """장소 원탭 별점(1~5). 자체 정량 신호로 planner 스코어에 반영 (data #9)."""
+    rating_store.submit(place_id, req.stars)
+    avg = rating_store.averages([place_id]).get(place_id)
+    return {"ok": True, "average": avg}
 
 
 class FeedbackRequest(BaseModel):
