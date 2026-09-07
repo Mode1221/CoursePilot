@@ -83,6 +83,16 @@ class SequenceModel(Base):
     count: Mapped[float] = mapped_column(Float, default=0.0)
 
 
+class TimeContextModel(Base):
+    """시간대 컨텍스트 — 장소×데이파트(아침/낮/저녁) 채택 누적 (data #12)."""
+
+    __tablename__ = "place_time_context"
+
+    place_id: Mapped[str] = mapped_column(String, primary_key=True)
+    daypart: Mapped[str] = mapped_column(String, primary_key=True)
+    count: Mapped[float] = mapped_column(Float, default=0.0)
+
+
 class ChatMessageModel(Base):
     """채팅 로그. append-only (5-2)."""
 

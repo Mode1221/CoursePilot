@@ -273,6 +273,13 @@ async def generate(
         new_ids = [it.place.id for it in course.items]
         # 코스에 채택된 장소에 인기 가점(암묵적 정량 신호)
         popularity_store.bump_many(new_ids)
+        # 시간대 컨텍스트(#12): 코스 시작 시간대에 채택 신호 누적
+        if not is_edit and course.items:
+            from app.timecontext import daypart_of, time_context_store
+
+            first = course.items[0].arrive
+            if first:
+                time_context_store.bump_many(new_ids, daypart_of(first.hour))
         # 피드백(#16): 완화 제안/적용 로깅
         if needs_confirmation:
             feedback_store.log(course_id, "relax_offered")
