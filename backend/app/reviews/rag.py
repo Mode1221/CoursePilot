@@ -6,13 +6,19 @@ from __future__ import annotations
 
 from app.reviews.embedding import embed, embed_many
 from app.reviews.source import get_review_source
-from app.reviews.sponsored import is_sponsored
+from app.reviews.sponsored import sponsored_score
+
+SPONSORED_THRESHOLD = 0.5  # 이 이상이면 협찬 개연성 높음 → 제외
+
+
+def _keep(content: str) -> bool:
+    return sponsored_score(content) < SPONSORED_THRESHOLD
 
 
 async def ingest_place_reviews(place_id: str, place_name: str, db_ready: bool) -> int:
     """장소 리뷰 수집 후 비협찬 리뷰만 임베딩하여 저장. 저장 건수 반환."""
     reviews = await get_review_source().fetch(place_name)
-    kept = [r for r in reviews if not is_sponsored(r.content)]  # 1차 협찬 필터
+    kept = [r for r in reviews if _keep(r.content)]  # 다층 협찬 필터
     if not kept:
         return 0
     vectors = await embed_many([r.content for r in kept])  # 배치 임베딩(단일 호출)
@@ -36,9 +42,9 @@ async def ingest_place_reviews(place_id: str, place_name: str, db_ready: bool) -
 
 
 async def fetch_filtered(place_name: str, limit: int = 5) -> list[str]:
-    """수집 → 협찬 1차 필터만 적용한 리뷰 텍스트 (DB 불필요, 개발용 폴백)."""
+    """수집 → 협찬 다층 필터 적용한 리뷰 텍스트 (DB 불필요, 개발용 폴백)."""
     reviews = await get_review_source().fetch(place_name, limit=limit)
-    return [r.content for r in reviews if not is_sponsored(r.content)]
+    return [r.content for r in reviews if _keep(r.content)]
 
 
 async def summarize_reviews(reviews: list[str]) -> str:
