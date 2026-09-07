@@ -41,6 +41,16 @@ class UserModel(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
 
 
+class PlaceRatingModel(Base):
+    """장소 원탭 별점 집계(합/개수). 자체 명시 정량 신호."""
+
+    __tablename__ = "place_ratings"
+
+    place_id: Mapped[str] = mapped_column(String, primary_key=True)
+    sum: Mapped[int] = mapped_column(Integer, default=0)
+    count: Mapped[int] = mapped_column(Integer, default=0)
+
+
 class FeedbackModel(Base):
     """피드백 이벤트(조건 완화 수락/거부 등). 제약 하드니스 학습용."""
 

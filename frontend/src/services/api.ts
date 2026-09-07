@@ -77,6 +77,12 @@ export const api = {
   credits: (userId: string) =>
     request<{ questions_left: number }>(`/users/${userId}/credits`),
 
+  ratePlace: (placeId: string, stars: number) =>
+    request<{ ok: boolean; average: number | null }>(`/places/${placeId}/rating`, {
+      method: "POST",
+      body: { stars },
+    }),
+
   feedback: (courseId: string, kind: string, detail = "") =>
     request<{ ok: boolean }>(`/courses/${courseId}/feedback`, {
       method: "POST",

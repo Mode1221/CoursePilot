@@ -8,6 +8,7 @@ import type { Place } from "@/types";
 // 장소 상세 모달 (4-2). 리뷰 요약은 RAG(협찬 필터 후) 결과.
 export default function PlaceDetailModal({ place, onClose }: { place: Place; onClose: () => void }) {
   const [summary, setSummary] = useState<string>("불러오는 중…");
+  const [myStars, setMyStars] = useState<number | null>(null);
   const closeRef = useRef<HTMLButtonElement>(null);
   const dialogRef = useRef<HTMLDivElement>(null);
   const titleId = `place-${place.id}`;
@@ -80,6 +81,31 @@ export default function PlaceDetailModal({ place, onClose }: { place: Place; onC
         )}
         <h4>리뷰 요약</h4>
         <p style={{ color: "#444", fontSize: 14 }}>{summary}</p>
+
+        <h4>다녀왔다면 별점을 남겨주세요</h4>
+        <div role="group" aria-label="별점" style={{ display: "flex", gap: 4 }}>
+          {[1, 2, 3, 4, 5].map((n) => (
+            <button
+              key={n}
+              aria-label={`${n}점`}
+              onClick={() => {
+                setMyStars(n);
+                api.ratePlace(place.id, n).catch(() => {});
+              }}
+              style={{
+                border: "none",
+                background: "none",
+                cursor: "pointer",
+                fontSize: 22,
+                color: myStars != null && n <= myStars ? "#f5a623" : "#ccc",
+              }}
+            >
+              ★
+            </button>
+          ))}
+        </div>
+        {myStars != null && <p style={{ color: "#3a7", fontSize: 13 }}>평가 감사합니다!</p>}
+
         <button ref={closeRef} onClick={onClose} style={{ marginTop: 8 }}>
           닫기
         </button>
