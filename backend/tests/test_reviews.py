@@ -1,9 +1,9 @@
 import pytest
 
+from app.models import EMBED_DIM
 from app.reviews.embedding import embed
 from app.reviews.rag import ingest_place_reviews
 from app.reviews.sponsored import is_sponsored
-from app.models import EMBED_DIM
 
 
 def test_sponsored_filter():

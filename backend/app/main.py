@@ -10,12 +10,13 @@ from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 
 from app.adapters.map_service import get_map_service
+from app.bookmarks import bookmark_store
+from app.chat import ChatMessage, chat_store
 from app.config import settings
 from app.constants import DEFAULT_START_TIME
 from app.pipeline.agent import generate_course
 from app.pipeline.edit import EditCommand, apply_edit, parse_edit
 from app.queue import queues
-from app.chat import ChatMessage, chat_store
 from app.realtime import (
     broadcast_lock,
     broadcast_message,
@@ -24,7 +25,6 @@ from app.realtime import (
     sio,
 )
 from app.schemas import Course
-from app.bookmarks import bookmark_store
 from app.store import store
 from app.users import CreditError, Preferences, user_store
 
@@ -140,14 +140,13 @@ class ReviewSummaryRequest(BaseModel):
 @api.post("/reviews/summary")
 async def review_summary(req: ReviewSummaryRequest) -> dict:
     """장소 상세 모달용 리뷰 요약 (4-2 + 8장 RAG)."""
+    from app.db import is_ready
     from app.reviews.rag import (
         fetch_filtered,
         ingest_place_reviews,
         retrieve,
         summarize_reviews,
     )
-
-    from app.db import is_ready
 
     db_ready = is_ready()
     if db_ready:
@@ -198,7 +197,7 @@ async def generate(
         except CreditError:
             raise HTTPException(
                 status_code=402, detail="AI에게 질문하려면 포인트를 구매해주세요"
-            )
+            ) from None
         prefs = user.preferences.model_dump()
 
         course.locked = True

@@ -24,7 +24,7 @@ async def ingest_place_reviews(place_id: str, place_name: str, db_ready: bool) -
     from app.models import ReviewModel
 
     with SessionLocal() as s:
-        for r, vector in zip(kept, vectors):
+        for r, vector in zip(kept, vectors, strict=False):
             s.add(
                 ReviewModel(
                     place_id=place_id, source=r.source, content=r.content,

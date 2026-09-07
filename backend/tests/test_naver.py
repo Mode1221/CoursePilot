@@ -1,8 +1,7 @@
 import pytest
 
-from app.adapters.naver import _haversine_m, _katech_to_wgs84, _strip_tags
 from app.adapters.map_service import MockMapService, SafeMapService
-from app.schemas import TravelMode
+from app.adapters.naver import _haversine_m, _katech_to_wgs84, _strip_tags
 
 
 def test_strip_tags():

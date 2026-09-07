@@ -3,7 +3,6 @@ from __future__ import annotations
 
 from datetime import time
 from enum import Enum
-from typing import Optional
 
 from pydantic import BaseModel, Field
 
@@ -19,16 +18,16 @@ class Place(BaseModel):
 
     id: str
     name: str
-    category: Optional[str] = None
-    address: Optional[str] = None
+    category: str | None = None
+    address: str | None = None
     lat: float
     lng: float
-    rating: Optional[float] = None
-    price: Optional[int] = None  # 1인 예상 비용(원). 없으면 예산 검증에서 제외
-    open_time: Optional[time] = None
-    close_time: Optional[time] = None
-    break_start: Optional[time] = None
-    break_end: Optional[time] = None
+    rating: float | None = None
+    price: int | None = None  # 1인 예상 비용(원). 없으면 예산 검증에서 제외
+    open_time: time | None = None
+    close_time: time | None = None
+    break_start: time | None = None
+    break_end: time | None = None
 
 
 class Route(BaseModel):
@@ -45,9 +44,9 @@ class TimelineItem(BaseModel):
     """타임라인 한 칸: 장소 + 도착/출발 시각 + 다음 장소로의 이동."""
 
     place: Place
-    arrive: Optional[time] = None
-    depart: Optional[time] = None
-    travel_to_next: Optional[Route] = None
+    arrive: time | None = None
+    depart: time | None = None
+    travel_to_next: Route | None = None
 
 
 class Course(BaseModel):
@@ -55,8 +54,8 @@ class Course(BaseModel):
 
     id: str
     title: str = "새 코스"
-    region: Optional[str] = None
-    owner_id: Optional[str] = None  # 생성자(로그인 회원) id
+    region: str | None = None
+    owner_id: str | None = None  # 생성자(로그인 회원) id
     items: list[TimelineItem] = Field(default_factory=list)
     locked: bool = False
 
@@ -64,11 +63,11 @@ class Course(BaseModel):
 class PlanConstraints(BaseModel):
     """자연어에서 분해된 조건(7-1 Decomposition 결과)."""
 
-    region: Optional[str] = None
-    start_time: Optional[time] = None
-    end_time: Optional[time] = None
-    duration_min: Optional[int] = None
-    max_travel_min: Optional[int] = None
+    region: str | None = None
+    start_time: time | None = None
+    end_time: time | None = None
+    duration_min: int | None = None
+    max_travel_min: int | None = None
     travel_mode: TravelMode = TravelMode.WALK
-    budget_max: Optional[int] = None  # 하드 제약
+    budget_max: int | None = None  # 하드 제약
     keywords: list[str] = Field(default_factory=list)  # 조용한, 비건 등 소프트 제약

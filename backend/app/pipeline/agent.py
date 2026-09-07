@@ -4,8 +4,8 @@ Decomposition → Tool-Use → Validation → 조건 완화 재시도 → Final.
 """
 from __future__ import annotations
 
+from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
-from typing import Awaitable, Callable
 
 from app.adapters.map_service import MapService
 from app.constants import DEFAULT_REGION

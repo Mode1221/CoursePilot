@@ -13,10 +13,10 @@ import math
 
 import httpx
 
+from app.adapters.map_service import MapService
 from app.config import settings
 from app.constants import TRAVEL_SPEED_M_PER_MIN
 from app.schemas import Place, Route, TravelMode
-from app.adapters.map_service import MapService
 
 _SEARCH_URL = "https://openapi.naver.com/v1/search/local.json"
 _DIRECTIONS_URL = "https://naveropenapi.apigw.ntruss.com/map-direction/v1/driving"
@@ -95,7 +95,7 @@ def _place_id(name: str, address: str) -> str:
     """이름+주소 해시로 검색 반복에도 동일한 장소면 같은 id 를 갖게 한다."""
     import hashlib
 
-    digest = hashlib.sha1(f"{name}|{address}".encode("utf-8")).hexdigest()[:12]
+    digest = hashlib.sha1(f"{name}|{address}".encode()).hexdigest()[:12]
     return f"naver-{digest}"
 
 
