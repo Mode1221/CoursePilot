@@ -15,11 +15,15 @@ interface CourseState {
   locked: boolean; // AI 처리 중 UI 편집 잠금 (5-3)
   stage: string | null; // AI 처리 단계 (5-4)
   messages: ChatMessage[]; // append-only 채팅 로그 (5-2)
+  connected: boolean; // 소켓 연결 상태 (5-4)
+  notFound: boolean; // 코스 없음(404)
   setCourse: (course: Course) => void;
   setLocked: (locked: boolean) => void;
   setStage: (stage: string | null) => void;
   setMessages: (messages: ChatMessage[]) => void;
   appendMessage: (message: ChatMessage) => void;
+  setConnected: (connected: boolean) => void;
+  setNotFound: (notFound: boolean) => void;
   // 수동 편집: 드래그로 순서 변경 후 이동시간 재계산 (4-3). AI 호출 없음 → 무료.
   reorder: (from: number, to: number) => Promise<void>;
   remove: (index: number) => Promise<void>;
@@ -40,11 +44,15 @@ export const useCourseStore = create<CourseState>((set, get) => ({
   locked: false,
   stage: null,
   messages: [],
-  setCourse: (course) => set({ course, locked: course.locked }),
+  connected: true,
+  notFound: false,
+  setCourse: (course) => set({ course, locked: course.locked, notFound: false }),
   setLocked: (locked) => set({ locked }),
   setStage: (stage) => set({ stage }),
   setMessages: (messages) => set({ messages }),
   appendMessage: (message) => set((s) => ({ messages: [...s.messages, message] })),
+  setConnected: (connected) => set({ connected }),
+  setNotFound: (notFound) => set({ notFound }),
 
   // 수동 편집: 낙관적 로컬 갱신 후 서버 큐로 직렬화(무료). 서버 broadcast 가 최종 반영.
   reorder: async (from, to) => {
