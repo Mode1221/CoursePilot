@@ -52,6 +52,39 @@ class CooccurrenceStore:
                 return row.count if row else 0.0
         return self._mem.get(frozenset((a, b)), 0.0)
 
+    def top_partners(self, place_id: str, k: int = 5) -> list[tuple[str, float]]:
+        """place_id 와 가장 자주 함께 채택된 장소 상위 k (id, count) 내림차순."""
+        if self._db_ready():
+            from sqlalchemy import or_, select
+
+            from app.db import SessionLocal
+            from app.models import CooccurrenceModel
+
+            with SessionLocal() as s:
+                rows = s.execute(
+                    select(
+                        CooccurrenceModel.place_a,
+                        CooccurrenceModel.place_b,
+                        CooccurrenceModel.count,
+                    ).where(
+                        or_(
+                            CooccurrenceModel.place_a == place_id,
+                            CooccurrenceModel.place_b == place_id,
+                        )
+                    )
+                ).all()
+            pairs = [
+                (a if b == place_id else b, c) for a, b, c in rows if place_id in (a, b)
+            ]
+        else:
+            pairs = [
+                (next(iter(key - {place_id})), c)
+                for key, c in self._mem.items()
+                if place_id in key and len(key) == 2
+            ]
+        pairs.sort(key=lambda x: x[1], reverse=True)
+        return pairs[:k]
+
     @staticmethod
     def _db_ready() -> bool:
         from app.db import is_ready

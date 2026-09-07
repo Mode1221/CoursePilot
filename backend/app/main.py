@@ -31,7 +31,7 @@ from app.realtime import (
     broadcast_state,
     sio,
 )
-from app.schemas import Course
+from app.schemas import Course, Place
 from app.store import store
 from app.users import CreditError, Preferences, user_store
 
@@ -316,6 +316,11 @@ async def generate(
             from app.cooccurrence import cooccurrence_store
 
             cooccurrence_store.bump_course(new_ids)
+        # 전역 장소 저장소: 등장 장소 스냅샷 보관(CF 추천 id→장소 복원용)
+        if course.items:
+            from app.places import place_repo
+
+            place_repo.upsert_many([it.place for it in course.items])
         # 피드백(#16): 완화 제안/적용 로깅
         if needs_confirmation:
             feedback_store.log(course_id, "relax_offered")
@@ -401,6 +406,21 @@ async def view_course(course_id: str) -> dict:
         raise HTTPException(status_code=404, detail="course not found")
     popularity_store.bump_many([it.place.id for it in course.items], weight=VIEW_WEIGHT)
     return {"ok": True}
+
+
+@api.get("/places/{place_id}/related", response_model=list[Place])
+async def related_places(place_id: str, limit: int = 5) -> list[Place]:
+    """함께 가요 추천 (협업 필터링). 이 장소와 자주 함께 채택된 장소들.
+
+    데이터가 없으면 빈 목록(콜드스타트 안전). 인증 불필요.
+    """
+    from app.cooccurrence import cooccurrence_store
+    from app.places import place_repo
+
+    limit = max(1, min(limit, 20))
+    partners = cooccurrence_store.top_partners(place_id, limit)
+    resolved = place_repo.get_many([pid for pid, _ in partners])
+    return [resolved[pid] for pid, _ in partners if pid in resolved]
 
 
 COMPLETION_WEIGHT = 3  # 완주(실제 방문)는 채택/북마크보다 강한 긍정 신호

@@ -133,6 +133,15 @@ class CooccurrenceModel(Base):
     count: Mapped[float] = mapped_column(Float, default=0.0)
 
 
+class PlaceModel(Base):
+    """전역 장소 스냅샷(정규화 Place JSON). CF 추천 등 id→장소 복원용."""
+
+    __tablename__ = "places"
+
+    id: Mapped[str] = mapped_column(String, primary_key=True)
+    data: Mapped[dict] = mapped_column(JSON)
+
+
 class ChatMessageModel(Base):
     """채팅 로그. append-only (5-2)."""
 

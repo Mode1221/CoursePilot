@@ -83,6 +83,9 @@ export const api = {
       body: { stars },
     }),
 
+  relatedPlaces: (placeId: string) =>
+    request<import("@/types").Place[]>(`/places/${placeId}/related`),
+
   revisit: (placeId: string) =>
     request<{ ok: boolean }>(`/places/${placeId}/revisit`, { method: "POST" }),
 
