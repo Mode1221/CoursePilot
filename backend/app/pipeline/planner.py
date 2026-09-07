@@ -33,6 +33,7 @@ def score_place(
     prefs: dict | None,
     popularity: float = 0.0,
     self_rating: float | None = None,
+    context_pop: float = 0.0,
 ) -> float:
     prefs = prefs or {}
     score = 0.0
@@ -49,6 +50,9 @@ def score_place(
 
     # 자체 정량 신호: 인기(코스 채택·북마크). 이미 0~1 로 정규화되어 들어옴
     score += 0.25 * popularity
+
+    # 시간대 컨텍스트(#12): 요청 시간대에 자주 채택된 장소 가점(0~1 정규화)
+    score += 0.15 * context_pop
 
     # 키워드/무드 매칭 (카테고리·이름에 등장)
     haystack = f"{place.category or ''} {place.name}".lower()
@@ -217,10 +221,29 @@ async def plan_course(
     }
     self_ratings = rating_store.averages(ids)  # 자체 원탭 별점
 
+    # 시간대 컨텍스트(#12): 요청 시작 시간대의 채택 신호를 카테고리별 상대 정규화
+    ctx_pop: dict[str, float] = {}
+    if constraints.start_time is not None:
+        from app.timecontext import daypart_of, time_context_store
+
+        dp = daypart_of(constraints.start_time.hour)
+        ctx_raw = time_context_store.scores(ids, dp)
+        ctx_peak: dict[str, float] = {}
+        for p in candidates:
+            c = classify(p)
+            ctx_peak[c] = max(ctx_peak.get(c, 0.0), ctx_raw.get(p.id, 0.0))
+        ctx_pop = {
+            p.id: (ctx_raw.get(p.id, 0.0) / ctx_peak[classify(p)])
+            if ctx_peak.get(classify(p))
+            else 0.0
+            for p in candidates
+        }
+
     ranked = sorted(
         candidates,
         key=lambda p: score_place(
-            p, constraints, prefs, pop.get(p.id, 0.0), self_ratings.get(p.id)
+            p, constraints, prefs, pop.get(p.id, 0.0), self_ratings.get(p.id),
+            ctx_pop.get(p.id, 0.0),
         ),
         reverse=True,
     )
