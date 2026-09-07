@@ -254,20 +254,26 @@ async def plan_course(
     )
     slots = desired_slots(constraints)
 
-    # 후보 코스 시드 3종 → 각각 물리 검증 후 코스 점수로 최고 선택 (D)
-    seeds: list[list[Place]] = []
+    # 후보 코스 시드 → 각각 물리 검증 후 코스 점수로 최고 선택 (D). 라벨로 선택 로깅(#15).
+    seeds: list[tuple[str, list[Place]]] = []
     templated = _pick_by_template(ranked, slots)
     if templated:
-        seeds.append(templated)                 # 1) 템플릿 순서
-        seeds.append(route_order(templated))    # 2) 템플릿 세트의 동선 최적화
-        seeds.append(seq_order(templated))      # 3) 학습된 선호 순서(#7)
-    seeds.append(ranked[: len(slots)])          # 4) 순수 점수 상위
+        seeds.append(("template", templated))          # 1) 템플릿 순서
+        seeds.append(("route", route_order(templated)))  # 2) 동선 최적화
+        seeds.append(("sequence", seq_order(templated)))  # 3) 학습된 선호 순서(#7)
+    seeds.append(("score", ranked[: len(slots)]))       # 4) 순수 점수 상위
 
     best: list[TimelineItem] = []
     best_score = float("-inf")
-    for seed in seeds:
+    best_label = ""
+    for label, seed in seeds:
         timeline = await build_timeline(seed, constraints, map_service)
         s = course_score(timeline)
         if s > best_score:
-            best_score, best = s, timeline
+            best_score, best, best_label = s, timeline, label
+    # #15: 어떤 시드 전략이 채택됐는지 누적 → 목적함수 가중치 튜닝 데이터
+    if best_label:
+        from app.strategy import strategy_store
+
+        strategy_store.bump(best_label)
     return best
