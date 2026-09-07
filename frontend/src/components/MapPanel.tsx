@@ -52,12 +52,21 @@ export default function MapPanel({ readOnly = false }: { readOnly?: boolean }) {
             }}
           >
             <div style={{ display: "flex", justifyContent: "space-between" }}>
-              <strong
+              <span
+                role="button"
+                tabIndex={0}
                 onClick={() => setSelected(item.place)}
-                style={{ cursor: "pointer", textDecoration: "underline" }}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" || e.key === " ") {
+                    e.preventDefault();
+                    setSelected(item.place);
+                  }
+                }}
+                style={{ cursor: "pointer", textDecoration: "underline", fontWeight: 700 }}
+                aria-label={`${item.place.name} 상세 보기`}
               >
                 {i + 1}. {item.place.name}
-              </strong>
+              </span>
               <span style={{ color: "#888" }}>
                 {item.arrive?.slice(0, 5)}~{item.depart?.slice(0, 5)}
               </span>

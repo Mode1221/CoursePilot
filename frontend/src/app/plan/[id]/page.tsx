@@ -76,10 +76,12 @@ export default function PlanPage({ params }: { params: { id: string } }) {
     return (
       <div style={{ display: "flex", flexDirection: "column", height: "100vh" }}>
         <ConnectionBanner />
-        <div style={{ display: "flex", borderBottom: "1px solid #eee" }}>
+        <div role="tablist" aria-label="화면 전환" style={{ display: "flex", borderBottom: "1px solid #eee" }}>
           {(["map", "chat"] as const).map((t) => (
             <button
               key={t}
+              role="tab"
+              aria-selected={tab === t}
               onClick={() => setTab(t)}
               style={{
                 flex: 1,
