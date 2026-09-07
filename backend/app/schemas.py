@@ -58,6 +58,7 @@ class Course(BaseModel):
     owner_id: str | None = None  # 생성자(로그인 회원) id
     items: list[TimelineItem] = Field(default_factory=list)
     locked: bool = False
+    predicted_score: float | None = None  # 생성 시 코스 목적함수 점수(#17 만족도 대조용)
 
 
 class PlanConstraints(BaseModel):
