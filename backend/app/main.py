@@ -145,14 +145,23 @@ class ReviewSummaryRequest(BaseModel):
 @api.post("/reviews/summary")
 async def review_summary(req: ReviewSummaryRequest) -> dict:
     """장소 상세 모달용 리뷰 요약 (4-2 + 8장 RAG)."""
-    from app.reviews.rag import ingest_place_reviews, retrieve, summarize_reviews
+    from app.reviews.rag import (
+        fetch_filtered,
+        ingest_place_reviews,
+        retrieve,
+        summarize_reviews,
+    )
 
     db_ready = store._db_ready
-    found = await retrieve(req.place_id, req.query, db_ready=db_ready)
-    if not found:
-        # 최초 조회 시 수집 후 재검색
-        await ingest_place_reviews(req.place_id, req.place_name, db_ready)
+    if db_ready:
         found = await retrieve(req.place_id, req.query, db_ready=db_ready)
+        if not found:
+            # 최초 조회 시 수집 후 재검색
+            await ingest_place_reviews(req.place_id, req.place_name, db_ready)
+            found = await retrieve(req.place_id, req.query, db_ready=db_ready)
+    else:
+        # DB 미사용(개발): 수집+협찬 필터만 적용한 리뷰를 바로 요약
+        found = await fetch_filtered(req.place_name)
     summary = await summarize_reviews(found)
     return {"summary": summary, "count": len(found)}
 

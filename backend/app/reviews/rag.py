@@ -40,6 +40,12 @@ async def ingest_place_reviews(place_id: str, place_name: str, db_ready: bool) -
     return stored
 
 
+async def fetch_filtered(place_name: str, limit: int = 5) -> list[str]:
+    """수집 → 협찬 1차 필터만 적용한 리뷰 텍스트 (DB 불필요, 개발용 폴백)."""
+    reviews = await get_review_source().fetch(place_name, limit=limit)
+    return [r.content for r in reviews if not is_sponsored(r.content)]
+
+
 async def summarize_reviews(reviews: list[str]) -> str:
     """검색된 비협찬 리뷰를 요약. 2차 LLM 필터로 협찬 의심 제외 지시 (8장).
 
