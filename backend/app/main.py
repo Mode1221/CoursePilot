@@ -389,6 +389,12 @@ async def manual_reorder(course_id: str, req: ReorderRequest) -> Course:
             course.items = []
         store.save(course)
         popularity_store.bump_many(dropped, weight=-1)
+        # 재정렬 패턴(#7): 사용자가 확정한 순서의 카테고리 전이를 선호로 학습
+        if len(course.items) >= 2:
+            from app.pipeline.planner import classify
+            from app.sequence import sequence_store
+
+            sequence_store.bump_sequence([classify(it.place) for it in course.items])
         await broadcast_state(course_id, course.model_dump(mode="json"))
         return course
 

@@ -123,6 +123,23 @@ def route_order(places: list[Place]) -> list[Place]:
     return ordered
 
 
+# ── 선호 순서 정렬 (C'): 학습된 카테고리 전이 최대화 (data #7) ──
+def seq_order(places: list[Place]) -> list[Place]:
+    if len(places) <= 2:
+        return places
+    from app.sequence import sequence_store
+
+    # 첫 장소는 유지(식사 시작 관성), 이후 학습 전이가 가장 높은 순으로 그리디 연결
+    ordered = [places[0]]
+    remaining = places[1:]
+    while remaining:
+        last = classify(ordered[-1])
+        nxt = max(remaining, key=lambda p: sequence_store.transition(last, classify(p)))
+        ordered.append(nxt)
+        remaining.remove(nxt)
+    return ordered
+
+
 # ── 후보 선택: 슬롯별 최고 점수 + 다양성 ─────────────────────────
 def _pick_by_template(
     ranked: list[Place], slots: list[str]
@@ -151,12 +168,24 @@ def course_score(timeline: list[TimelineItem]) -> float:
         it.travel_to_next.duration_min for it in timeline if it.travel_to_next
     )
     diversity = len({classify(it.place) for it in timeline})
+    # 재정렬 패턴(#7): 학습된 선호 순서(카테고리 전이)에 가점
+    from app.sequence import sequence_store
+
+    seq_pref = sequence_store.sequence_score([classify(it.place) for it in timeline])
     return (
         len(timeline) * 1.0          # 완성도(장소 수)
         + avg_rating * 0.5           # 평균 평점
         + diversity * 0.3            # 카테고리 다양성
+        + _seq_norm(seq_pref)        # 선호 순서 적합
         - total_travel * 0.02        # 총 이동 페널티
     )
+
+
+def _seq_norm(raw: float) -> float:
+    """전이 누적값을 포화(0~0.5)로 눌러 과적합 방지."""
+    if raw <= 0:
+        return 0.0
+    return 0.5 * (raw / (raw + 3.0))
 
 
 async def plan_course(
@@ -203,7 +232,8 @@ async def plan_course(
     if templated:
         seeds.append(templated)                 # 1) 템플릿 순서
         seeds.append(route_order(templated))    # 2) 템플릿 세트의 동선 최적화
-    seeds.append(ranked[: len(slots)])          # 3) 순수 점수 상위
+        seeds.append(seq_order(templated))      # 3) 학습된 선호 순서(#7)
+    seeds.append(ranked[: len(slots)])          # 4) 순수 점수 상위
 
     best: list[TimelineItem] = []
     best_score = float("-inf")
