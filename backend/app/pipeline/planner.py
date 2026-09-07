@@ -167,6 +167,30 @@ def _pick_by_template(
     return picked
 
 
+# ── 협업 필터링 선택 (활용): 공동 채택 친화도로 슬롯 채우기 ────────
+def _cf_pick(ranked: list[Place], slots: list[str]) -> list[Place]:
+    """슬롯별로 이미 담긴 장소들과 공동 채택 친화도가 높은 후보를 선택.
+
+    친화도 데이터가 없으면 랭킹 순으로 자연 복귀(콜드스타트 안전).
+    """
+    from app.cooccurrence import cooccurrence_store
+
+    used: set[str] = set()
+    picked: list[Place] = []
+    for slot in slots:
+        cands = [p for p in ranked if p.id not in used and classify(p) == slot]
+        if not cands:
+            cands = [p for p in ranked if p.id not in used]
+        if not cands:
+            continue
+        anchors = [p.id for p in picked]
+        # 랭킹(내림차순)을 유지하며 친화도 높은 후보 우선(안정 정렬)
+        best = max(cands, key=lambda p: cooccurrence_store.affinity(p.id, anchors))
+        picked.append(best)
+        used.add(best.id)
+    return picked
+
+
 # ── 코스 목적함수 (D) ────────────────────────────────────────────
 def course_score(timeline: list[TimelineItem]) -> float:
     if not timeline:
@@ -261,7 +285,10 @@ async def plan_course(
         seeds.append(("template", templated))          # 1) 템플릿 순서
         seeds.append(("route", route_order(templated)))  # 2) 동선 최적화
         seeds.append(("sequence", seq_order(templated)))  # 3) 학습된 선호 순서(#7)
-    seeds.append(("score", ranked[: len(slots)]))       # 4) 순수 점수 상위
+    cf = _cf_pick(ranked, slots)
+    if cf:
+        seeds.append(("cf", cf))                         # 4) 협업 필터링(공동 채택)
+    seeds.append(("score", ranked[: len(slots)]))       # 5) 순수 점수 상위
 
     best: list[TimelineItem] = []
     best_score = float("-inf")
