@@ -275,7 +275,9 @@ async def manual_reorder(course_id: str, req: ReorderRequest) -> Course:
         by_id = {it.place.id: it for it in course.items}
         ordered = [by_id[pid] for pid in req.place_ids if pid in by_id]
         if ordered:
-            start = ordered[0].arrive or time(12, 0)
+            # 앵커는 코스의 원래 시작 시각(전체 최소 도착시각) — 순서가 바뀌어도 유지.
+            arrivals = [it.arrive for it in course.items if it.arrive]
+            start = min(arrivals) if arrivals else time(12, 0)
             course.items = await recompute(
                 [it.place for it in ordered], start, _infer_mode(ordered), get_map_service()
             )
