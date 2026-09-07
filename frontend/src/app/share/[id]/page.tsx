@@ -20,6 +20,7 @@ export default function SharePage({ params }: { params: { id: string } }) {
     setNotFound(false);
     load();
     api.getCourse(params.id).then(setCourse).catch(() => setNotFound(true));
+    api.view(params.id).catch(() => {}); // 열람 신호(#5)
   }, [params.id, setCourse, setNotFound, load]);
 
   if (notFound) {

@@ -23,7 +23,7 @@ class PopularityStore:
         # place_id -> (score, last_ts)
         self._mem: dict[str, tuple[float, float]] = defaultdict(lambda: (0.0, 0.0))
 
-    def bump(self, place_id: str, weight: int = 1) -> None:
+    def bump(self, place_id: str, weight: float = 1) -> None:
         now = _time.time()
         if self._db_ready():
             from app.db import SessionLocal
@@ -43,7 +43,7 @@ class PopularityStore:
         cur, ts = self._mem[place_id]
         self._mem[place_id] = (cur * _decay(now - ts) + weight if ts else float(weight), now)
 
-    def bump_many(self, place_ids: list[str], weight: int = 1) -> None:
+    def bump_many(self, place_ids: list[str], weight: float = 1) -> None:
         for pid in place_ids:
             self.bump(pid, weight)
 

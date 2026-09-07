@@ -331,6 +331,22 @@ async def post_feedback(course_id: str, req: FeedbackRequest) -> dict:
     return {"ok": True}
 
 
+VIEW_WEIGHT = 0.2  # 공유 열람은 약한 완성도 대리 신호(다수 열람 → 완성도 방증)
+
+
+@api.post("/courses/{course_id}/view")
+async def view_course(course_id: str) -> dict:
+    """공유 열람 신호 (data #5). 공유 뷰가 열릴 때 코스 장소에 약한 가점.
+
+    완성도 대리지표(열람 많을수록 잘 만든 코스일 가능성). 인증 불필요.
+    """
+    course = store.get(course_id)
+    if course is None:
+        raise HTTPException(status_code=404, detail="course not found")
+    popularity_store.bump_many([it.place.id for it in course.items], weight=VIEW_WEIGHT)
+    return {"ok": True}
+
+
 COMPLETION_WEIGHT = 3  # 완주(실제 방문)는 채택/북마크보다 강한 긍정 신호
 
 
