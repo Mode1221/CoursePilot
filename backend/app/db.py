@@ -17,6 +17,16 @@ class Base(DeclarativeBase):
 
 _engine: Engine | None = None
 _SessionLocal: sessionmaker[Session] | None = None
+_ready = False  # DB 사용 가능 여부(단일 소스). False면 전 스토어가 인메모리 폴백.
+
+
+def is_ready() -> bool:
+    return _ready
+
+
+def set_ready(ready: bool) -> None:
+    global _ready
+    _ready = ready
 
 
 def _ensure_engine() -> sessionmaker[Session]:

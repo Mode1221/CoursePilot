@@ -5,6 +5,8 @@ from collections import defaultdict
 
 from pydantic import BaseModel
 
+from app.db import is_ready
+
 
 class ChatMessage(BaseModel):
     role: str  # user | ai
@@ -14,14 +16,10 @@ class ChatMessage(BaseModel):
 class ChatStore:
     def __init__(self) -> None:
         self._mem: dict[str, list[ChatMessage]] = defaultdict(list)
-        self._db_ready = False
-
-    def enable_db(self, ready: bool) -> None:
-        self._db_ready = ready
 
     def append(self, course_id: str, role: str, text: str) -> ChatMessage:
         msg = ChatMessage(role=role, text=text)
-        if self._db_ready:
+        if is_ready():
             from app.db import SessionLocal
             from app.models import ChatMessageModel
 
@@ -33,7 +31,7 @@ class ChatStore:
         return msg
 
     def list(self, course_id: str) -> list[ChatMessage]:
-        if self._db_ready:
+        if is_ready():
             from sqlalchemy import select
 
             from app.db import SessionLocal

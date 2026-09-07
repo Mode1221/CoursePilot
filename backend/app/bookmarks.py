@@ -1,17 +1,15 @@
 """북마크 저장소 (9-4). DB/인메모리 폴백."""
 from __future__ import annotations
 
+from app.db import is_ready
+
 
 class BookmarkStore:
     def __init__(self) -> None:
         self._mem: set[tuple[str, str]] = set()
-        self._db_ready = False
-
-    def enable_db(self, ready: bool) -> None:
-        self._db_ready = ready
 
     def add(self, user_id: str, course_id: str) -> None:
-        if self._db_ready:
+        if is_ready():
             from sqlalchemy import select
 
             from app.db import SessionLocal
@@ -31,7 +29,7 @@ class BookmarkStore:
         self._mem.add((user_id, course_id))
 
     def remove(self, user_id: str, course_id: str) -> None:
-        if self._db_ready:
+        if is_ready():
             from sqlalchemy import delete
 
             from app.db import SessionLocal
@@ -49,7 +47,7 @@ class BookmarkStore:
         self._mem.discard((user_id, course_id))
 
     def list_course_ids(self, user_id: str) -> list[str]:
-        if self._db_ready:
+        if is_ready():
             from sqlalchemy import select
 
             from app.db import SessionLocal

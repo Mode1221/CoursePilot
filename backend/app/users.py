@@ -12,6 +12,8 @@ from datetime import date
 
 from pydantic import BaseModel
 
+from app.db import is_ready
+
 
 class Preferences(BaseModel):
     """온보딩 선호 프로필 (모두 선택). AI 요청 컨텍스트에 자동 포함."""
@@ -48,10 +50,6 @@ def _period_now() -> str:
 class UserStore:
     def __init__(self) -> None:
         self._mem: dict[str, User] = {}
-        self._db_ready = False
-
-    def enable_db(self, ready: bool) -> None:
-        self._db_ready = ready
 
     def create(self, phone: str, credits_limit: int = 5) -> User:
         user = User(
@@ -71,7 +69,7 @@ class UserStore:
         return self._save(user)
 
     def get(self, user_id: str) -> User | None:
-        if self._db_ready:
+        if is_ready():
             from app.db import SessionLocal
             from app.models import UserModel
 
@@ -91,7 +89,7 @@ class UserStore:
 
     def consume_credit(self, user_id: str) -> User:
         """AI 명령 1회 = 질문 1회 차감. 월 리셋 반영. 소진 시 CreditError."""
-        if self._db_ready:
+        if is_ready():
             return self._consume_credit_db(user_id)
 
         user = self.get(user_id)
@@ -126,7 +124,7 @@ class UserStore:
             return self._to_user(row)
 
     def _save(self, user: User) -> User:
-        if self._db_ready:
+        if is_ready():
             from app.db import SessionLocal
             from app.models import UserModel
 

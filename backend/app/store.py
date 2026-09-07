@@ -7,23 +7,20 @@ from __future__ import annotations
 
 import secrets
 
+from app.db import is_ready
 from app.schemas import Course
 
 
 class CourseStore:
     def __init__(self) -> None:
         self._mem: dict[str, Course] = {}
-        self._db_ready = False
-
-    def enable_db(self, ready: bool) -> None:
-        self._db_ready = ready
 
     def create(self, title: str = "새 코스", owner_id: str | None = None) -> Course:
         course = Course(id=secrets.token_urlsafe(8), title=title, owner_id=owner_id)
         return self.save(course)
 
     def list_by_owner(self, owner_id: str) -> list[Course]:
-        if self._db_ready:
+        if is_ready():
             from sqlalchemy import select
 
             from app.db import SessionLocal
@@ -39,7 +36,7 @@ class CourseStore:
         return [c for c in self._mem.values() if c.owner_id == owner_id]
 
     def get(self, course_id: str) -> Course | None:
-        if self._db_ready:
+        if is_ready():
             from app.db import SessionLocal
             from app.models import CourseModel
 
@@ -51,7 +48,7 @@ class CourseStore:
         return self._mem.get(course_id)
 
     def save(self, course: Course) -> Course:
-        if self._db_ready:
+        if is_ready():
             from app.db import SessionLocal
             from app.models import CourseModel
 

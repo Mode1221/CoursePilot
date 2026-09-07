@@ -33,13 +33,9 @@ api = FastAPI(title="CoursePilot API")
 
 @api.on_event("startup")
 async def _startup() -> None:
-    from app.db import init_db
+    from app.db import init_db, set_ready
 
-    ready = init_db()
-    store.enable_db(ready)
-    user_store.enable_db(ready)
-    bookmark_store.enable_db(ready)
-    chat_store.enable_db(ready)
+    set_ready(init_db())  # 전 스토어가 참조하는 단일 readiness
 
 
 api.add_middleware(
@@ -151,7 +147,9 @@ async def review_summary(req: ReviewSummaryRequest) -> dict:
         summarize_reviews,
     )
 
-    db_ready = store._db_ready
+    from app.db import is_ready
+
+    db_ready = is_ready()
     if db_ready:
         found = await retrieve(req.place_id, req.query, db_ready=db_ready)
         if not found:
