@@ -112,6 +112,17 @@ class StrategyModel(Base):
     count: Mapped[int] = mapped_column(Integer, default=0)
 
 
+class OutcomeModel(Base):
+    """코스 예측 점수 vs 실제 만족도 (data #17)."""
+
+    __tablename__ = "course_outcomes"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    predicted_score: Mapped[float] = mapped_column(Float)
+    liked: Mapped[int] = mapped_column(Integer)  # 1=👍 / 0=👎
+    created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
+
+
 class ChatMessageModel(Base):
     """채팅 로그. append-only (5-2)."""
 

@@ -266,6 +266,10 @@ async def generate(
                 needs_confirmation = result.needs_confirmation
                 if result.constraints.region:
                     course.region = result.constraints.region
+                # #17: 생성 시 코스 목적함수 점수 저장(만족도 대조용)
+                from app.pipeline.planner import course_score
+
+                course.predicted_score = course_score(course.items)
         except Exception:
             user_store.refund_credit(x_user_id)  # 실패 시 소비 크레딧 되돌림
             course.locked = False
@@ -413,6 +417,11 @@ async def rate_satisfaction(course_id: str, req: SatisfactionRequest) -> dict:
     weight = SATISFACTION_WEIGHT if req.liked else -SATISFACTION_WEIGHT
     popularity_store.bump_many([it.place.id for it in course.items], weight=weight)
     feedback_store.log(course_id, "liked" if req.liked else "disliked")
+    # #17: 예측 점수 vs 실제 만족도 대조 데이터 축적
+    if course.predicted_score is not None:
+        from app.outcome import outcome_store
+
+        outcome_store.record(course.predicted_score, req.liked)
     return {"ok": True}
 
 
