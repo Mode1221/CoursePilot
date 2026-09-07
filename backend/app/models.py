@@ -73,6 +73,16 @@ class PopularityModel(Base):
     updated_at: Mapped[float] = mapped_column(Float, default=0.0)  # unix ts(시간 감쇠용)
 
 
+class SequenceModel(Base):
+    """재정렬 패턴(선호 순서) — 카테고리 인접 전이 누적 (data #7)."""
+
+    __tablename__ = "category_sequences"
+
+    from_cat: Mapped[str] = mapped_column(String, primary_key=True)
+    to_cat: Mapped[str] = mapped_column(String, primary_key=True)
+    count: Mapped[float] = mapped_column(Float, default=0.0)
+
+
 class ChatMessageModel(Base):
     """채팅 로그. append-only (5-2)."""
 
