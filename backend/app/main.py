@@ -4,18 +4,20 @@
 """
 from __future__ import annotations
 
+import logging
 from contextlib import asynccontextmanager
 
 import socketio
 from fastapi import FastAPI, Header, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 from app.adapters.map_service import get_map_service
 from app.bookmarks import bookmark_store
 from app.chat import ChatMessage, chat_store
 from app.config import settings
 from app.constants import DEFAULT_START_TIME
+from app.middleware import RateLimitMiddleware, RequestLogMiddleware
 from app.pipeline.agent import generate_course
 from app.pipeline.edit import EditCommand, apply_edit, parse_edit
 from app.queue import queues
@@ -41,7 +43,14 @@ async def lifespan(_app: FastAPI):
 
 api = FastAPI(title="CoursePilot API", lifespan=lifespan)
 
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s %(levelname)s %(name)s %(message)s",
+)
 
+# 순서 주의: 나중에 add 한 미들웨어가 바깥쪽 → rate limit 이 로깅보다 먼저 평가되도록
+api.add_middleware(RequestLogMiddleware)
+api.add_middleware(RateLimitMiddleware)
 api.add_middleware(
     CORSMiddleware,
     allow_origins=settings.cors_origins,
@@ -51,12 +60,13 @@ api.add_middleware(
 
 
 class GenerateRequest(BaseModel):
-    text: str
+    text: str = Field(min_length=1, max_length=500)
 
 
 class SignupRequest(BaseModel):
-    phone: str  # 전화번호 인증은 별도 프로세스 가정, 여기선 인증 완료 후 호출
-    referrer_id: str | None = None  # 초대한 회원 id (9-4 레퍼럴)
+    # 전화번호 인증은 별도 프로세스 가정, 여기선 인증 완료 후 호출
+    phone: str = Field(min_length=9, max_length=20, pattern=r"^[0-9\-+ ]+$")
+    referrer_id: str | None = Field(default=None, max_length=64)  # 9-4 레퍼럴
 
 REFERRAL_BONUS = 1
 
@@ -97,7 +107,8 @@ async def get_credits(user_id: str) -> dict:
 
 
 class PurchaseRequest(BaseModel):
-    points: int  # 구매할 포인트(질문 횟수). 결제 검증은 별도 프로세스 가정
+    # 구매할 포인트(질문 횟수). 결제 검증은 별도 프로세스 가정
+    points: int = Field(gt=0, le=1000)
 
 
 @api.post("/users/{user_id}/purchase")
@@ -151,9 +162,9 @@ async def get_course(course_id: str) -> Course:
 
 
 class ReviewSummaryRequest(BaseModel):
-    place_id: str
-    place_name: str
-    query: str = "분위기 방문 후기"
+    place_id: str = Field(min_length=1, max_length=128)
+    place_name: str = Field(min_length=1, max_length=200)
+    query: str = Field(default="분위기 방문 후기", max_length=200)
 
 
 @api.post("/reviews/summary")
@@ -274,7 +285,8 @@ def _ai_reply(course: Course, relaxed: bool, needs_confirmation: bool) -> str:
 
 
 class ReorderRequest(BaseModel):
-    place_ids: list[str]  # 원하는 최종 순서. 빠진 id 는 삭제로 처리.
+    # 원하는 최종 순서. 빠진 id 는 삭제로 처리.
+    place_ids: list[str] = Field(max_length=50)
 
 
 @api.post("/courses/{course_id}/reorder", response_model=Course)

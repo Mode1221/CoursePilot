@@ -11,7 +11,7 @@ def client():
 
 
 def _signup(client) -> str:
-    return client.post("/signup", json={"phone": "010-0000"}).json()["user_id"]
+    return client.post("/signup", json={"phone": "010-0000-0000"}).json()["user_id"]
 
 
 def test_participant_cannot_use_ai(client):
