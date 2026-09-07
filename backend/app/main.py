@@ -317,6 +317,19 @@ async def rate_place(place_id: str, req: RatingRequest) -> dict:
     return {"ok": True, "average": avg}
 
 
+REVISIT_WEIGHT = 2  # 재방문 의사는 장소 단위 강한 긍정(또 가고 싶다)
+
+
+@api.post("/places/{place_id}/revisit")
+async def mark_revisit(place_id: str) -> dict:
+    """재방문 의사 토글 (data #10). "또 가고 싶어요" → 장소 인기 강한 가점.
+
+    장소 단위 명시 신호(원탭). 인증 불필요.
+    """
+    popularity_store.bump(place_id, weight=REVISIT_WEIGHT)
+    return {"ok": True}
+
+
 class FeedbackRequest(BaseModel):
     kind: str = Field(min_length=1, max_length=40)
     detail: str = Field(default="", max_length=200)
