@@ -134,6 +134,27 @@ def test_view_signal_light_boost(client):
     assert client.post("/courses/none/view").status_code == 404
 
 
+def test_satisfaction_signal(client):
+    from app.popularity import popularity_store
+
+    uid = _signup(client)
+    course_id = client.post("/courses", headers={"X-User-Id": uid}).json()["id"]
+    client.post(
+        f"/courses/{course_id}/generate",
+        headers={"X-User-Id": uid},
+        json={"text": "성수동 오전 10시 5시간 도보"},
+    )
+    pid = client.get(f"/courses/{course_id}").json()["items"][0]["place"]["id"]
+    before = popularity_store.scores([pid])[pid]
+    assert client.post(f"/courses/{course_id}/satisfaction", json={"liked": True}).status_code == 200
+    up = popularity_store.scores([pid])[pid]
+    assert up - before > 1.5  # 👍 +가점
+    assert client.post(f"/courses/{course_id}/satisfaction", json={"liked": False}).status_code == 200
+    down = popularity_store.scores([pid])[pid]
+    assert down < up  # 👎 -가점
+    assert client.post("/courses/none/satisfaction", json={"liked": True}).status_code == 404
+
+
 def test_bookmark_flow(client):
     uid = _signup(client)
     course_id = client.post("/courses", headers={"X-User-Id": uid}).json()["id"]

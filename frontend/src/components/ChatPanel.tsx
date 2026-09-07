@@ -26,6 +26,7 @@ export default function ChatPanel({ courseId }: { courseId: string }) {
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [confirmRelax, setConfirmRelax] = useState(false);
+  const [completed, setCompleted] = useState(false);
   const locked = useCourseStore((s) => s.locked);
   const stage = useCourseStore((s) => s.stage);
   const messages = useCourseStore((s) => s.messages);
@@ -82,7 +83,16 @@ export default function ChatPanel({ courseId }: { courseId: string }) {
 
   async function markCompleted() {
     const res = await api.complete(courseId).catch(() => null);
-    if (res) setNotice("다녀오셨군요! 코스 반영에 참고할게요.");
+    if (res) {
+      setCompleted(true);
+      setNotice("다녀오셨군요! 만족하셨나요?");
+    }
+  }
+
+  async function rateSatisfaction(liked: boolean) {
+    setCompleted(false);
+    api.satisfaction(courseId, liked).catch(() => {});
+    setNotice(liked ? "좋아요! 비슷한 코스를 더 추천할게요." : "아쉬웠군요. 다음엔 더 잘 맞춰볼게요.");
   }
 
   async function buyPoints() {
@@ -151,6 +161,12 @@ export default function ChatPanel({ courseId }: { courseId: string }) {
           <div style={{ display: "flex", gap: 8 }}>
             <button onClick={() => relaxFeedback(true)}>완화 수락</button>
             <button onClick={() => relaxFeedback(false)}>직접 수정</button>
+          </div>
+        )}
+        {completed && (
+          <div style={{ display: "flex", gap: 8 }}>
+            <button onClick={() => rateSatisfaction(true)}>👍 만족</button>
+            <button onClick={() => rateSatisfaction(false)}>👎 아쉬움</button>
           </div>
         )}
         {error && <p style={{ color: "#c00" }}>{error}</p>}
