@@ -92,6 +92,12 @@ export const api = {
   view: (courseId: string) =>
     request<{ ok: boolean }>(`/courses/${courseId}/view`, { method: "POST" }),
 
+  satisfaction: (courseId: string, liked: boolean) =>
+    request<{ ok: boolean }>(`/courses/${courseId}/satisfaction`, {
+      method: "POST",
+      body: { liked },
+    }),
+
   complete: (courseId: string) =>
     request<{ ok: boolean; places: number }>(`/courses/${courseId}/complete`, {
       method: "POST",

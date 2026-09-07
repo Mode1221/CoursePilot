@@ -365,6 +365,28 @@ async def complete_course(course_id: str) -> dict:
     return {"ok": True, "places": len(place_ids)}
 
 
+SATISFACTION_WEIGHT = 2  # 완료 후 만족(👍)/불만족(👎) 원탭 평가 가중
+
+
+class SatisfactionRequest(BaseModel):
+    liked: bool  # 👍=True / 👎=False
+
+
+@api.post("/courses/{course_id}/satisfaction")
+async def rate_satisfaction(course_id: str, req: SatisfactionRequest) -> dict:
+    """완료 후 원탭 만족도 👍/👎 (data #8). 텍스트 아님 → 광고·약관 무관.
+
+    만족이면 코스 장소에 +가점, 불만족이면 -가점. 인증 불필요.
+    """
+    course = store.get(course_id)
+    if course is None:
+        raise HTTPException(status_code=404, detail="course not found")
+    weight = SATISFACTION_WEIGHT if req.liked else -SATISFACTION_WEIGHT
+    popularity_store.bump_many([it.place.id for it in course.items], weight=weight)
+    feedback_store.log(course_id, "liked" if req.liked else "disliked")
+    return {"ok": True}
+
+
 class ReorderRequest(BaseModel):
     # 원하는 최종 순서. 빠진 id 는 삭제로 처리.
     place_ids: list[str] = Field(max_length=50)
