@@ -41,6 +41,15 @@ class UserModel(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
 
 
+class PopularityModel(Base):
+    """장소 인기(암묵적 정량 신호). 코스 채택·북마크로 누적."""
+
+    __tablename__ = "place_popularity"
+
+    place_id: Mapped[str] = mapped_column(String, primary_key=True)
+    score: Mapped[int] = mapped_column(Integer, default=0)
+
+
 class ChatMessageModel(Base):
     """채팅 로그. append-only (5-2)."""
 

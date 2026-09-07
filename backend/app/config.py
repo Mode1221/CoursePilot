@@ -15,6 +15,9 @@ class Settings(BaseSettings):
     naver_client_id: str = ""
     naver_client_secret: str = ""
 
+    # 리뷰 소스(요약/스코어링 1순위: Google Places). 미설정 시 Mock 폴백
+    google_maps_api_key: str = ""
+
     cors_origins: list[str] = ["http://localhost:3000"]
 
 

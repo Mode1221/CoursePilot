@@ -20,6 +20,7 @@ from app.constants import DEFAULT_START_TIME
 from app.middleware import RateLimitMiddleware, RequestLogMiddleware
 from app.pipeline.agent import generate_course
 from app.pipeline.edit import EditCommand, apply_edit, parse_edit
+from app.popularity import popularity_store
 from app.queue import queues
 from app.realtime import (
     broadcast_lock,
@@ -141,9 +142,12 @@ async def my_bookmarks(user_id: str) -> list[Course]:
 
 @api.put("/users/{user_id}/bookmarks/{course_id}")
 async def add_bookmark(user_id: str, course_id: str) -> dict:
-    if store.get(course_id) is None:
+    course = store.get(course_id)
+    if course is None:
         raise HTTPException(status_code=404, detail="course not found")
     bookmark_store.add(user_id, course_id)
+    # 북마크된 코스의 장소에 인기 가중(암묵적 정량 신호)
+    popularity_store.bump_many([it.place.id for it in course.items], weight=2)
     return {"ok": True}
 
 
@@ -240,10 +244,13 @@ async def generate(
 
         relaxed = False
         needs_confirmation = False
+        is_edit = False
+        old_ids = [it.place.id for it in course.items]
         try:
             edit_cmd = parse_edit(req.text) if course.items else EditCommand(action="none")
             if edit_cmd.action != "none":
                 # 부분 수정: 해당 카드만 교체/삭제 후 전체 동선 재계산 (4-3)
+                is_edit = True
                 await on_progress("editing")
                 course.items = await apply_edit(course, edit_cmd, get_map_service())
             else:
@@ -261,6 +268,13 @@ async def generate(
         finally:
             course.locked = False
         store.save(course)
+        new_ids = [it.place.id for it in course.items]
+        # 코스에 채택된 장소에 인기 가점(암묵적 정량 신호)
+        popularity_store.bump_many(new_ids)
+        # 생존율(#3): AI 편집으로 교체/삭제돼 밀려난 장소는 -1 로 상쇄(추천 미적중)
+        if is_edit:
+            dropped = [pid for pid in old_ids if pid not in set(new_ids)]
+            popularity_store.bump_many(dropped, weight=-1)
 
         ai_text = _ai_reply(course, relaxed, needs_confirmation)
         chat_store.append(course_id, "ai", ai_text)
@@ -309,6 +323,9 @@ async def manual_reorder(course_id: str, req: ReorderRequest) -> Course:
         from app.pipeline.validation import recompute
 
         by_id = {it.place.id: it for it in course.items}
+        kept_ids = {pid for pid in req.place_ids if pid in by_id}
+        # 생존율(#3/#4): 수동 삭제로 빠진 장소는 -1 상쇄(사용자 거부 신호)
+        dropped = [pid for pid in by_id if pid not in kept_ids]
         ordered = [by_id[pid] for pid in req.place_ids if pid in by_id]
         if ordered:
             # 앵커는 코스의 원래 시작 시각(전체 최소 도착시각) — 순서가 바뀌어도 유지.
@@ -320,6 +337,7 @@ async def manual_reorder(course_id: str, req: ReorderRequest) -> Course:
         else:
             course.items = []
         store.save(course)
+        popularity_store.bump_many(dropped, weight=-1)
         await broadcast_state(course_id, course.model_dump(mode="json"))
         return course
 

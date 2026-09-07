@@ -72,6 +72,27 @@ def test_credit_exhaustion_returns_402(client):
     assert res.status_code == 402
 
 
+def test_manual_removal_demotes_place(client):
+    from app.popularity import popularity_store
+
+    uid = _signup(client)
+    course_id = client.post("/courses", headers={"X-User-Id": uid}).json()["id"]
+    client.post(
+        f"/courses/{course_id}/generate",
+        headers={"X-User-Id": uid},
+        json={"text": "성수동 오전 10시 5시간 도보"},
+    )
+    items = client.get(f"/courses/{course_id}").json()["items"]
+    removed_id = items[0]["place"]["id"]
+    keep_ids = [it["place"]["id"] for it in items[1:]]
+    before = popularity_store.scores([removed_id])[removed_id]
+
+    # 첫 장소 삭제(수동 편집) → 해당 장소 인기 -1 상쇄
+    client.post(f"/courses/{course_id}/reorder", json={"place_ids": keep_ids})
+    after = popularity_store.scores([removed_id])[removed_id]
+    assert after == before - 1
+
+
 def test_bookmark_flow(client):
     uid = _signup(client)
     course_id = client.post("/courses", headers={"X-User-Id": uid}).json()["id"]

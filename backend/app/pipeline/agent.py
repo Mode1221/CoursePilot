@@ -10,7 +10,7 @@ from dataclasses import dataclass
 from app.adapters.map_service import MapService
 from app.constants import DEFAULT_REGION
 from app.pipeline.llm import decompose
-from app.pipeline.validation import build_timeline
+from app.pipeline.planner import plan_course
 from app.schemas import PlanConstraints, TimelineItem
 
 MIN_VALID = 3  # 유효 후보가 이 개수 미만이면 조건 완화
@@ -84,4 +84,5 @@ async def _attempt(
 ) -> list[TimelineItem]:
     region = constraints.region or DEFAULT_REGION
     candidates = await map_service.search_places(region, constraints.keywords, limit=10)
-    return await build_timeline(candidates, constraints, map_service)
+    # 스코어링·카테고리 템플릿·동선·Best-of-N 으로 최적 코스 선택
+    return await plan_course(candidates, constraints, map_service)
