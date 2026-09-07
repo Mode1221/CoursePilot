@@ -520,6 +520,52 @@ async def manual_reorder(course_id: str, req: ReorderRequest) -> Course:
     return await queues.run(course_id, action)
 
 
+class AddPlaceRequest(BaseModel):
+    place_id: str = Field(min_length=1, max_length=128)
+
+
+@api.post("/courses/{course_id}/places", response_model=Course)
+async def add_place(course_id: str, req: AddPlaceRequest) -> Course:
+    """추천("함께 가요") 장소를 코스 끝에 추가 후 전체 동선 재계산 (수동 편집).
+
+    장소는 전역 저장소에서 복원. AI 미호출·무료. 참여자도 가능하므로 인증 불필요.
+    """
+    if store.get(course_id) is None:
+        raise HTTPException(status_code=404, detail="course not found")
+
+    async def action() -> Course:
+        course = store.get(course_id)
+        if course is None:
+            raise HTTPException(status_code=404, detail="course not found")
+        if course.locked:
+            raise HTTPException(status_code=409, detail="AI 처리 중에는 편집할 수 없습니다")
+        if any(it.place.id == req.place_id for it in course.items):
+            raise HTTPException(status_code=409, detail="이미 코스에 포함된 장소입니다")
+
+        from app.places import place_repo
+
+        resolved = place_repo.get_many([req.place_id])
+        place = resolved.get(req.place_id)
+        if place is None:
+            raise HTTPException(status_code=404, detail="place not found")
+
+        from app.pipeline.edit import _infer_mode
+        from app.pipeline.validation import recompute
+
+        places = [it.place for it in course.items] + [place]
+        arrivals = [it.arrive for it in course.items if it.arrive]
+        start = min(arrivals) if arrivals else DEFAULT_START_TIME
+        course.items = await recompute(
+            places, start, _infer_mode(course.items), get_map_service()
+        )
+        store.save(course)
+        popularity_store.bump(req.place_id)  # 채택 신호
+        await broadcast_state(course_id, course.model_dump(mode="json"))
+        return course
+
+    return await queues.run(course_id, action)
+
+
 @api.get("/courses/{course_id}/messages", response_model=list[ChatMessage])
 async def get_messages(course_id: str) -> list[ChatMessage]:
     """채팅 로그 조회 (append-only). 공유 뷰에서는 노출하지 않음."""
