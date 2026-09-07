@@ -27,13 +27,21 @@ def classify(place: Place) -> str:
 
 
 # ── 후보 스코어링 (A) ────────────────────────────────────────────
-def score_place(place: Place, constraints: PlanConstraints, prefs: dict | None) -> float:
+def score_place(
+    place: Place,
+    constraints: PlanConstraints,
+    prefs: dict | None,
+    popularity: float = 0.0,
+) -> float:
     prefs = prefs or {}
     score = 0.0
 
     # 평점 (0~5 → 0~1)
     if place.rating is not None:
         score += 0.4 * (place.rating / 5.0)
+
+    # 자체 정량 신호: 인기(코스 채택·북마크). 이미 0~1 로 정규화되어 들어옴
+    score += 0.25 * popularity
 
     # 키워드/무드 매칭 (카테고리·이름에 등장)
     haystack = f"{place.category or ''} {place.name}".lower()
@@ -130,7 +138,18 @@ async def plan_course(
     if not candidates:
         return []
 
-    ranked = sorted(candidates, key=lambda p: score_place(p, constraints, prefs), reverse=True)
+    # 자체 인기 신호 조회 후 0~1 로 정규화(최댓값 대비 상대값)
+    from app.popularity import popularity_store
+
+    raw = popularity_store.scores([p.id for p in candidates])
+    peak = max(raw.values(), default=0) or 1
+    pop = {pid: v / peak for pid, v in raw.items()}
+
+    ranked = sorted(
+        candidates,
+        key=lambda p: score_place(p, constraints, prefs, pop.get(p.id, 0.0)),
+        reverse=True,
+    )
     slots = desired_slots(constraints)
 
     # 후보 코스 시드 3종 → 각각 물리 검증 후 코스 점수로 최고 선택 (D)

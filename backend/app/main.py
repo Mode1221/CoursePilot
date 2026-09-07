@@ -20,6 +20,7 @@ from app.constants import DEFAULT_START_TIME
 from app.middleware import RateLimitMiddleware, RequestLogMiddleware
 from app.pipeline.agent import generate_course
 from app.pipeline.edit import EditCommand, apply_edit, parse_edit
+from app.popularity import popularity_store
 from app.queue import queues
 from app.realtime import (
     broadcast_lock,
@@ -141,9 +142,12 @@ async def my_bookmarks(user_id: str) -> list[Course]:
 
 @api.put("/users/{user_id}/bookmarks/{course_id}")
 async def add_bookmark(user_id: str, course_id: str) -> dict:
-    if store.get(course_id) is None:
+    course = store.get(course_id)
+    if course is None:
         raise HTTPException(status_code=404, detail="course not found")
     bookmark_store.add(user_id, course_id)
+    # 북마크된 코스의 장소에 인기 가중(암묵적 정량 신호)
+    popularity_store.bump_many([it.place.id for it in course.items], weight=2)
     return {"ok": True}
 
 
@@ -261,6 +265,8 @@ async def generate(
         finally:
             course.locked = False
         store.save(course)
+        # 코스에 채택된 장소에 인기 가점(암묵적 정량 신호)
+        popularity_store.bump_many([it.place.id for it in course.items])
 
         ai_text = _ai_reply(course, relaxed, needs_confirmation)
         chat_store.append(course_id, "ai", ai_text)
