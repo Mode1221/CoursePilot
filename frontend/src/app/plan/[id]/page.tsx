@@ -26,6 +26,7 @@ export default function PlanPage({ params }: { params: { id: string } }) {
   const [tab, setTab] = useState<"map" | "chat">("map");
 
   useEffect(() => {
+    setNotFound(false); // 다른 코스로 이동 시 이전 404 상태 초기화
     // 캐시 유실/재연결 시 서버에서 현재 상태 refetch (5-4)
     const refetch = () => {
       api.getCourse(id).then(setCourse).catch(() => setNotFound(true));

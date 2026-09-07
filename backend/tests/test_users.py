@@ -15,6 +15,16 @@ def test_credit_consume_and_exhaust():
     assert us.get(user.id).credits_left == 0
 
 
+def test_refund_restores_used_not_limit():
+    us = UserStore()
+    user = us.create("010-2222-2222", credits_limit=5)
+    us.consume_credit(user.id)
+    us.refund_credit(user.id)
+    u = us.get(user.id)
+    assert u.credits_used == 0
+    assert u.credits_limit == 5  # 한도는 그대로(영구 증가 아님)
+
+
 def test_preferences_autofill():
     us = UserStore()
     user = us.create("010-1111-1111")

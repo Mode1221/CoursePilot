@@ -110,7 +110,7 @@ async def my_courses(user_id: str) -> list[Course]:
 @api.get("/users/{user_id}/bookmarks", response_model=list[Course])
 async def my_bookmarks(user_id: str) -> list[Course]:
     ids = bookmark_store.list_course_ids(user_id)
-    return [c for c in (store.get(cid) for cid in ids) if c is not None]
+    return store.get_many(ids)
 
 
 @api.put("/users/{user_id}/bookmarks/{course_id}")
@@ -228,7 +228,7 @@ async def generate(
                 if result.constraints.region:
                     course.region = result.constraints.region
         except Exception:
-            user_store.grant_credits(x_user_id, 1)  # 실패 시 크레딧 환불
+            user_store.refund_credit(x_user_id)  # 실패 시 소비 크레딧 되돌림
             course.locked = False
             await broadcast_lock(course_id, False)
             raise

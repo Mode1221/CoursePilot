@@ -35,6 +35,22 @@ def is_open_at(place: Place, t: time) -> bool:
     return not _overlaps_break(t, place)
 
 
+def is_open_during(place: Place, arrive: time, depart: time) -> bool:
+    """도착~출발 체류 구간 전체가 영업 중인지 검증.
+
+    도착 시 영업 + 폐점 전 출발 + 체류 중 브레이크 진입 없음.
+    """
+    if not is_open_at(place, arrive):
+        return False
+    if place.close_time and depart > place.close_time:
+        return False  # 체류가 폐점 시각을 넘김
+    if place.break_start and place.break_end:
+        # 체류 구간이 브레이크 시작과 겹치면 폐기 (arrive < break_start < depart)
+        if arrive < place.break_start < depart:
+            return False
+    return True
+
+
 async def build_timeline(
     places: list[Place],
     constraints: PlanConstraints,
@@ -74,10 +90,10 @@ async def build_timeline(
             arrive_dt = cursor + timedelta(minutes=route.duration_min)
 
         arrive = arrive_dt.time()
-        if not is_open_at(place, arrive):
-            continue  # 영업시간/브레이크 위반 → 폐기 (cursor 유지)
-
         depart_dt = arrive_dt + timedelta(minutes=stay_minutes(place))
+        if not is_open_during(place, arrive, depart_dt.time()):
+            continue  # 도착~출발 체류가 영업시간/브레이크 위반 → 폐기 (cursor 유지)
+
         if end_dt is not None and depart_dt > end_dt:
             break  # 전체 시간 초과 → 종료
 

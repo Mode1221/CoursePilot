@@ -61,11 +61,19 @@ class UserStore:
         return self._save(user)
 
     def grant_credits(self, user_id: str, amount: int) -> User | None:
-        """레퍼럴 등으로 무료 크레딧 추가 지급 (9-4)."""
+        """레퍼럴 등으로 무료 크레딧 추가 지급 (9-4). 한도 자체를 늘린다."""
         user = self.get(user_id)
         if user is None:
             return None
         user.credits_limit += amount
+        return self._save(user)
+
+    def refund_credit(self, user_id: str) -> User | None:
+        """소비한 크레딧 1회 되돌리기(사용량 감소). 실패한 AI 요청 보상용."""
+        user = self.get(user_id)
+        if user is None:
+            return None
+        user.credits_used = max(0, user.credits_used - 1)
         return self._save(user)
 
     def get(self, user_id: str) -> User | None:

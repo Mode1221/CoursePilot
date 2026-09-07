@@ -17,6 +17,7 @@ export default function SharePage({ params }: { params: { id: string } }) {
   const [saved, setSaved] = useState(false);
 
   useEffect(() => {
+    setNotFound(false);
     load();
     api.getCourse(params.id).then(setCourse).catch(() => setNotFound(true));
   }, [params.id, setCourse, setNotFound, load]);

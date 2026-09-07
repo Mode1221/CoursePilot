@@ -35,6 +35,27 @@ class CourseStore:
                 return [Course.model_validate(r[0]) for r in rows]
         return [c for c in self._mem.values() if c.owner_id == owner_id]
 
+    def get_many(self, course_ids: list[str]) -> list[Course]:
+        """여러 코스를 한 번에 조회(N+1 방지). 입력 순서를 보존, 없는 id는 생략."""
+        if not course_ids:
+            return []
+        if is_ready():
+            from sqlalchemy import select
+
+            from app.db import SessionLocal
+            from app.models import CourseModel
+
+            with SessionLocal() as s:
+                rows = s.execute(
+                    select(CourseModel.id, CourseModel.state).where(
+                        CourseModel.id.in_(course_ids)
+                    )
+                ).all()
+                by_id = {r[0]: Course.model_validate(r[1]) for r in rows}
+        else:
+            by_id = {cid: self._mem[cid] for cid in course_ids if cid in self._mem}
+        return [by_id[cid] for cid in course_ids if cid in by_id]
+
     def get(self, course_id: str) -> Course | None:
         if is_ready():
             from app.db import SessionLocal

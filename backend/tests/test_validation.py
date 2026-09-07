@@ -40,6 +40,26 @@ async def test_budget_hard_constraint_drops_expensive():
 
 
 @pytest.mark.asyncio
+async def test_departure_past_close_is_dropped():
+    # 21:30 도착, 카페 체류 60분 → 22:30 출발이 22:00 폐점을 넘김 → 폐기
+    late = _p("late", open_t=time(10, 0), close_t=time(22, 0), category="cafe")
+    ok = _p("ok", open_t=time(0, 0), close_t=time(23, 59), category="cafe")
+    c = PlanConstraints(start_time=time(21, 30))
+    tl = await build_timeline([late, ok], c, FixedRouteService())
+    assert [it.place.id for it in tl] == ["ok"]  # late 는 폐점 초과로 제외
+
+
+@pytest.mark.asyncio
+async def test_stay_crossing_break_is_dropped():
+    # 14:30 도착, 60분 체류 → 15:00 브레이크 진입 → 폐기
+    p = _p("b", open_t=time(10, 0), close_t=time(22, 0), bs=time(15, 0), be=time(17, 0), category="cafe")
+    ok = _p("ok", open_t=time(0, 0), close_t=time(23, 59), category="cafe")
+    c = PlanConstraints(start_time=time(14, 30))
+    tl = await build_timeline([p, ok], c, FixedRouteService())
+    assert [it.place.id for it in tl] == ["ok"]
+
+
+@pytest.mark.asyncio
 async def test_skipped_place_does_not_drift_cursor():
     # A(13:00) → B는 13:00~14:00 브레이크라 스킵 → C 도착은 A출발+10분=14:10 이어야 함
     places = [

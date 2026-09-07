@@ -32,9 +32,12 @@ def parse_constraints(text: str) -> PlanConstraints:
     hm = _HOUR_RE.search(text)
     if hm:
         hour = int(hm.group(2))
-        if hm.group(1) == "오후" and hour < 12:
+        ampm = hm.group(1)
+        if ampm == "오후" and hour < 12:
             hour += 12
-        c.start_time = time(hour, 0)
+        elif ampm == "오전" and hour == 12:
+            hour = 0  # 오전 12시 = 자정
+        c.start_time = time(hour % 24, 0)
 
     # 소요 시간 → 종료 시각
     dm = _DURATION_RE.search(text)

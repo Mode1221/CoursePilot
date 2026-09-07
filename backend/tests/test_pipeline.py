@@ -27,6 +27,11 @@ def test_duration_only_not_parsed_as_hour():
     assert c.duration_min == 300
 
 
+def test_midnight_am_parsing():
+    c = parse_constraints("오전 12시 성수동")
+    assert c.start_time == time(0, 0)
+
+
 def test_is_open_at_break_time():
     p = Place(
         id="x", name="x", lat=0, lng=0,
