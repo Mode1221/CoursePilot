@@ -65,7 +65,22 @@ def score_place(
     # 온보딩 선호 지역/무드 일치
     if prefs.get("mood") and prefs["mood"].lower() in haystack:
         score += 0.1
+
+    # 동행유형 컨텍스트: 상황에 맞는 장소 특성 가점
+    comp_kw = _COMPANION_KEYWORDS.get(constraints.companion or "", ())
+    if comp_kw and any(k in haystack for k in comp_kw):
+        score += 0.15
     return score
+
+
+# 동행유형별 선호 특성(이름/카테고리에 등장 시 가점)
+_COMPANION_KEYWORDS: dict[str, tuple[str, ...]] = {
+    "데이트": ("분위기", "뷰", "루프탑", "야경", "감성"),
+    "회식": ("룸", "단체", "고기", "포차", "호프"),
+    "가족": ("한정식", "좌식", "룸", "브런치", "공원"),
+    "친구": ("가성비", "핫플", "브런치"),
+    "혼자": ("바", "카운터", "조용"),
+}
 
 
 # ── 카테고리 시퀀스 템플릿 (B) ───────────────────────────────────
@@ -73,10 +88,19 @@ def desired_slots(constraints: PlanConstraints) -> list[str]:
     dur = constraints.duration_min or 180
     n = max(2, min(4, dur // 90))
     evening = constraints.start_time is not None and constraints.start_time.hour >= 18
+    comp = constraints.companion
+
+    # 회식: 식사+술 중심 / 데이트: 활동·분위기 포함 / 가족: 술 배제·활동 위주
+    if comp == "회식":
+        return {2: ["meal", "bar"], 3: ["meal", "cafe", "bar"], 4: ["meal", "cafe", "bar", "bar"]}[n]
+    if comp == "가족":
+        return {2: ["meal", "cafe"], 3: ["meal", "activity", "cafe"], 4: ["meal", "activity", "cafe", "activity"]}[n]
+
+    last = "bar" if (evening and comp != "가족") else ("activity" if comp == "데이트" else "cafe")
     base = {
-        2: ["meal", "bar" if evening else "cafe"],
-        3: ["meal", "cafe", "bar" if evening else "activity"],
-        4: ["meal", "activity", "cafe", "bar" if evening else "cafe"],
+        2: ["meal", "cafe" if comp == "데이트" else ("bar" if evening else "cafe")],
+        3: ["meal", "cafe", last],
+        4: ["meal", "activity", "cafe", last],
     }[n]
     return base
 

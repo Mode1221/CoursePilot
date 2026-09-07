@@ -18,6 +18,15 @@ _BUDGET_RE = re.compile(r"(\d+)\s*만\s*원")
 _MODE_MAP = {"도보": TravelMode.WALK, "차량": TravelMode.CAR, "대중교통": TravelMode.TRANSIT}
 _SOFT_KEYWORDS = ["조용한", "활기찬", "비건", "분위기", "가성비", "뷰", "데이트"]
 
+# 동행유형(컨텍스트 신호): 표현 → 정규화 라벨
+_COMPANION_MAP = {
+    "데이트": ["데이트", "여자친구", "남자친구", "연인", "썸"],
+    "회식": ["회식", "단체", "팀", "동료", "술자리"],
+    "가족": ["가족", "부모님", "엄마", "아빠", "아이", "아기"],
+    "친구": ["친구", "친구들", "동창"],
+    "혼자": ["혼자", "혼밥", "혼술", "나홀로"],
+}
+
 
 def parse_constraints(text: str) -> PlanConstraints:
     """규칙 기반 조건 추출. LLM 폴백/오프라인 개발용."""
@@ -60,6 +69,12 @@ def parse_constraints(text: str) -> PlanConstraints:
     bm = _BUDGET_RE.search(text)
     if bm:
         c.budget_max = int(bm.group(1)) * 10_000
+
+    # 동행유형(컨텍스트)
+    for label, exprs in _COMPANION_MAP.items():
+        if any(e in text for e in exprs):
+            c.companion = label
+            break
 
     c.keywords = [k for k in _SOFT_KEYWORDS if k in text]
     return c
