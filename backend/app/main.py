@@ -79,6 +79,24 @@ async def health() -> dict:
     return {"status": "ok"}
 
 
+@api.get("/admin/signals")
+async def admin_signals() -> dict:
+    """학습 신호 관측(튜닝용). 축적된 피드백·전략·만족도 지표를 요약.
+
+    개인정보 없이 집계값만 노출. 운영자 계수 튜닝·품질 모니터링에 사용.
+    """
+    from app.feedback import feedback_store
+    from app.outcome import outcome_store
+    from app.strategy import strategy_store
+
+    return {
+        "feedback_counts": feedback_store.counts(),
+        "relax_acceptance_rate": feedback_store.acceptance_rate(),
+        "seed_strategy_counts": strategy_store.counts(),
+        "score_satisfaction_separation": outcome_store.separation(),
+    }
+
+
 @api.post("/signup")
 async def signup(req: SignupRequest) -> dict:
     user = user_store.create(req.phone)

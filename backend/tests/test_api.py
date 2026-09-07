@@ -164,6 +164,20 @@ def test_revisit_signal(client):
     assert after - before > 1.5  # 재방문 의사 강한 가점
 
 
+def test_admin_signals_shape(client):
+    res = client.get("/admin/signals")
+    assert res.status_code == 200
+    body = res.json()
+    assert set(body) == {
+        "feedback_counts",
+        "relax_acceptance_rate",
+        "seed_strategy_counts",
+        "score_satisfaction_separation",
+    }
+    assert isinstance(body["feedback_counts"], dict)
+    assert 0.0 <= body["relax_acceptance_rate"] <= 1.0
+
+
 def test_bookmark_flow(client):
     uid = _signup(client)
     course_id = client.post("/courses", headers={"X-User-Id": uid}).json()["id"]
