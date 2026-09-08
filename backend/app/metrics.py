@@ -10,6 +10,11 @@ from dataclasses import dataclass, field
 
 SAMPLE_SIZE = 200  # 라우트별 보관하는 최근 지연시간 샘플 수
 
+# 경고 임계값: 표본이 이 정도는 쌓여야 비율을 신뢰한다
+MIN_ALERT_SAMPLES = 10
+FALLBACK_RATE_ALERT = 0.5  # 외부 연동 절반 이상이 폴백이면 키·엔드포인트 점검 필요
+ERROR_RATE_ALERT = 0.05  # 5xx 비율
+
 
 @dataclass
 class RouteStat:
@@ -88,16 +93,32 @@ class MetricsStore:
             }
             for name, stat in sorted(self._externals.items())
         ]
+        error_rate = round(errors / total, 4) if total else 0.0
         return {
             "total_requests": total,
-            "error_rate": round(errors / total, 4) if total else 0.0,
+            "error_rate": error_rate,
             "routes": routes,
             "externals": externals,
+            "alerts": _alerts(total, error_rate, externals),
         }
 
     def clear(self) -> None:
         self._routes.clear()
         self._externals.clear()
+
+
+def _alerts(total: int, error_rate: float, externals: list[dict]) -> list[dict]:
+    """임계 초과 항목을 그대로 알림 목록으로 돌려준다(운영자 확인용)."""
+    alerts: list[dict] = []
+    if total >= MIN_ALERT_SAMPLES and error_rate >= ERROR_RATE_ALERT:
+        alerts.append({"kind": "error_rate", "target": "all", "value": error_rate})
+    for ext in externals:
+        samples = ext["ok"] + ext["fallback"]
+        if samples >= MIN_ALERT_SAMPLES and ext["fallback_rate"] >= FALLBACK_RATE_ALERT:
+            alerts.append(
+                {"kind": "fallback_rate", "target": ext["name"], "value": ext["fallback_rate"]}
+            )
+    return alerts
 
 
 metrics_store = MetricsStore()
