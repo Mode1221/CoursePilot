@@ -47,6 +47,8 @@ async def lifespan(_app: FastAPI):
 
 api = FastAPI(title="CoursePilot API", lifespan=lifespan)
 
+MAX_COURSE_ITEMS = 50  # 코스 1개에 담을 수 있는 장소 상한(동선 재계산 비용·UI 가독성)
+
 logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s %(levelname)s %(name)s %(message)s",
@@ -610,7 +612,7 @@ async def rate_satisfaction(course_id: str, req: SatisfactionRequest) -> dict:
 
 class ReorderRequest(BaseModel):
     # 원하는 최종 순서. 빠진 id 는 삭제로 처리.
-    place_ids: list[str] = Field(max_length=50)
+    place_ids: list[str] = Field(max_length=MAX_COURSE_ITEMS)
 
 
 @api.post("/courses/{course_id}/reorder", response_model=Course)
@@ -681,6 +683,10 @@ async def add_place(course_id: str, req: AddPlaceRequest) -> Course:
             raise HTTPException(status_code=409, detail="AI 처리 중에는 편집할 수 없습니다")
         if any(it.place.id == req.place_id for it in course.items):
             raise HTTPException(status_code=409, detail="이미 코스에 포함된 장소입니다")
+        if len(course.items) >= MAX_COURSE_ITEMS:
+            raise HTTPException(
+                status_code=409, detail=f"한 코스에는 최대 {MAX_COURSE_ITEMS}곳까지 담을 수 있어요"
+            )
 
         from app.places import place_repo
 
@@ -709,7 +715,7 @@ async def add_place(course_id: str, req: AddPlaceRequest) -> Course:
 class SetItemsRequest(BaseModel):
     """코스 구성을 place_ids 로 통째로 설정. 추가·삭제·재정렬·되돌리기를 모두 커버한다."""
 
-    place_ids: list[str] = Field(max_length=50)
+    place_ids: list[str] = Field(max_length=MAX_COURSE_ITEMS)
 
 
 @api.post("/courses/{course_id}/items", response_model=Course)
