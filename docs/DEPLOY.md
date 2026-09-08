@@ -9,24 +9,38 @@ CoursePilot는 키 없이도 Mock/폴백으로 완전히 동작한다. 실서비
 
 ## 환경변수
 
-### Backend (`backend/.env`)
-| 변수 | 필수 | 기본값 | 설명 |
+모든 외부 연동은 **키가 있으면 실연동, 없으면 폴백**으로 동작한다. "키만 채우면 실서비스"가 되도록 설계됨.
+
+### Backend (`backend/.env`) — `backend/.env.example` 참고
+| 변수 | 필수 | 기본값 | 없을 때 동작 |
 |---|---|---|---|
-| `DATABASE_URL` | 권장 | `postgresql+psycopg://coursepilot:coursepilot@localhost:5432/coursepilot` | 미설정/연결 실패 시 인메모리 폴백(영속성 없음) |
-| `OPENAI_API_KEY` | 선택 | `""` | 없으면 규칙 기반 파싱 + 해시 임베딩 폴백 |
-| `OPENAI_MODEL` | 선택 | `gpt-4o-mini` | 챗/요약 모델 |
+| `DATABASE_URL` | 권장 | `postgresql+psycopg://…/coursepilot` | 인메모리 폴백(영속성 없음) |
+| `LLM_PROVIDER` | 선택 | `anthropic` | `anthropic`\|`openai` |
+| `ANTHROPIC_API_KEY` | 선택 | `""` | 규칙 기반 파서로 폴백 |
+| `ANTHROPIC_MODEL` | 선택 | `claude-haiku-4-5` | 조건 분해 모델 |
+| `OPENAI_API_KEY` / `OPENAI_MODEL` | 선택 | `""` / `gpt-4o-mini` | `LLM_PROVIDER=openai`일 때만 |
 | `MAP_PROVIDER` | 선택 | `naver` | 지도/장소 어댑터 벤더 |
-| `NAVER_CLIENT_ID` | 선택 | `""` | 없으면 Mock 지도로 폴백 |
-| `NAVER_CLIENT_SECRET` | 선택 | `""` | |
+| `NAVER_CLIENT_ID` / `NAVER_CLIENT_SECRET` | 선택 | `""` | Mock 장소로 폴백 |
+| `GOOGLE_MAPS_API_KEY` | 선택 | `""` | 장소 평점 보강 생략(평점 None) |
+| `NHN_SMS_APP_KEY` / `NHN_SMS_SECRET_KEY` / `NHN_SMS_SENDER` | 선택 | `""` | SMS 인증 생략(가입 시 인증 불요, dev 코드 응답 노출) |
+| `PORTONE_API_KEY` / `PORTONE_API_SECRET` | 선택 | `""` | 결제 검증 생략(포인트 즉시 지급) |
+| `POINT_PRICE_KRW` | 선택 | `1000` | 포인트 1개당 결제금액(검증용) |
 | `CORS_ORIGINS` | 권장 | `["http://localhost:3000"]` | 프론트 도메인(JSON 배열) |
 
 ### Frontend (`frontend/.env.local`)
-| 변수 | 필수 | 기본값 | 설명 |
+| 변수 | 필수 | 기본값 | 없을 때 동작 |
 |---|---|---|---|
 | `NEXT_PUBLIC_API_BASE` | 권장 | `http://localhost:8000` | 백엔드 + Socket.IO 주소 |
+| `NEXT_PUBLIC_NAVER_MAP_CLIENT_ID` | 선택 | `""` | SVG 지도로 폴백 |
 
-> 키 발급: 지도(Naver Cloud Platform → Maps, 카드 등록 필요·소규모는 무료 한도), OpenAI(platform.openai.com).
-> 키는 배포 직전에 주입하는 것을 권장(개발 중엔 폴백으로 충분).
+### 키 발급처
+- **LLM**: Anthropic(console.anthropic.com) — `ANTHROPIC_API_KEY`. (대안: OpenAI)
+- **지도 렌더/장소/길찾기**: 네이버 클라우드 플랫폼 → Maps + 지역검색(Application 등록). 지도 렌더용 `NEXT_PUBLIC_NAVER_MAP_CLIENT_ID`는 서비스 URL 등록 필요.
+- **평점**: Google Cloud → Places API(`GOOGLE_MAPS_API_KEY`). 요약 아님·숫자만(약관 안전), attribution 준수.
+- **SMS**: NHN Cloud → SMS(발신번호 사전 등록).
+- **결제**: 포트원(아임포트) → v1 REST API 키/시크릿.
+
+> 키는 배포 직전 주입 권장(개발 중엔 폴백으로 충분). 시크릿은 소스에 커밋하지 말 것(`.env`는 gitignore).
 
 ## 배포 방법
 
