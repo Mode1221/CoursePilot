@@ -15,15 +15,22 @@ async def embed(text: str) -> list[float]:
 
 async def embed_many(texts: list[str]) -> list[list[float]]:
     """여러 텍스트를 한 번의 API 호출로 임베딩. 키 없거나 실패 시 해시 폴백."""
+    if not texts:
+        return []  # 빈 입력으로 API 를 부르면 오류가 난다
+
     from app.llm_client import get_openai_client
+    from app.metrics import metrics_store
 
     client = get_openai_client()
     if client is not None:
         try:
             resp = await client.embeddings.create(model=_EMBED_MODEL, input=texts)
+            metrics_store.record_external("llm.embedding", ok=True)
             return [d.embedding for d in resp.data]
         except Exception:
             pass
+    # 키가 없거나 호출이 실패 → 해시 폴백(의미 검색 품질 없음)을 폴백률로 남긴다
+    metrics_store.record_external("llm.embedding", ok=False)
     return [_hash_embed(t) for t in texts]
 
 
