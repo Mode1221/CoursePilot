@@ -24,3 +24,16 @@ describe("공유 OG 요약", () => {
     expect(summarize(course([]))).toBe("아직 장소가 없는 코스예요.");
   });
 });
+
+it("날짜와 인원수를 함께 보여준다", () => {
+  const course = {
+    id: "c1",
+    title: "t",
+    region: "성수동",
+    plan_date: "2026-09-12",
+    party_size: 4,
+    locked: false,
+    items: [{ place: { id: "p1", name: "카페 A", category: "cafe", lat: 0, lng: 0 } }],
+  } as unknown as Course;
+  expect(summarize(course)).toBe("9월 12일 (토) · 4명 · 성수동 · 카페 A");
+});
