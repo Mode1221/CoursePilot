@@ -41,3 +41,9 @@ async def test_ingest_filters_sponsored_without_db():
     # Mock 소스 8건 중 협찬 2건 제외 → 6건 통과
     count = await ingest_place_reviews("p1", "테스트카페", db_ready=False)
     assert count == 6
+
+
+def test_같은_리뷰는_한_번만_남는다():
+    from app.reviews.rag import dedupe
+
+    assert dedupe(["a", "b", "a", "c", "b"]) == ["a", "b", "c"]

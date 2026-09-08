@@ -26,19 +26,33 @@ async def ingest_place_reviews(place_id: str, place_name: str, db_ready: bool) -
     if not db_ready:
         return len(kept)  # 개발용: 저장 대신 필터 통과 건수만
 
+    from sqlalchemy import select
+
     from app.db import SessionLocal
     from app.models import ReviewModel
 
+    saved = 0
     with SessionLocal() as s:
+        # 재수집 시 같은 리뷰가 쌓이면 검색 결과가 중복으로 채워진다 → 기존 본문은 건너뛴다
+        existing = {
+            row[0]
+            for row in s.execute(
+                select(ReviewModel.content).where(ReviewModel.place_id == place_id)
+            ).all()
+        }
         for r, vector in zip(kept, vectors, strict=False):
+            if r.content in existing:
+                continue
+            existing.add(r.content)
             s.add(
                 ReviewModel(
                     place_id=place_id, source=r.source, content=r.content,
                     is_sponsored=0, embedding=vector,
                 )
             )
+            saved += 1
         s.commit()
-    return len(kept)
+    return saved
 
 
 async def fetch_filtered(place_name: str, limit: int = 5) -> list[str]:
@@ -99,6 +113,17 @@ async def summarize_reviews(reviews: list[str]) -> str:
         return _tag_summary(reviews)
 
 
+def dedupe(contents: list[str]) -> list[str]:
+    """순서를 유지하며 같은 본문을 한 번만 남긴다."""
+    seen: set[str] = set()
+    out: list[str] = []
+    for c in contents:
+        if c not in seen:
+            seen.add(c)
+            out.append(c)
+    return out
+
+
 async def retrieve(place_id: str, query: str, k: int = 3, db_ready: bool = False) -> list[str]:
     """질의와 유사한 비협찬 리뷰 top-k 반환 (pgvector 코사인 거리)."""
     if not db_ready:
@@ -113,8 +138,12 @@ async def retrieve(place_id: str, query: str, k: int = 3, db_ready: bool = False
     with SessionLocal() as s:
         stmt = (
             select(ReviewModel.content)
-            .where(ReviewModel.place_id == place_id)
+            .where(
+                ReviewModel.place_id == place_id,
+                ReviewModel.is_sponsored == 0,  # 저장 이후 협찬으로 표시된 건 제외
+            )
             .order_by(ReviewModel.embedding.cosine_distance(qvec))
             .limit(k)
         )
-        return [row[0] for row in s.execute(stmt).all()]
+        # 같은 본문이 여러 소스로 들어온 경우를 대비해 순서 유지 중복 제거
+        return dedupe([row[0] for row in s.execute(stmt).all()])
