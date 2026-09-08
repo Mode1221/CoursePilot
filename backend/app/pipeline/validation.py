@@ -26,9 +26,12 @@ def stay_minutes(place: Place, party_size: int | None = None) -> int:
     대인원은 주문·계산에 시간이 더 걸리므로 여유를 더한다.
     """
     cat = (place.category or "").lower()
-    if any(k in cat for k in ("restaurant", "식당", "음식", "고기", "한식", "일식", "중식")):
+    if any(
+        k in cat
+        for k in ("restaurant", "식당", "음식", "고기", "한식", "일식", "중식", "양식", "뷔페")
+    ):
         base = 90
-    elif any(k in cat for k in ("bar", "술", "펍", "포차")):
+    elif any(k in cat for k in ("bar", "술집", "펍", "포차", "주점", "호프", "이자카야", "포장마차")):
         base = 120
     else:
         base = 60  # 카페·전시·기타
