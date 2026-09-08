@@ -6,6 +6,7 @@ import { useEffect, useState } from "react";
 
 import { Button, Card } from "@/components/ui";
 import { api } from "@/services/api";
+import { toast } from "@/store/toastStore";
 import { useUserStore } from "@/store/userStore";
 
 // 랜딩: 가치 제안 + 예시 프롬프트로 바로 시작(예시 클릭 시 해당 조건으로 코스 생성).
@@ -30,7 +31,8 @@ export default function Home() {
       const course = await api.createCourse(userId ?? undefined);
       const q = seed ? `?seed=${encodeURIComponent(seed)}` : "";
       router.push(`/plan/${course.id}${q}`);
-    } finally {
+    } catch {
+      toast("코스를 만들지 못했어요. 잠시 후 다시 시도해주세요.", "error");
       setLoading(false);
     }
   }
@@ -60,6 +62,15 @@ export default function Home() {
       <Button variant="primary" onClick={() => start()} disabled={loading} style={{ marginTop: "var(--sp-4)" }}>
         {loading ? "생성 중…" : "새 코스 시작"}
       </Button>
+
+      {!userId && (
+        <p style={{ marginTop: "var(--sp-3)", fontSize: "var(--fs-sm)", color: "var(--text-muted)" }}>
+          AI에게 조건을 말하려면 가입이 필요해요.{" "}
+          <Link href="/onboarding" style={{ color: "var(--brand-strong)", fontWeight: 600 }}>
+            30초 가입하기
+          </Link>
+        </p>
+      )}
 
       <h4 style={{ marginTop: "var(--sp-8)" }}>이런 코스는 어때요?</h4>
       <ul style={{ listStyle: "none", padding: 0, display: "grid", gap: "var(--sp-2)" }}>

@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
 
 import CourseTitle from "@/components/CourseTitle";
@@ -264,19 +265,28 @@ export default function ChatPanel({ courseId }: { courseId: string }) {
               <Button size="sm" variant="ghost" onClick={buyPoints}>포인트 구매</Button>
             </span>
           )}
-          {userId == null && <span>참여자는 수동 편집만 가능합니다</span>}
+          {userId == null && (
+            <span style={{ display: "flex", alignItems: "center", gap: "var(--sp-2)" }}>
+              참여자는 수동 편집만 가능합니다
+              <Link href="/onboarding" style={{ color: "var(--brand-strong)", fontWeight: 600 }}>
+                가입하고 AI 쓰기
+              </Link>
+            </span>
+          )}
         </div>
         <div style={{ display: "flex", gap: "var(--sp-2)" }}>
           <Input
             value={text}
             onChange={(e) => setText(e.target.value)}
             onKeyDown={(e) => e.key === "Enter" && send()}
-            placeholder="예: 토요일 오후 1시 성수동, 3시간"
-            disabled={sending}
+            placeholder={
+              userId == null ? "가입하면 AI에게 조건을 말할 수 있어요" : "예: 토요일 오후 1시 성수동, 3시간"
+            }
+            disabled={sending || userId == null}
             aria-label="조건 입력"
             style={{ flex: 1 }}
           />
-          <Button variant="primary" onClick={send} disabled={sending || locked}>
+          <Button variant="primary" onClick={send} disabled={sending || locked || userId == null}>
             {sending ? "생성 중…" : "전송"}
           </Button>
         </div>
