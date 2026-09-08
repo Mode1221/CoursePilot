@@ -417,10 +417,9 @@ async def relax(course_id: str, x_user_id: str | None = Header(default=None)) ->
     직전 요청 문장을 그대로 다시 쓰되 완화를 강제한다. 사용자가 새 질문을 한 게
     아니므로 크레딧은 차감하지 않는다.
     """
-    if store.get(course_id) is None:
-        raise HTTPException(status_code=404, detail="course not found")
     if x_user_id is None:
         raise HTTPException(status_code=403, detail="AI 챗봇은 생성자만 사용할 수 있습니다")
+    _owned_course(course_id, x_user_id)  # 공유받은 사람이 남의 코스를 갈아엎지 못하게
     last_user_text = next(
         (m.text for m in reversed(chat_store.list(course_id)) if m.role == "user"), None
     )
@@ -467,10 +466,9 @@ async def generate(
     참여자(비로그인)는 수동 편집만 가능 → 403.
     """
     # 존재 확인은 큐 밖에서 빠르게(단, 실제 상태는 lock 안에서 재조회한다)
-    if store.get(course_id) is None:
-        raise HTTPException(status_code=404, detail="course not found")
     if x_user_id is None:
         raise HTTPException(status_code=403, detail="AI 챗봇은 생성자만 사용할 수 있습니다")
+    _owned_course(course_id, x_user_id)  # 생성자만 AI 명령 가능(참여자는 수동 편집만)
 
     async def action() -> GenerateResponse:
         # 최신 상태를 lock 안에서 재조회 → 동시 요청 간 lost update 방지
