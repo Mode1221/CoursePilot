@@ -6,6 +6,7 @@ from __future__ import annotations
 
 import logging
 from contextlib import asynccontextmanager
+from time import monotonic
 
 import socketio
 from fastapi import FastAPI, Header, HTTPException, Request
@@ -346,9 +347,36 @@ class ReviewSummaryRequest(BaseModel):
     query: str = Field(default="분위기 방문 후기", max_length=200)
 
 
+SUMMARY_CACHE_TTL_SEC = 600  # 리뷰 요약 재사용 시간(같은 장소를 여러 번 열어도 1회 호출)
+SUMMARY_CACHE_MAX = 500
+_summary_cache: dict[tuple[str, str], tuple[float, dict]] = {}
+
+
+def _summary_cache_get(key: tuple[str, str]) -> dict | None:
+    hit = _summary_cache.get(key)
+    if hit and monotonic() - hit[0] < SUMMARY_CACHE_TTL_SEC:
+        return hit[1]
+    return None
+
+
+def _summary_cache_put(key: tuple[str, str], value: dict) -> None:
+    now = monotonic()
+    for stale in [k for k, (ts, _) in _summary_cache.items() if now - ts >= SUMMARY_CACHE_TTL_SEC]:
+        del _summary_cache[stale]
+    if len(_summary_cache) >= SUMMARY_CACHE_MAX:
+        oldest = min(_summary_cache, key=lambda k: _summary_cache[k][0])
+        del _summary_cache[oldest]
+    _summary_cache[key] = (now, value)
+
+
 @api.post("/reviews/summary")
 async def review_summary(req: ReviewSummaryRequest) -> dict:
-    """장소 상세 모달용 리뷰 요약 (4-2 + 8장 RAG)."""
+    """장소 상세 모달용 리뷰 요약 (4-2 + 8장 RAG). 같은 장소는 잠시 캐시한다."""
+    cache_key = (req.place_id, req.query)
+    cached = _summary_cache_get(cache_key)
+    if cached is not None:
+        return cached
+
     from app.db import is_ready
     from app.reviews.aspects import extract_aspects
     from app.reviews.rag import (
@@ -370,7 +398,10 @@ async def review_summary(req: ReviewSummaryRequest) -> dict:
         found = await fetch_filtered(req.place_name)
     summary = await summarize_reviews(found)
     pros, cons = extract_aspects(found)
-    return {"summary": summary, "count": len(found), "pros": pros, "cons": cons}
+    result = {"summary": summary, "count": len(found), "pros": pros, "cons": cons}
+    if found:  # 빈 결과는 캐시하지 않는다(수집 전일 수 있음)
+        _summary_cache_put(cache_key, result)
+    return result
 
 
 class GenerateResponse(BaseModel):
