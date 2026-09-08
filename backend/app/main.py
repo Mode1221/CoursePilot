@@ -410,6 +410,8 @@ async def generate(
                     course.region = result.constraints.region
                 if result.constraints.plan_date:  # 캘린더 내보내기 기준일
                     course.plan_date = result.constraints.plan_date
+                if result.constraints.party_size:
+                    course.party_size = result.constraints.party_size
                 # #17: 생성 시 코스 목적함수 점수 저장(만족도 대조용)
                 from app.pipeline.planner import course_score
 

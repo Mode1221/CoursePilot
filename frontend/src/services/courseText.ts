@@ -12,7 +12,8 @@ import { MODE_LABEL } from "@/types";
  */
 export function courseToText(course: Course, shareUrl?: string): string {
   const day = formatPlanDate(course.plan_date);
-  const lines: string[] = [day ? `${course.title} — ${day}` : course.title];
+  const head = [day, course.party_size ? `${course.party_size}명` : null].filter(Boolean).join(" · ");
+  const lines: string[] = [head ? `${course.title} — ${head}` : course.title];
   course.items.forEach((item, i) => {
     const time =
       item.arrive && item.depart ? ` (${item.arrive.slice(0, 5)}~${item.depart.slice(0, 5)})` : "";

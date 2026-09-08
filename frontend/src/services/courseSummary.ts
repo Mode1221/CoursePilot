@@ -9,6 +9,7 @@ export function summarize(course: Course): string {
   const more = names.length > 4 ? ` 외 ${names.length - 4}곳` : "";
   const region = course.region ? `${course.region} · ` : "";
   const day = formatPlanDate(course.plan_date);
-  const prefix = day ? `${day} · ${region}` : region;
+  const party = course.party_size ? `${course.party_size}명 · ` : "";
+  const prefix = `${day ? `${day} · ` : ""}${party}${region}`;
   return `${prefix}${head}${more}`;
 }
