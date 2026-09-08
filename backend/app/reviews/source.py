@@ -40,6 +40,11 @@ class MockReviewSource(ReviewSource):
             RawReview("mock", f"{place_name} 방문했어요. 업체로부터 제공받아 작성한 후기입니다.", rating=5.0),  # 협찬
             RawReview("mock", f"{place_name} 웨이팅 있지만 재방문 의사 있음.", rating=4.0),
             RawReview("mock", f"소정의 원고료를 받아 작성한 {place_name} 체험단 후기.", rating=5.0),  # 협찬
+            # 애스펙트 태그가 개발 환경에서도 다양하게 나오도록 축을 넓혀 둔다
+            RawReview("mock", f"{place_name} 주차 불가라 대중교통 추천해요.", rating=3.5),
+            RawReview("mock", f"{place_name} 콘센트 많아서 오래 앉아 있기 좋아요.", rating=4.5),
+            RawReview("mock", f"{place_name} 가성비 좋고 직원분들 친절했습니다.", rating=4.5),
+            RawReview("mock", f"{place_name} 예약 필수예요. 자리 좁은 편.", rating=3.5),
         ]
         return samples[:limit]
 
