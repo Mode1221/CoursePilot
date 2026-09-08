@@ -199,6 +199,16 @@ def route_order(places: list[Place]) -> list[Place]:
     return ordered
 
 
+def route_order_from(places: list[Place], origin: Place) -> list[Place]:
+    """출발지에서 가장 가까운 곳부터 최근접 이웃으로 잇는다."""
+    if len(places) <= 1:
+        return places
+    remaining = list(places)
+    first = min(remaining, key=lambda p: _dist(origin, p))
+    remaining.remove(first)
+    return [first, *route_order([first, *remaining])[1:]]
+
+
 # ── 선호 순서 정렬 (C'): 학습된 카테고리 전이 최대화 (data #7) ──
 def seq_order(places: list[Place]) -> list[Place]:
     if len(places) <= 2:
@@ -293,6 +303,7 @@ async def plan_course(
     constraints: PlanConstraints,
     map_service: MapService,
     prefs: dict | None = None,
+    origin: Place | None = None,
 ) -> list[TimelineItem]:
     """스코어링·템플릿·동선·Best-of-N 을 적용해 최적 타임라인을 반환."""
     if not candidates:
@@ -363,6 +374,8 @@ async def plan_course(
     cf = _cf_pick(ranked, slots)
     if cf:
         seeds.append(("cf", cf))                         # 4) 협업 필터링(공동 채택)
+    if templated and origin is not None:
+        seeds.append(("start", route_order_from(templated, origin)))  # 출발지 기준 동선
     seeds.append(("score", ranked[: len(slots)]))       # 5) 순수 점수 상위
 
     best: list[TimelineItem] = []

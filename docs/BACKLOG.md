@@ -13,7 +13,7 @@
    - SMS/결제: `app/adapters/sms.py`, `app/adapters/payment.py` (NHN 응답 header, 포트원 v1 토큰/조회).
 
 ## P1 — 품질·데이터
-0. **자연어 커버리지 확대** — 지역·시각·범위·키워드·편집에 더해 인원수(`test_party_size.py`), 날짜(`test_plan_date.py`), 방문 개수(`test_stop_count.py`), 카테고리 지목 편집(`test_edit_by_category.py`)까지 처리. 남은 후보: 출발지 지정("강남역에서 출발"), 이동수단 혼합, 우천 대체 코스.
+0. **자연어 커버리지 확대** — 지역·시각·범위·키워드·편집에 더해 인원수(`test_party_size.py`), 날짜(`test_plan_date.py`), 방문 개수(`test_stop_count.py`), 카테고리 지목 편집(`test_edit_by_category.py`), 출발지 지정(`test_start_place.py`)까지 처리. 남은 후보: 이동수단 혼합, 우천 대체 코스.
 3. **리뷰 RAG 고도화** (🟡/⬜) — 약관 준수(요약 금지 소스 구분) 내 데이터 강화.
    - 파일: `app/reviews/{source,rag,embedding,sponsored}.py`, `docs/REVIEW_DATA_SOURCES.md`.
 4. **목적함수 계수 튜닝** — `outcome.py:separation()` / `strategy.py:counts()` / `feedback.acceptance_rate()` 데이터로 `planner.course_score`·`score_place` 가중치 조정. 관측: `GET /admin/signals`.
