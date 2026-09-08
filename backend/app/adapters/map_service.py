@@ -8,10 +8,13 @@ from __future__ import annotations
 from abc import ABC, abstractmethod
 from datetime import time
 from functools import lru_cache
+from time import monotonic
 
 from app.config import settings
 from app.constants import TRANSIT_OVERHEAD_MIN, TRAVEL_SPEED_M_PER_MIN
 from app.schemas import Place, Route, TravelMode
+
+SEARCH_CACHE_TTL_SEC = 300  # 장소 검색 결과 재사용 시간
 
 
 class MapService(ABC):
@@ -136,6 +139,38 @@ class EnrichedMapService(MapService):
         return await self._inner.get_route(origin, dest, mode)
 
 
+class CachedSearchMapService(MapService):
+    """동일 조건 장소 검색을 짧게 캐시하는 데코레이터(외부 호출·지연 절감).
+
+    검색 결과는 몇 분 단위로 바뀌지 않으므로 TTL 안에서는 재사용한다.
+    경로 계산은 캐시하지 않고 그대로 위임한다.
+    """
+
+    def __init__(self, inner: MapService, ttl_sec: int = SEARCH_CACHE_TTL_SEC) -> None:
+        self._inner = inner
+        self._ttl = ttl_sec
+        self._cache: dict[tuple[str, tuple[str, ...], int], tuple[float, list[Place]]] = {}
+
+    async def search_places(self, region, keywords, limit=10):
+        key = (region, tuple(keywords), limit)
+        now = monotonic()
+        hit = self._cache.get(key)
+        if hit and now - hit[0] < self._ttl:
+            return list(hit[1])
+        places = await self._inner.search_places(region, keywords, limit)
+        if places:
+            self._sweep(now)
+            self._cache[key] = (now, list(places))
+        return places
+
+    def _sweep(self, now: float) -> None:
+        for key in [k for k, (ts, _) in self._cache.items() if now - ts >= self._ttl]:
+            del self._cache[key]
+
+    async def get_route(self, origin, dest, mode):
+        return await self._inner.get_route(origin, dest, mode)
+
+
 @lru_cache(maxsize=1)
 def get_map_service() -> MapService:
     """설정에 따라 구현체 선택(싱글턴). 키 없으면 Mock, 있으면 Naver(+Mock 폴백).
@@ -149,5 +184,5 @@ def get_map_service() -> MapService:
     else:
         base = MockMapService()
     if settings.google_maps_api_key:
-        return EnrichedMapService(base)
-    return base
+        base = EnrichedMapService(base)
+    return CachedSearchMapService(base)
