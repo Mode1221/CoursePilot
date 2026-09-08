@@ -20,13 +20,15 @@ _ORDINALS = {
 # "다른 곳으로", "딴 데로" 처럼 동사 없이 교체를 뜻하는 표현도 받는다.
 _REPLACE_RE = re.compile(r"(바꿔|바꾸|교체|변경|다른\s*(?:곳|데|장소)|딴\s*(?:곳|데))")
 _REMOVE_RE = re.compile(r"(빼|삭제|제거|없애)")
+# "카페 하나 추가해줘", "술집 넣어줘" → 전체 재생성 대신 한 칸만 덧붙인다
+_ADD_RE = re.compile(r"(추가|넣어|붙여|더\s*가|하나\s*더)")
 # 교체 대상 키워드: "빵집으로", "카페로" 등 조사 앞 명사
 _TARGET_RE = re.compile(r"([가-힣A-Za-z]+?)(?:으로|로)\s*(?:바꿔|교체|변경)")
 
 
 @dataclass
 class EditCommand:
-    action: str  # "replace" | "remove" | "none"
+    action: str  # "replace" | "remove" | "add" | "none"
     index: int = -1  # 0-based
     keyword: str = ""
     match: str = ""  # 순서 대신 이름/카테고리로 지목한 경우("카페 빼줘")
@@ -50,6 +52,11 @@ _CATEGORY_WORDS = {
 def parse_edit(text: str) -> EditCommand:
     idx = _find_index(text)
     match = ""
+    # 추가는 순서 지목이 없어도 성립한다(맨 뒤에 덧붙임)
+    if _ADD_RE.search(text) and not _REPLACE_RE.search(text) and not _REMOVE_RE.search(text):
+        keyword = next((w for w in _CATEGORY_WORDS if w in text), "")
+        if keyword:
+            return EditCommand(action="add", keyword=keyword, match=_CATEGORY_WORDS[keyword])
     if idx < 0 and idx != LAST_INDEX:
         # 순서를 못 찾았으면 "카페 빼줘"처럼 카테고리로 지목했는지 본다
         match = next((cat for word, cat in _CATEGORY_WORDS.items() if word in text), "")
@@ -91,6 +98,8 @@ async def apply_edit(
 ) -> list[TimelineItem]:
     """편집 명령을 적용해 갱신된 타임라인을 반환. 전체 동선 재계산."""
     items = list(course.items)
+    if cmd.action == "add":
+        return await _apply_add(course, items, cmd, map_service)
     if cmd.index == MATCH_INDEX:
         index = next(
             (i for i, it in enumerate(items) if it.place.category == cmd.match),
@@ -125,6 +134,25 @@ async def apply_edit(
     start = items[0].arrive if items and items[0].arrive else DEFAULT_START_TIME
     mode = _infer_mode(items)
     return await recompute([it.place for it in items], start, mode, map_service)
+
+
+async def _apply_add(
+    course: Course,
+    items: list[TimelineItem],
+    cmd: EditCommand,
+    map_service: MapService,
+) -> list[TimelineItem]:
+    """요청한 성격의 장소를 코스 맨 뒤에 한 칸 덧붙인다."""
+    existing_ids = {it.place.id for it in items}
+    region = course.region or DEFAULT_REGION
+    candidates = await map_service.search_places(region, [cmd.keyword], limit=10)
+    fresh = [p for p in candidates if p.id not in existing_ids]
+    if not fresh:
+        return items
+    pick = next((p for p in fresh if p.category == cmd.match), fresh[0])
+    items = [*items, TimelineItem(place=pick)]
+    start = items[0].arrive if items[0].arrive else DEFAULT_START_TIME
+    return await recompute([it.place for it in items], start, _infer_mode(items), map_service)
 
 
 def _infer_mode(items: list[TimelineItem]) -> TravelMode:
