@@ -5,6 +5,7 @@ import { useEffect, useState } from "react";
 
 import { Button, Input } from "@/components/ui";
 import { api } from "@/services/api";
+import { toast } from "@/store/toastStore";
 import { useUserStore } from "@/store/userStore";
 
 const FIELD: React.CSSProperties = {
@@ -19,6 +20,9 @@ const FIELD: React.CSSProperties = {
   marginTop: "var(--sp-1)",
 };
 
+// 휴대폰 번호(하이픈 유무 모두 허용)
+const PHONE_RE = /^01[016789]-?\d{3,4}-?\d{4}$/;
+
 // 온보딩 선호 사전조사 (9-6). 모든 문항 건너뛰기 가능.
 export default function Onboarding() {
   const router = useRouter();
@@ -28,35 +32,41 @@ export default function Onboarding() {
   const [region, setRegion] = useState("");
   const [transport, setTransport] = useState("");
   const [error, setError] = useState<string | null>(null);
+  const [saving, setSaving] = useState(false);
 
   useEffect(() => {
     load();
   }, [load]);
 
   async function submit() {
+    if (saving) return; // 중복 제출 방지
     setError(null);
     let id = userId;
     if (!id) {
-      if (!phone.trim()) {
-        setError("전화번호를 입력해 주세요.");
-        return;
-      }
-      try {
-        const res = await api.signup(phone);
-        setUser(res.user_id);
-        id = res.user_id;
-      } catch {
-        setError("가입에 실패했어요. 번호를 확인해 주세요.");
+      if (!PHONE_RE.test(phone.trim())) {
+        setError("휴대폰 번호를 010-0000-0000 형식으로 입력해 주세요.");
         return;
       }
     }
-    await api.setPreferences(id, {
-      mood: mood || null,
-      region: region || null,
-      transport: transport || null,
-      diet: [],
-    });
-    router.push("/");
+    setSaving(true);
+    try {
+      if (!id) {
+        const res = await api.signup(phone.trim());
+        setUser(res.user_id);
+        id = res.user_id;
+      }
+      await api.setPreferences(id, {
+        mood: mood || null,
+        region: region || null,
+        transport: transport || null,
+        diet: [],
+      });
+      toast("설정을 저장했어요.", "success");
+      router.push("/");
+    } catch {
+      setError("저장에 실패했어요. 잠시 후 다시 시도해 주세요.");
+      setSaving(false);
+    }
   }
 
   return (
@@ -110,12 +120,21 @@ export default function Onboarding() {
       </div>
 
       {error && (
-        <p style={{ color: "var(--danger)", fontSize: "var(--fs-sm)", marginTop: "var(--sp-3)" }}>{error}</p>
+        <p
+          role="alert"
+          style={{ color: "var(--danger)", fontSize: "var(--fs-sm)", marginTop: "var(--sp-3)" }}
+        >
+          {error}
+        </p>
       )}
 
       <div style={{ display: "flex", gap: "var(--sp-2)", marginTop: "var(--sp-6)" }}>
-        <Button variant="primary" onClick={submit}>저장</Button>
-        <Button variant="ghost" onClick={() => router.push("/")}>건너뛰기</Button>
+        <Button variant="primary" onClick={submit} disabled={saving}>
+          {saving ? "저장 중…" : "저장"}
+        </Button>
+        <Button variant="ghost" onClick={() => router.push("/")} disabled={saving}>
+          건너뛰기
+        </Button>
       </div>
     </main>
   );
