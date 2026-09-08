@@ -83,7 +83,13 @@ test("마이페이지에서 코스를 복제한다", async ({ page }) => {
   // 목록은 사용자 정보를 읽은 뒤 로드되므로 카드가 뜬 다음에 복제한다
   await expect(page.getByText("내 코스")).toBeVisible();
   const duplicate = page.getByRole("button", { name: /복제$/ }).first();
-  await duplicate.waitFor({ state: "visible", timeout: 30_000 });
+  try {
+    await duplicate.waitFor({ state: "visible", timeout: 30_000 });
+  } catch (e) {
+    // 실패 원인을 바로 알 수 있게 화면 텍스트를 남긴다(빈 목록/로드 실패 구분)
+    console.log("[mypage]", await page.locator("main").innerText());
+    throw e;
+  }
   await duplicate.click();
   await expect(page.getByText(/\(사본\)/).first()).toBeVisible();
 });
