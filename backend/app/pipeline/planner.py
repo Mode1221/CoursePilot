@@ -5,6 +5,8 @@
 """
 from __future__ import annotations
 
+from datetime import time
+
 from app.adapters.map_service import MapService
 from app.pipeline.validation import build_timeline
 from app.schemas import Place, PlanConstraints, TimelineItem
@@ -98,6 +100,9 @@ _COMPANION_KEYWORDS: dict[str, tuple[str, ...]] = {
 }
 
 
+SLOT_HOURS = 2  # 한 칸(방문+이동)에 대략 2시간
+
+
 # ── 카테고리 시퀀스 템플릿 (B) ───────────────────────────────────
 def desired_slots(constraints: PlanConstraints) -> list[str]:
     dur = constraints.duration_min or 180
@@ -107,9 +112,15 @@ def desired_slots(constraints: PlanConstraints) -> list[str]:
 
     # 회식: 식사+술 중심 / 데이트: 활동·분위기 포함 / 가족: 술 배제·활동 위주
     if comp == "회식":
-        return {2: ["meal", "bar"], 3: ["meal", "cafe", "bar"], 4: ["meal", "cafe", "bar", "bar"]}[n]
+        slots = {2: ["meal", "bar"], 3: ["meal", "cafe", "bar"], 4: ["meal", "cafe", "bar", "bar"]}[n]
+        return _shift_meal_to_mealtime(slots, constraints.start_time)
     if comp == "가족":
-        return {2: ["meal", "cafe"], 3: ["meal", "activity", "cafe"], 4: ["meal", "activity", "cafe", "activity"]}[n]
+        slots = {
+            2: ["meal", "cafe"],
+            3: ["meal", "activity", "cafe"],
+            4: ["meal", "activity", "cafe", "activity"],
+        }[n]
+        return _shift_meal_to_mealtime(slots, constraints.start_time)
 
     last = "bar" if (evening and comp != "가족") else ("activity" if comp == "데이트" else "cafe")
     base = {
@@ -117,7 +128,31 @@ def desired_slots(constraints: PlanConstraints) -> list[str]:
         3: ["meal", "cafe", last],
         4: ["meal", "activity", "cafe", last],
     }[n]
-    return base
+    return _shift_meal_to_mealtime(base, constraints.start_time)
+
+
+# 식사 시간대(현지 관습): 점심 11~14시, 저녁 17~21시
+def _is_mealtime(hour: int) -> bool:
+    return 11 <= hour < 14 or 17 <= hour < 21
+
+
+def _shift_meal_to_mealtime(slots: list[str], start: time | None) -> list[str]:
+    """식사가 아닌 시각에 시작하면 첫 식사를 식사 시간대로 미룬다.
+
+    예: 오전 10시 시작이면 "식사 → 카페" 대신 "카페 → 식사"(브런치 후 점심).
+    한 칸에 90분을 잡고 앞에서부터 시간을 더해 식사 시간대에 가장 먼저 닿는 칸을 찾는다.
+    """
+    if start is None or "meal" not in slots or _is_mealtime(start.hour):
+        return slots
+    meal_at = slots.index("meal")
+    for offset in range(1, len(slots)):
+        hour = (start.hour + offset * SLOT_HOURS) % 24
+        if _is_mealtime(hour):
+            moved = list(slots)
+            moved.pop(meal_at)
+            moved.insert(offset, "meal")
+            return moved
+    return slots
 
 
 # ── 동선 최적화 (C): nearest-neighbor ────────────────────────────
