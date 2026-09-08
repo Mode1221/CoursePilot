@@ -33,7 +33,7 @@ def test_creator_generates_and_consumes_credit(client):
     body = res.json()
     assert len(body["course"]["items"]) >= 3
 
-    left = client.get(f"/users/{uid}/credits").json()["questions_left"]
+    left = client.get(f"/users/{uid}/credits", headers={"X-User-Id": uid}).json()["questions_left"]
     assert left == 4  # 5 → 4
 
 
@@ -210,6 +210,6 @@ def test_add_place_from_repo(client):
 def test_bookmark_flow(client):
     uid = _signup(client)
     course_id = client.post("/courses", headers={"X-User-Id": uid}).json()["id"]
-    assert client.put(f"/users/{uid}/bookmarks/{course_id}").status_code == 200
-    marks = client.get(f"/users/{uid}/bookmarks").json()
+    assert client.put(f"/users/{uid}/bookmarks/{course_id}", headers={"X-User-Id": uid}).status_code == 200
+    marks = client.get(f"/users/{uid}/bookmarks", headers={"X-User-Id": uid}).json()
     assert any(c["id"] == course_id for c in marks)

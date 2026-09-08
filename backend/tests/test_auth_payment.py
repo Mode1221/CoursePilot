@@ -43,6 +43,6 @@ def test_purchase_dev_bypass_without_payment_key():
     client = TestClient(api)
     uid = client.post("/signup", json={"phone": "010-4444-5555"}).json()["user_id"]
     # 결제 비활성(키 없음) → imp_uid 없이도 지급(개발 폴백)
-    res = client.post(f"/users/{uid}/purchase", json={"points": 3})
+    res = client.post(f"/users/{uid}/purchase", json={"points": 3}, headers={"X-User-Id": uid})
     assert res.status_code == 200
     assert res.json()["questions_left"] >= 3

@@ -95,17 +95,17 @@ export const api = {
     }),
 
   setPreferences: (userId: string, prefs: Record<string, unknown>) =>
-    request<void>(`/users/${userId}/preferences`, { method: "PUT", body: prefs }),
+    request<void>(`/users/${userId}/preferences`, { method: "PUT", body: prefs, userId }),
 
-  myCourses: (userId: string) => request<Course[]>(`/users/${userId}/courses`),
+  myCourses: (userId: string) => request<Course[]>(`/users/${userId}/courses`, { userId }),
 
-  myBookmarks: (userId: string) => request<Course[]>(`/users/${userId}/bookmarks`),
+  myBookmarks: (userId: string) => request<Course[]>(`/users/${userId}/bookmarks`, { userId }),
 
   addBookmark: (userId: string, courseId: string) =>
-    request<void>(`/users/${userId}/bookmarks/${courseId}`, { method: "PUT" }),
+    request<void>(`/users/${userId}/bookmarks/${courseId}`, { method: "PUT", userId }),
 
   credits: (userId: string) =>
-    request<{ questions_left: number }>(`/users/${userId}/credits`),
+    request<{ questions_left: number }>(`/users/${userId}/credits`, { userId }),
 
   ratePlace: (placeId: string, stars: number) =>
     request<{ ok: boolean; average: number | null }>(`/places/${placeId}/rating`, {
@@ -143,5 +143,6 @@ export const api = {
     request<{ questions_left: number }>(`/users/${userId}/purchase`, {
       method: "POST",
       body: { points },
+      userId,
     }),
 };
