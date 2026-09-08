@@ -7,6 +7,9 @@ from __future__ import annotations
 
 from app.schemas import Place
 
+# 인메모리 폴백은 개발/비상용이므로 보관 수에 상한을 둔다(무한 증가 방지)
+MAX_MEM_PLACES = 2000
+
 
 class PlaceRepository:
     def __init__(self) -> None:
@@ -28,7 +31,10 @@ class PlaceRepository:
                 s.commit()
             return
         for p in places:
+            self._mem.pop(p.id, None)  # 최근 사용 순서를 유지하도록 다시 넣는다
             self._mem[p.id] = p
+        while len(self._mem) > MAX_MEM_PLACES:
+            self._mem.pop(next(iter(self._mem)))  # 가장 오래된 것부터 버린다
 
     def get_many(self, ids: list[str]) -> dict[str, Place]:
         if not ids:
@@ -57,7 +63,7 @@ class PlaceRepository:
             with SessionLocal() as s:
                 rows = s.execute(select(PlaceModel.data).limit(limit)).all()
                 return [Place(**r[0]) for r in rows]
-        return list(self._mem.values())[:limit]
+        return list(self._mem.values())[-limit:]  # 최근 것 위주
 
     @staticmethod
     def _db_ready() -> bool:
