@@ -7,10 +7,12 @@ from __future__ import annotations
 
 from datetime import date, datetime, timedelta
 
-from app.schemas import Course
+from app.schemas import Course, TravelMode
 
 PRODID = "-//CoursePilot//KO"
 ALARM_MINUTES_BEFORE = 30  # 첫 장소 도착 30분 전 알림
+# 구간마다 수단이 다를 수 있으므로(도보/대중교통 혼합) 설명에 함께 적는다
+_MODE_LABEL = {TravelMode.WALK: "도보", TravelMode.CAR: "차량", TravelMode.TRANSIT: "대중교통"}
 
 
 def _escape(text: str) -> str:
@@ -88,9 +90,14 @@ def to_ics(course: Course, day: date | None = None, now: datetime | None = None)
             ]
         if item.place.address:
             lines.append(_fold(f"LOCATION:{_escape(item.place.address)}"))
+        # 캘린더 앱에서 바로 지도를 열 수 있도록 좌표를 넣는다
+        lines.append(f"GEO:{item.place.lat};{item.place.lng}")
         if item.travel_to_next:
+            mode = _MODE_LABEL.get(item.travel_to_next.mode, "이동")
             lines.append(
-                _fold(f"DESCRIPTION:다음 장소까지 {item.travel_to_next.duration_min}분")
+                _fold(
+                    f"DESCRIPTION:다음 장소까지 {mode} {item.travel_to_next.duration_min}분"
+                )
             )
         lines.append("END:VEVENT")
 

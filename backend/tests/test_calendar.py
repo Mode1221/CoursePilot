@@ -36,7 +36,7 @@ def test_장소마다_VEVENT를_만든다():
     assert ics.count("BEGIN:VEVENT") == 2
     assert "DTSTART:20260101T130000" in ics
     assert "DTEND:20260101T160000" in ics
-    assert "다음 장소까지 15분" in ics
+    assert "다음 장소까지 도보 15분" in ics
 
 
 def test_자정을_넘기면_다음날로_넘어간다():
@@ -72,3 +72,25 @@ def test_엔드포인트가_ics를_내려준다():
 
 def test_없는_코스는_404():
     assert client.get("/courses/nope/calendar.ics").status_code == 404
+
+
+def test_이동_수단과_좌표가_들어간다():
+    from app.calendar import to_ics
+    from app.schemas import Course, Place, Route, TimelineItem, TravelMode
+
+    a = Place(id="a", name="A", lat=37.5, lng=127.0)
+    b = Place(id="b", name="B", lat=37.6, lng=127.1)
+    route = Route(
+        from_place_id="a", to_place_id="b", mode=TravelMode.TRANSIT,
+        duration_min=15, distance_m=3000,
+    )
+    course = Course(
+        id="c1",
+        items=[
+            TimelineItem(place=a, arrive=time(12, 0), depart=time(13, 0), travel_to_next=route),
+            TimelineItem(place=b, arrive=time(13, 15), depart=time(14, 0)),
+        ],
+    )
+    ics = to_ics(course)
+    assert "GEO:37.5;127.0" in ics
+    assert "다음 장소까지 대중교통 15분" in ics
