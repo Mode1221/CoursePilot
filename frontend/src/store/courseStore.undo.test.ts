@@ -59,4 +59,15 @@ describe("courseStore 되돌리기", () => {
     await useCourseStore.getState().undo();
     expect(api.setItems).not.toHaveBeenCalled();
   });
+
+  it("교체는 위치를 유지하고 되돌릴 수 있다", async () => {
+    await useCourseStore.getState().replacePlace(1, "z");
+    expect(api.setItems).toHaveBeenLastCalledWith("c1", ["a", "z", "c"]);
+    expect(useCourseStore.getState().canUndo()).toBe(true);
+  });
+
+  it("이미 코스에 있는 장소로는 교체하지 않는다", async () => {
+    await useCourseStore.getState().replacePlace(0, "b");
+    expect(api.setItems).not.toHaveBeenCalled();
+  });
 });
