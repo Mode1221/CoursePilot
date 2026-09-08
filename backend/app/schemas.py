@@ -1,7 +1,7 @@
 """코스/장소/타임라인 도메인 스키마."""
 from __future__ import annotations
 
-from datetime import time
+from datetime import date, time
 from enum import Enum
 
 from pydantic import BaseModel, Field
@@ -57,6 +57,7 @@ class Course(BaseModel):
     region: str | None = None
     owner_id: str | None = None  # 생성자(로그인 회원) id
     items: list[TimelineItem] = Field(default_factory=list)
+    plan_date: date | None = None  # 모임 날짜(캘린더 내보내기 기준일)
     locked: bool = False
     predicted_score: float | None = None  # 생성 시 코스 목적함수 점수(#17 만족도 대조용)
 
@@ -72,6 +73,7 @@ class PlanConstraints(BaseModel):
     travel_mode: TravelMode = TravelMode.WALK
     budget_max: int | None = None  # 하드 제약
     party_size: int | None = None  # 인원수
+    plan_date: date | None = None  # 모임 날짜("내일", "이번 주 토요일")
     stop_count: int | None = None  # 방문할 장소 개수("2차", "세 군데")
     companion: str | None = None  # 동행유형: 데이트/친구/가족/회식/혼자 (컨텍스트 신호)
     keywords: list[str] = Field(default_factory=list)  # 조용한, 비건 등 소프트 제약

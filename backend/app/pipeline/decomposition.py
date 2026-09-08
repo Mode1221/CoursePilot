@@ -5,7 +5,7 @@ LLM(Function Calling)이 정석이나, 키가 없을 때를 위한 규칙 기반
 from __future__ import annotations
 
 import re
-from datetime import time
+from datetime import date, time, timedelta
 
 from app.schemas import PlanConstraints, TravelMode
 
@@ -95,9 +95,46 @@ def _end_hour(hour: int, marker: str | None, start_marker: str | None, start_h: 
     return hour  # 자정을 넘긴 것으로 보고 그대로(다음 날) 해석
 
 
-def parse_constraints(text: str) -> PlanConstraints:
+_WEEKDAYS = {"월": 0, "화": 1, "수": 2, "목": 3, "금": 4, "토": 5, "일": 6}
+_WEEKDAY_RE = re.compile(r"(다음\s*주|담주|이번\s*주)?\s*([월화수목금토일])요일")
+_MD_RE = re.compile(r"(\d{1,2})\s*월\s*(\d{1,2})\s*일")
+_RELATIVE_DAYS = {"오늘": 0, "내일": 1, "낼": 1, "모레": 2, "글피": 3}
+
+
+def _parse_date(text: str, today: date) -> date | None:
+    """"내일", "이번 주 토요일", "12월 3일" 등에서 날짜를 뽑는다. 없으면 None."""
+    md = _MD_RE.search(text)
+    if md:
+        month, day = int(md.group(1)), int(md.group(2))
+        for year in (today.year, today.year + 1):
+            try:
+                cand = date(year, month, day)
+            except ValueError:
+                return None
+            if cand >= today:  # 이미 지난 날짜면 내년으로 본다
+                return cand
+        return None
+
+    wm = _WEEKDAY_RE.search(text)
+    if wm:
+        target = _WEEKDAYS[wm.group(2)]
+        ahead = (target - today.weekday()) % 7
+        if ahead == 0:
+            ahead = 7  # 같은 요일이면 다음 번 그 요일
+        if wm.group(1) and "이번" not in wm.group(1):
+            ahead += 7
+        return today + timedelta(days=ahead)
+
+    for word, offset in _RELATIVE_DAYS.items():
+        if word in text:
+            return today + timedelta(days=offset)
+    return None
+
+
+def parse_constraints(text: str, today: date | None = None) -> PlanConstraints:
     """규칙 기반 조건 추출. LLM 폴백/오프라인 개발용."""
     c = PlanConstraints()
+    c.plan_date = _parse_date(text, today or date.today())
 
     # 지역: "성수동", "강남역" 등 (동/역/구 접미사) → 없으면 접미사 없는 지명 사전
     region_m = re.search(r"([가-힣]+(?:동|역|구|읍|면))", text)
