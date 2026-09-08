@@ -21,7 +21,9 @@
 5. **편집 명령이면**: `pipeline/edit.py:parse_edit/apply_edit` 로 부분 수정 후 전체 동선 재계산.
 6. **저장 + 신호 누적 + 브로드캐스트**: `store.py:save`, 각 학습 스토어 bump, `realtime.py:broadcast_state`.
 
-수동 편집(`POST /courses/{id}/reorder`, `/places`)도 같은 큐를 거치며 AI 미호출·무료.
+수동 편집(`POST /courses/{id}/reorder`, `/places`, `/items`)도 같은 큐를 거치며 AI 미호출·무료.
+"조건을 완화할까요?"에 수락하면 `POST /courses/{id}/relax` — 직전 요청 문장으로 완화를 강제해
+재구성하며, 새 질문이 아니므로 **크레딧을 쓰지 않는다**.
 
 ## 모듈 책임 맵
 ### 파이프라인 (`app/pipeline/`)
@@ -49,10 +51,15 @@
 ### 코어
 - `main.py` 엔드포인트, `models.py` ORM, `schemas.py` 도메인, `store.py` 코스 저장.
 - `users.py` 회원·크레딧, `auth.py` SMS 인증, `bookmarks.py`, `chat.py`.
-- `db.py` 세션/폴백, `queue.py` 액션 큐, `realtime.py` Socket.IO, `middleware.py` rate limit·로깅, `config.py` env 설정.
+- `db.py` 세션/폴백, `queue.py` 액션 큐, `realtime.py` Socket.IO, `config.py` env 설정.
+- `middleware.py` — rate limit + 요청 로깅(요청마다 `X-Request-Id` 발급·응답 반환, 2초 이상은 warning).
+- `metrics.py` — 라우트별 지연/에러와 외부 연동 폴백 비율(`externals`). `GET /admin/metrics`(ADMIN_TOKEN).
+- 미처리 예외는 `main.py` 전역 핸들러가 `request_id` 를 담아 응답(내부 스택은 로그로만).
 
 ### 리뷰 (`app/reviews/`) — 약관 주의(REVIEW_DATA_SOURCES.md)
-- `source.py` 리뷰 수집(Google 숫자/attribution, 네이버 링크만), `sponsored.py` 협찬 필터, `embedding.py`/`rag.py` 임베딩·검색(제한적).
+- `source.py` 리뷰 수집(Google 숫자/attribution, 네이버 링크만) + `SafeReviewSource` 폴백 래퍼.
+- `sponsored.py` 협찬 필터(표기·구조 신호, "내돈내산"은 반대 신호), `aspects.py` 태그 추출.
+- `embedding.py`/`rag.py` 임베딩·검색(제한적). 요약 폴백은 **원문 대신 태그**로만 구성.
 
 ## 불변 원칙 (깨지 말 것)
 1. 지도/장소는 **어댑터 경유만**(벤더 직접호출 금지).
