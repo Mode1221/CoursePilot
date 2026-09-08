@@ -229,6 +229,39 @@ async def remove_bookmark(user_id: str, course_id: str) -> dict:
     return {"ok": True}
 
 
+class RenameRequest(BaseModel):
+    title: str = Field(min_length=1, max_length=60)
+
+
+@api.patch("/courses/{course_id}", response_model=Course)
+async def rename_course(
+    course_id: str, req: RenameRequest, x_user_id: str | None = Header(default=None)
+) -> Course:
+    """코스 이름 변경. 생성자가 있는 코스는 생성자만 변경할 수 있다."""
+    course = _owned_course(course_id, x_user_id)
+    course.title = req.title.strip()
+    store.save(course)
+    await broadcast_state(course_id, course.model_dump(mode="json"))
+    return course
+
+
+@api.delete("/courses/{course_id}")
+async def delete_course(course_id: str, x_user_id: str | None = Header(default=None)) -> dict:
+    """코스 삭제. 생성자가 있는 코스는 생성자만 삭제할 수 있다."""
+    _owned_course(course_id, x_user_id)
+    store.delete(course_id)
+    return {"ok": True}
+
+
+def _owned_course(course_id: str, user_id: str | None) -> Course:
+    course = store.get(course_id)
+    if course is None:
+        raise HTTPException(status_code=404, detail="course not found")
+    if course.owner_id is not None and course.owner_id != user_id:
+        raise HTTPException(status_code=403, detail="코스 생성자만 변경할 수 있어요")
+    return course
+
+
 @api.get("/courses/{course_id}", response_model=Course)
 async def get_course(course_id: str) -> Course:
     course = store.get(course_id)

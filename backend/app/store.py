@@ -88,5 +88,20 @@ class CourseStore:
         self._mem[course.id] = course
         return course
 
+    def delete(self, course_id: str) -> bool:
+        """코스 삭제. 존재했으면 True."""
+        if is_ready():
+            from app.db import SessionLocal
+            from app.models import CourseModel
+
+            with SessionLocal() as s:
+                row = s.get(CourseModel, course_id)
+                if row is None:
+                    return False
+                s.delete(row)
+                s.commit()
+            return True
+        return self._mem.pop(course_id, None) is not None
+
 
 store = CourseStore()

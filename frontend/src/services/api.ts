@@ -46,6 +46,12 @@ export const api = {
 
   getCourse: (id: string) => request<Course>(`/courses/${id}`),
 
+  renameCourse: (id: string, title: string, userId?: string) =>
+    request<Course>(`/courses/${id}`, { method: "PATCH", body: { title }, userId }),
+
+  deleteCourse: (id: string, userId?: string) =>
+    request<{ ok: boolean }>(`/courses/${id}`, { method: "DELETE", userId }),
+
   generate: (id: string, text: string, userId?: string) =>
     request<GenerateResponse>(`/courses/${id}/generate`, { method: "POST", body: { text }, userId }),
 

@@ -43,9 +43,11 @@ export const Button = forwardRef<
   );
 });
 
-export function Input({ style, ...rest }: InputHTMLAttributes<HTMLInputElement>) {
+export const Input = forwardRef<HTMLInputElement, InputHTMLAttributes<HTMLInputElement>>(
+  function Input({ style, ...rest }, ref) {
   return (
     <input
+      ref={ref}
       {...rest}
       style={{
         padding: "10px 12px",
@@ -59,7 +61,8 @@ export function Input({ style, ...rest }: InputHTMLAttributes<HTMLInputElement>)
       }}
     />
   );
-}
+},
+);
 
 export function Card({ children, style, interactive }: { children: ReactNode; style?: CSSProperties; interactive?: boolean }) {
   return (

@@ -5,6 +5,7 @@ import { useEffect, useState } from "react";
 
 import { Button, Card, EmptyState } from "@/components/ui";
 import { api } from "@/services/api";
+import { toast } from "@/store/toastStore";
 import { useUserStore } from "@/store/userStore";
 import type { Course } from "@/types";
 
@@ -46,7 +47,20 @@ export default function MyPage() {
 
       <section style={{ marginTop: "var(--sp-6)" }}>
         <h2>내 코스</h2>
-        <CourseList items={courses} hrefBase="/plan" empty="아직 만든 코스가 없어요." />
+        <CourseList
+          items={courses}
+          hrefBase="/plan"
+          empty="아직 만든 코스가 없어요."
+          onDelete={async (id) => {
+            try {
+              await api.deleteCourse(id, userId);
+              setCourses((cs) => cs.filter((c) => c.id !== id));
+              toast("코스를 삭제했어요.", "success");
+            } catch {
+              toast("코스를 삭제하지 못했어요.", "error");
+            }
+          }}
+        />
       </section>
 
       <section style={{ marginTop: "var(--sp-8)" }}>
@@ -57,13 +71,26 @@ export default function MyPage() {
   );
 }
 
-function CourseList({ items, hrefBase, empty }: { items: Course[]; hrefBase: string; empty: string }) {
+function CourseList({
+  items,
+  hrefBase,
+  empty,
+  onDelete,
+}: {
+  items: Course[];
+  hrefBase: string;
+  empty: string;
+  onDelete?: (id: string) => void;
+}) {
   if (items.length === 0) return <EmptyState title={empty} />;
   return (
     <ul style={{ listStyle: "none", padding: 0, display: "grid", gap: "var(--sp-2)" }}>
       {items.map((c) => (
-        <li key={c.id}>
-          <Link href={`${hrefBase}/${c.id}`} style={{ textDecoration: "none", color: "inherit" }}>
+        <li key={c.id} style={{ display: "flex", alignItems: "stretch", gap: "var(--sp-2)" }}>
+          <Link
+            href={`${hrefBase}/${c.id}`}
+            style={{ flex: 1, minWidth: 0, textDecoration: "none", color: "inherit" }}
+          >
             <Card interactive style={{ padding: "var(--sp-3) var(--sp-4)" }}>
               <div style={{ fontWeight: 600 }}>{c.title}</div>
               <div style={{ color: "var(--text-muted)", fontSize: "var(--fs-sm)" }}>
@@ -71,6 +98,18 @@ function CourseList({ items, hrefBase, empty }: { items: Course[]; hrefBase: str
               </div>
             </Card>
           </Link>
+          {onDelete && (
+            <Button
+              variant="danger"
+              size="sm"
+              aria-label={`${c.title} 삭제`}
+              onClick={() => {
+                if (confirm(`"${c.title}" 코스를 삭제할까요?`)) onDelete(c.id);
+              }}
+            >
+              삭제
+            </Button>
+          )}
         </li>
       ))}
     </ul>

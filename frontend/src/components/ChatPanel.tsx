@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 
+import CourseTitle from "@/components/CourseTitle";
 import { Badge, Button, Input } from "@/components/ui";
 import { api, ApiError } from "@/services/api";
 import { shareService } from "@/services/shareService";
@@ -137,7 +138,7 @@ export default function ChatPanel({ courseId }: { courseId: string }) {
           gap: "var(--sp-2)",
         }}
       >
-        <strong style={{ fontSize: "var(--fs-md)" }}>{course?.title ?? "코스"}</strong>
+        <CourseTitle courseId={courseId} title={course?.title ?? "코스"} userId={userId} />
         <span style={{ display: "flex", gap: "var(--sp-2)" }}>
           {course != null && course.items.length > 0 && (
             <Button size="sm" onClick={markCompleted}>다녀왔어요</Button>
