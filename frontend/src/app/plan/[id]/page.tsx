@@ -72,7 +72,7 @@ export default function PlanPage({ params }: { params: { id: string } }) {
     return (
       <div style={{ display: "flex", flexDirection: "column", height: "100vh" }}>
         <ConnectionBanner />
-        <div role="tablist" aria-label="화면 전환" style={{ display: "flex", borderBottom: "1px solid #eee" }}>
+        <div role="tablist" aria-label="화면 전환" style={{ display: "flex", borderBottom: "1px solid var(--border)" }}>
           {(["map", "chat"] as const).map((t) => (
             <button
               key={t}
@@ -83,9 +83,11 @@ export default function PlanPage({ params }: { params: { id: string } }) {
                 flex: 1,
                 padding: 12,
                 border: "none",
-                background: tab === t ? "#fff" : "#f2f4f7",
+                background: tab === t ? "var(--surface)" : "var(--bg-subtle)",
+                color: tab === t ? "var(--text)" : "var(--text-muted)",
                 fontWeight: tab === t ? 600 : 400,
-                borderBottom: tab === t ? "2px solid #0f9d84" : "2px solid transparent",
+                borderBottom: tab === t ? "2px solid var(--brand)" : "2px solid transparent",
+                cursor: "pointer",
               }}
             >
               {t === "map" ? "지도·타임라인" : "AI 챗봇"}
@@ -106,7 +108,7 @@ export default function PlanPage({ params }: { params: { id: string } }) {
     <div style={{ display: "flex", flexDirection: "column", height: "100vh" }}>
       <ConnectionBanner />
       <div style={{ display: "flex", flex: 1, overflow: "hidden" }}>
-        <div style={{ flex: 1, borderRight: "1px solid #eee", overflow: "auto" }}>
+        <div style={{ flex: 1, borderRight: "1px solid var(--border)", overflow: "auto" }}>
           <MapPanel />
         </div>
         <div style={{ width: 380, display: "flex", flexDirection: "column" }}>
