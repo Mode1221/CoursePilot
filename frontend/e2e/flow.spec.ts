@@ -65,6 +65,8 @@ test("삭제한 장소를 되돌리기로 복원한다", async ({ page }) => {
 });
 
 test("마이페이지에서 코스를 복제한다", async ({ page }) => {
+  // dev 서버는 /mypage 를 이 테스트에서 처음 컴파일하므로 여유를 둔다
+  test.setTimeout(90_000);
   const userId = await signup();
   await page.addInitScript((uid) => localStorage.setItem("coursepilot_user_id", uid), userId);
 
@@ -75,11 +77,13 @@ test("마이페이지에서 코스를 복제한다", async ({ page }) => {
   await expect(page.getByText(/1\. 성수동 장소/)).toBeVisible({ timeout: 15_000 });
 
   await page.goto("/mypage");
-  await expect(page.getByRole("heading", { name: "마이페이지" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "마이페이지" })).toBeVisible({
+    timeout: 60_000,
+  });
   // 목록은 사용자 정보를 읽은 뒤 로드되므로 카드가 뜬 다음에 복제한다
   await expect(page.getByText("내 코스")).toBeVisible();
   const duplicate = page.getByRole("button", { name: /복제$/ }).first();
-  await duplicate.waitFor({ state: "visible", timeout: 15_000 });
+  await duplicate.waitFor({ state: "visible", timeout: 30_000 });
   await duplicate.click();
   await expect(page.getByText(/\(사본\)/).first()).toBeVisible();
 });
