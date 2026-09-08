@@ -25,6 +25,14 @@ _SPONSORED_PATTERNS = [
     r"유료\s*광고",
     r"광고\s*포함",
     r"AD\b",
+    # 실사용 표현 보강: 체험단·협찬의 다른 이름들
+    r"서포터즈",
+    r"앰배서더",
+    r"앰버서더",
+    r"인플루언서\s*마케팅",
+    r"제작\s*지원",
+    r"상품을?\s*제공",
+    r"초대\s*받아",
 ]
 _COMPILED = [re.compile(p, re.IGNORECASE) for p in _SPONSORED_PATTERNS]
 
@@ -39,6 +47,10 @@ _STRUCTURE_PATTERNS = [
     r"공구",  # 공동구매
 ]
 _STRUCTURE_COMPILED = [re.compile(p, re.IGNORECASE) for p in _STRUCTURE_PATTERNS]
+
+# 3) 자비 방문임을 밝히는 표현(협찬 개연성을 낮추는 반대 신호)
+_SELF_PAID_PATTERNS = [r"내돈내산", r"내\s*돈\s*주고", r"자비로\s*방문"]
+_SELF_PAID_COMPILED = [re.compile(p, re.IGNORECASE) for p in _SELF_PAID_PATTERNS]
 
 _FIRST_CHUNK = 120  # 제목/첫문단으로 간주할 앞부분 길이
 
@@ -73,4 +85,8 @@ def sponsored_score(text: str, account_repeat: bool = False) -> float:
     if account_repeat:
         score += 0.2
 
-    return min(1.0, score)
+    # "내돈내산"처럼 자비 방문을 밝히면 개연성을 낮춘다(표기 문구가 함께 있으면 상쇄만)
+    if any(p.search(text) for p in _SELF_PAID_COMPILED):
+        score -= 0.2
+
+    return max(0.0, min(1.0, score))
