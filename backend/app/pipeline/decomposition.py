@@ -32,6 +32,11 @@ _TRAVEL_RE = re.compile(r"(도보|차량|대중교통)?\s*(\d{1,3})\s*분")
 # "3만원", "3만 5천원" 은 만원, 그 외 "20000원" 은 원 단위
 _BUDGET_MAN_RE = re.compile(r"(\d+)\s*만\s*(?:(\d)\s*천)?\s*원")
 _BUDGET_WON_RE = re.compile(r"(\d{4,})\s*원")
+# 인원수: "4명", "3인" / 숫자 없이 쓰는 표현도 함께 본다
+_PARTY_RE = re.compile(r"(\d{1,2})\s*(?:명|인)(?!분)")
+_PARTY_WORDS = {"혼자": 1, "둘이": 2, "두명": 2, "셋이": 3, "세명": 3, "넷이": 4, "네명": 4}
+# 예산이 "총액"임을 알려주는 표현 (1인 기준으로 나눠서 쓴다)
+_TOTAL_BUDGET_WORDS = ("총", "다 해서", "다해서", "전부", "합쳐서", "모두")
 
 _MODE_MAP = {"도보": TravelMode.WALK, "차량": TravelMode.CAR, "대중교통": TravelMode.TRANSIT}
 _SOFT_KEYWORDS = [
@@ -163,6 +168,18 @@ def parse_constraints(text: str) -> PlanConstraints:
         wm = _BUDGET_WON_RE.search(text)
         if wm:
             c.budget_max = int(wm.group(1))
+
+    # 인원수
+    pm = _PARTY_RE.search(text)
+    if pm:
+        c.party_size = max(1, min(int(pm.group(1)), 50))
+    else:
+        c.party_size = next((n for w, n in _PARTY_WORDS.items() if w in text), None)
+
+    # "4명이서 총 20만원" 처럼 총액을 말한 경우 1인 예산으로 환산한다
+    if c.budget_max and c.party_size and c.party_size > 1:
+        if any(w in text for w in _TOTAL_BUDGET_WORDS):
+            c.budget_max = c.budget_max // c.party_size
 
     # 동행유형(컨텍스트)
     for label, exprs in _COMPANION_MAP.items():
