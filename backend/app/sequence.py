@@ -42,9 +42,27 @@ class SequenceStore:
                 return row.count if row else 0.0
         return self._mem.get((a, b), 0.0)
 
+    def all_transitions(self) -> dict[tuple[str, str], float]:
+        """전이표 전체를 한 번에 읽는다(카테고리 조합은 소수라 통째로 캐시해도 작다)."""
+        if self._db_ready():
+            from sqlalchemy import select
+
+            from app.db import SessionLocal
+            from app.models import SequenceModel
+
+            with SessionLocal() as s:
+                rows = s.execute(
+                    select(SequenceModel.from_cat, SequenceModel.to_cat, SequenceModel.count)
+                ).all()
+            return {(r[0], r[1]): r[2] for r in rows}
+        return dict(self._mem)
+
     def sequence_score(self, categories: list[str]) -> float:
         """카테고리 나열의 학습된 선호 순서 점수(인접 전이 합)."""
-        return sum(self.transition(a, b) for a, b in zip(categories, categories[1:], strict=False))
+        table = self.all_transitions()
+        return sum(
+            table.get((a, b), 0.0) for a, b in zip(categories, categories[1:], strict=False)
+        )
 
     @staticmethod
     def _db_ready() -> bool:

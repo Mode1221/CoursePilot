@@ -238,11 +238,12 @@ def seq_order(places: list[Place]) -> list[Place]:
     from app.sequence import sequence_store
 
     # 첫 장소는 유지(식사 시작 관성), 이후 학습 전이가 가장 높은 순으로 그리디 연결
+    table = sequence_store.all_transitions()  # 후보마다 조회하지 않도록 한 번만 읽는다
     ordered = [places[0]]
     remaining = places[1:]
     while remaining:
         last = classify(ordered[-1])
-        nxt = max(remaining, key=lambda p: sequence_store.transition(last, classify(p)))
+        nxt = max(remaining, key=lambda p: table.get((last, classify(p)), 0.0))
         ordered.append(nxt)
         remaining.remove(nxt)
     return ordered
