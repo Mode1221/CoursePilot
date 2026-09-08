@@ -52,10 +52,49 @@ class GooglePlacesReviewSource(ReviewSource):
     """
 
     summarizable = True
+    _TEXTSEARCH = "https://maps.googleapis.com/maps/api/place/textsearch/json"
+    _DETAILS = "https://maps.googleapis.com/maps/api/place/details/json"
 
     async def fetch(self, place_name: str, limit: int = 10) -> list[RawReview]:
-        # TODO: Places Details(reviews 필드) 실제 호출. 지금은 미구현 → 폴백 유도.
-        raise NotImplementedError
+        import httpx
+
+        from app.config import settings
+
+        key = settings.google_maps_api_key
+        if not key:
+            raise RuntimeError("google_maps_api_key 미설정")  # 상위에서 Mock 폴백
+        async with httpx.AsyncClient(timeout=10) as client:
+            ts = await client.get(
+                self._TEXTSEARCH, params={"query": place_name, "key": key, "language": "ko"}
+            )
+            ts.raise_for_status()
+            results = ts.json().get("results") or []
+            if not results:
+                return []
+            place_id = results[0]["place_id"]
+            det = await client.get(
+                self._DETAILS,
+                params={
+                    "place_id": place_id,
+                    "fields": "review,rating",
+                    "key": key,
+                    "language": "ko",
+                    "reviews_sort": "newest",
+                },
+            )
+            det.raise_for_status()
+            reviews = (det.json().get("result") or {}).get("reviews") or []
+        # attribution 필수: author_name/url 보존, 원문 장기 캐싱 지양(실시간 조회)
+        return [
+            RawReview(
+                source="google",
+                content=r.get("text", ""),
+                rating=r.get("rating"),
+                author=r.get("author_name"),
+                url=r.get("author_url"),
+            )
+            for r in reviews[:limit]
+        ]
 
 
 class NaverBlogLinkSource(ReviewSource):

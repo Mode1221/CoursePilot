@@ -94,11 +94,37 @@ class SafeMapService(MapService):
             return await self._fallback.get_route(origin, dest, mode)
 
 
+class EnrichedMapService(MapService):
+    """검색 결과에 Google Places 평점을 보강하는 데코레이터. 라우트는 위임."""
+
+    def __init__(self, inner: MapService) -> None:
+        self._inner = inner
+
+    async def search_places(self, region, keywords, limit=10):
+        places = await self._inner.search_places(region, keywords, limit)
+        try:
+            from app.adapters.google import get_places_enricher
+
+            return await get_places_enricher().enrich(places)
+        except Exception:
+            return places  # 보강 실패는 무영향
+
+    async def get_route(self, origin, dest, mode):
+        return await self._inner.get_route(origin, dest, mode)
+
+
 @lru_cache(maxsize=1)
 def get_map_service() -> MapService:
-    """설정에 따라 구현체 선택(싱글턴). 키 없으면 Mock, 있으면 Naver(+Mock 폴백)."""
+    """설정에 따라 구현체 선택(싱글턴). 키 없으면 Mock, 있으면 Naver(+Mock 폴백).
+
+    Google 키가 있으면 검색 결과에 평점을 보강한다.
+    """
     if settings.map_provider == "naver" and settings.naver_client_id:
         from app.adapters.naver import NaverMapService
 
-        return SafeMapService(NaverMapService(), MockMapService())
-    return MockMapService()
+        base: MapService = SafeMapService(NaverMapService(), MockMapService())
+    else:
+        base = MockMapService()
+    if settings.google_maps_api_key:
+        return EnrichedMapService(base)
+    return base
