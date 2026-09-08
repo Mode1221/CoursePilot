@@ -56,3 +56,22 @@ async def test_planner_prefers_popular_place(monkeypatch):
     tl = await plan_course(cands, c, MockMapService())
     assert popular.id in {it.place.id for it in tl}
     popularity_store._mem.clear()
+
+
+def test_bump_many_는_인메모리에서도_동일하게_누적된다():
+    from app.popularity import PopularityStore
+
+    store = PopularityStore()
+    store.bump_many(["a", "b"], weight=2)
+    scores = store.scores(["a", "b", "c"])
+    assert scores["a"] == pytest.approx(2.0)
+    assert scores["b"] == pytest.approx(2.0)
+    assert scores["c"] == 0.0
+
+
+def test_빈_목록은_아무것도_하지_않는다():
+    from app.popularity import PopularityStore
+
+    store = PopularityStore()
+    store.bump_many([])
+    assert store.scores([]) == {}

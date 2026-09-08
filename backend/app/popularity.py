@@ -44,8 +44,27 @@ class PopularityStore:
         self._mem[place_id] = (cur * _decay(now - ts) + weight if ts else float(weight), now)
 
     def bump_many(self, place_ids: list[str], weight: float = 1) -> None:
-        for pid in place_ids:
-            self.bump(pid, weight)
+        """여러 장소를 한 번에 가산. DB 모드에서도 세션·커밋 1회로 처리한다."""
+        if not place_ids:
+            return
+        if not self._db_ready():
+            for pid in place_ids:
+                self.bump(pid, weight)
+            return
+
+        now = _time.time()
+        from app.db import SessionLocal
+        from app.models import PopularityModel
+
+        with SessionLocal() as s:
+            for pid in place_ids:
+                row = s.get(PopularityModel, pid)
+                if row is None:
+                    s.add(PopularityModel(place_id=pid, score=float(weight), updated_at=now))
+                else:
+                    row.score = row.score * _decay(now - row.updated_at) + weight
+                    row.updated_at = now
+            s.commit()
 
     def scores(self, place_ids: list[str]) -> dict[str, float]:
         """요청한 place_id 들의 현재 인기(읽는 시점까지 감쇠 적용). 없으면 0."""
