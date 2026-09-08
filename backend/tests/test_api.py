@@ -179,6 +179,10 @@ def test_admin_signals_shape(client):
     assert set(body) == {
         "feedback_counts",
         "relax_acceptance_rate",
+        "relax_offered",
+        "relax_applied",
+        "satisfaction_rate",
+        "completed_count",
         "seed_strategy_counts",
         "score_satisfaction_separation",
     }

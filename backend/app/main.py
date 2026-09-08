@@ -133,9 +133,18 @@ async def admin_signals(x_admin_token: str | None = Header(default=None)) -> dic
     from app.outcome import outcome_store
     from app.strategy import strategy_store
 
+    counts = feedback_store.counts()
+    liked, disliked = counts.get("liked", 0), counts.get("disliked", 0)
+    offered, applied = counts.get("relax_offered", 0), counts.get("relax_applied", 0)
     return {
-        "feedback_counts": feedback_store.counts(),
+        "feedback_counts": counts,
         "relax_acceptance_rate": feedback_store.acceptance_rate(),
+        # 완화가 얼마나 자주 필요했는지(제안) 대비 실제 적용 비율
+        "relax_offered": offered,
+        "relax_applied": applied,
+        # 만족도: 표본이 없으면 None(0으로 오해하지 않게)
+        "satisfaction_rate": (liked / (liked + disliked)) if (liked + disliked) else None,
+        "completed_count": counts.get("completed", 0),
         "seed_strategy_counts": strategy_store.counts(),
         "score_satisfaction_separation": outcome_store.separation(),
     }
