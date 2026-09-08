@@ -50,3 +50,13 @@ def test_내_코스는_최근_순으로_나온다():
     second = _course(uid)
     ids = [c["id"] for c in client.get(f"/users/{uid}/courses", headers={"X-User-Id": uid}).json()]
     assert ids.index(second) < ids.index(first)
+
+
+def test_내_코스는_상한만큼만_돌려준다():
+    from app.store import CourseStore
+
+    store = CourseStore()
+    for _ in range(5):
+        store.create(owner_id="u-limit")
+    assert len(store.list_by_owner("u-limit", limit=3)) == 3
+    assert len(store.list_by_owner("u-limit")) == 5

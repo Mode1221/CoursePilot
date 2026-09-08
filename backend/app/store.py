@@ -24,7 +24,8 @@ class CourseStore:
         course = Course(id=self.new_id(), title=title, owner_id=owner_id)
         return self.save(course)
 
-    def list_by_owner(self, owner_id: str) -> list[Course]:
+    def list_by_owner(self, owner_id: str, limit: int = 50) -> list[Course]:
+        """내 코스 최근 순. 코스가 쌓여도 응답이 커지지 않도록 상한을 둔다."""
         if is_ready():
             from sqlalchemy import select
 
@@ -36,10 +37,12 @@ class CourseStore:
                     select(CourseModel.state)
                     .where(CourseModel.owner_id == owner_id)
                     .order_by(CourseModel.updated_at.desc())
+                    .limit(limit)
                 ).all()
                 return [Course.model_validate(r[0]) for r in rows]
         # DB 경로와 동일하게 최근 것부터(인메모리는 삽입 순서 = 생성 순서)
-        return [c for c in reversed(list(self._mem.values())) if c.owner_id == owner_id]
+        mine = [c for c in reversed(list(self._mem.values())) if c.owner_id == owner_id]
+        return mine[:limit]
 
     def get_many(self, course_ids: list[str]) -> list[Course]:
         """여러 코스를 한 번에 조회(N+1 방지). 입력 순서를 보존, 없는 id는 생략."""
