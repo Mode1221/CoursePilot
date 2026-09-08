@@ -46,3 +46,24 @@ def test_purchase_dev_bypass_without_payment_key():
     res = client.post(f"/users/{uid}/purchase", json={"points": 3}, headers={"X-User-Id": uid})
     assert res.status_code == 200
     assert res.json()["questions_left"] >= 3
+
+
+def test_코드를_여러_번_틀리면_폐기된다():
+    from app.auth import MAX_ATTEMPTS, VerificationStore
+
+    store = VerificationStore()
+    code = store.issue("01099998888")
+    for _ in range(MAX_ATTEMPTS):
+        assert store.verify("01099998888", "000000") is False
+    assert store.verify("01099998888", code) is False  # 폐기됨 → 재발급 필요
+    assert store.verify("01099998888", store.issue("01099998888")) is True
+
+
+def test_만료된_코드는_정리된다():
+    from app.auth import VerificationStore
+
+    store = VerificationStore()
+    store.issue("01099997777")
+    store._codes["01099997777"] = ("123456", 0.0)  # 만료 상태로 강제
+    assert store.verify("01099997777", "123456") is False
+    assert "01099997777" not in store._codes
