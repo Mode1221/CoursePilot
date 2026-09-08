@@ -5,9 +5,11 @@ import PlaceDetailModal from "./PlaceDetailModal";
 import type { Place } from "@/types";
 
 const addPlace = vi.fn();
+let mockCourse: { items: { place: Place }[] } | null = null;
 
 vi.mock("@/store/courseStore", () => ({
-  useCourseStore: (sel: (s: { addPlace: typeof addPlace }) => unknown) => sel({ addPlace }),
+  useCourseStore: (sel: (s: Record<string, unknown>) => unknown) =>
+    sel({ addPlace, course: mockCourse }),
 }));
 
 const relatedPlaces = vi.fn();
@@ -28,6 +30,7 @@ const place: Place = { id: "p1", name: "장소1", category: "카페", lat: 37.5,
 
 describe("PlaceDetailModal", () => {
   beforeEach(() => {
+    mockCourse = null;
     addPlace.mockClear();
     relatedPlaces.mockReset();
   });
@@ -69,5 +72,13 @@ describe("PlaceDetailModal", () => {
     const { getByText } = render(<PlaceDetailModal place={place} onClose={vi.fn()} />);
     await waitFor(() => getByText(/분위기/));
     expect(getByText(/웨이팅/)).toBeTruthy();
+  });
+
+  it("이미 코스에 있는 추천 장소는 추가할 수 없다", async () => {
+    mockCourse = { items: [{ place: { id: "r1", name: "관련장소", lat: 37.5, lng: 127 } }] };
+    relatedPlaces.mockResolvedValue([{ id: "r1", name: "관련장소", lat: 37.5, lng: 127.0 }]);
+    const { getByText } = render(<PlaceDetailModal place={place} onClose={vi.fn()} editable />);
+    await waitFor(() => getByText(/관련장소/));
+    expect((getByText("추가됨") as HTMLButtonElement).disabled).toBe(true);
   });
 });

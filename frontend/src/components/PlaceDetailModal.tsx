@@ -19,6 +19,7 @@ export default function PlaceDetailModal({
   editable?: boolean;
 }) {
   const addPlace = useCourseStore((s) => s.addPlace);
+  const courseItems = useCourseStore((s) => s.course?.items);
   const [summary, setSummary] = useState<string>("불러오는 중…");
   const [aspects, setAspects] = useState<{ pros: string[]; cons: string[] }>({ pros: [], cons: [] });
   const [myStars, setMyStars] = useState<number | null>(null);
@@ -27,6 +28,7 @@ export default function PlaceDetailModal({
   const closeRef = useRef<HTMLButtonElement>(null);
   const dialogRef = useRef<HTMLDivElement>(null);
   const titleId = `place-${place.id}`;
+  const inCourse = new Set((courseItems ?? []).map((it) => it.place.id));
 
   useEffect(() => {
     api
@@ -163,7 +165,9 @@ export default function PlaceDetailModal({
           <>
             <h4>함께 가요</h4>
             <ul style={{ margin: 0, padding: 0, listStyle: "none", display: "grid", gap: "var(--sp-2)" }}>
-              {related.map((r) => (
+              {related.map((r) => {
+                const already = inCourse.has(r.id);
+                return (
                 <li
                   key={r.id}
                   style={{
@@ -182,16 +186,18 @@ export default function PlaceDetailModal({
                   {editable && (
                     <Button
                       size="sm"
+                      disabled={already}
                       onClick={() => {
                         addPlace(r.id);
                         onClose();
                       }}
                     >
-                      추가
+                      {already ? "추가됨" : "추가"}
                     </Button>
                   )}
                 </li>
-              ))}
+                );
+              })}
             </ul>
           </>
         )}
