@@ -42,4 +42,9 @@ def test_4xx는_에러율에_포함되지_않는다():
 
 
 def test_요청이_없으면_0():
-    assert MetricsStore().snapshot() == {"total_requests": 0, "error_rate": 0.0, "routes": []}
+    assert MetricsStore().snapshot() == {
+        "total_requests": 0,
+        "error_rate": 0.0,
+        "routes": [],
+        "externals": [],
+    }
