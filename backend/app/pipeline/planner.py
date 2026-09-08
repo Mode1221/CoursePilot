@@ -143,7 +143,10 @@ def desired_slots(constraints: PlanConstraints) -> list[str]:
     dur = constraints.duration_min or 180
     n = max(2, min(4, dur // 90))
     if constraints.stop_count:  # "2차", "세 군데" 처럼 개수를 직접 말했으면 그 값을 따른다
-        n = max(2, min(4, constraints.stop_count))
+        n = max(1, min(4, constraints.stop_count))
+        if n == 1:  # "한 곳만" — 식사 시간대면 식당, 아니면 카페 한 칸
+            hour = constraints.start_time.hour if constraints.start_time else 12
+            return ["meal" if _is_mealtime(hour) else "cafe"]
     evening = constraints.start_time is not None and constraints.start_time.hour >= 18
     comp = constraints.companion
 

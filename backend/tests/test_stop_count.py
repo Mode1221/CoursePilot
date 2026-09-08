@@ -18,3 +18,13 @@ def test_stop_count_overrides_duration_slots():
 
 def test_no_stop_count_when_absent():
     assert parse_constraints("강남 저녁 5시간").stop_count is None
+
+
+def test_한_곳만_요청하면_한_칸이다():
+    from datetime import time
+
+    from app.pipeline.planner import desired_slots
+    from app.schemas import PlanConstraints
+
+    assert desired_slots(PlanConstraints(stop_count=1, start_time=time(19, 0))) == ["meal"]
+    assert desired_slots(PlanConstraints(stop_count=1, start_time=time(15, 0))) == ["cafe"]
