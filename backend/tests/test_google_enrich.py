@@ -32,3 +32,9 @@ async def test_전부_평점이_있으면_호출하지_않는다():
     enricher = _FakeEnricher()
     await enricher.enrich([_place("a", 4.0)])
     assert enricher.queried == []
+
+
+def test_enricher_는_싱글턴이다():
+    from app.adapters.google import get_places_enricher
+
+    assert get_places_enricher() is get_places_enricher()
