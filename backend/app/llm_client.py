@@ -15,3 +15,13 @@ def get_openai_client() -> Any | None:
     from openai import AsyncOpenAI
 
     return AsyncOpenAI(api_key=settings.openai_api_key)
+
+
+@lru_cache(maxsize=1)
+def get_anthropic_client() -> Any | None:
+    """키가 있으면 캐시된 AsyncAnthropic, 없으면 None."""
+    if not settings.anthropic_api_key:
+        return None
+    from anthropic import AsyncAnthropic
+
+    return AsyncAnthropic(api_key=settings.anthropic_api_key)
