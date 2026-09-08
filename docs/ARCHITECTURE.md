@@ -18,6 +18,7 @@
    - `pipeline/planner.py:plan_course` — 스코어링·템플릿·동선·Best-of-N.
    - `pipeline/validation.py:build_timeline` — 영업시간·이동시간 물리 검증.
    - 부족 시 조건 완화 재시도(이동시간↑, 소프트 키워드 드롭). 완화 강도는 `feedback.py:acceptance_rate()` 로 학습.
+     시도들 중 **장소가 가장 많은 결과**를 채택하므로 완화가 되레 나쁘면 원래 코스가 남는다.
 5. **편집 명령이면**: `pipeline/edit.py:parse_edit/apply_edit` 로 부분 수정 후 전체 동선 재계산.
 6. **저장 + 신호 누적 + 브로드캐스트**: `store.py:save`, 각 학습 스토어 bump, `realtime.py:broadcast_state`.
 
@@ -28,11 +29,11 @@
 ## 모듈 책임 맵
 ### 파이프라인 (`app/pipeline/`)
 - `agent.py` — 오케스트레이터(분해→검색→검증→완화).
-- `decomposition.py` — 규칙 기반 자연어 파서(시각/분·반, 예산, 동행, 키워드).
+- `decomposition.py` — 규칙 기반 자연어 파서(시각/분·반, 예산, 동행, 키워드, 출발지, 우천, 수단 고정).
 - `llm.py` — LLM 도구호출 분해(anthropic/openai), 실패 시 규칙 폴백.
-- `planner.py` — `score_place`, `desired_slots`, `route_order`, `seq_order`, `_cf_pick`, `course_score`, `plan_course`.
-- `validation.py` — `is_open_during`, `build_timeline`, `recompute`(병렬).
-- `edit.py` — 편집 명령 파싱/적용, `_infer_mode`.
+- `planner.py` — `score_place`(우천·인원·제외 보정 포함), `desired_slots`, `route_order`/`route_order_from`(출발지 기준), `seq_order`, `_cf_pick`, `course_score`, `plan_course`.
+- `validation.py` — `is_open_during`, `best_route`(도보 20분 초과 구간은 대중교통으로 전환), `build_timeline`, `recompute`(병렬).
+- `edit.py` — 편집 명령 파싱/적용(교체·삭제·추가), `_infer_mode`.
 
 ### 어댑터 (`app/adapters/`) — 벤더 직접호출 금지, 반드시 경유
 - `map_service.py` — `MapService` 추상 + `MockMapService` + `SafeMapService`(폴백 래퍼) + `EnrichedMapService`(Google 평점) + `get_map_service()`.
@@ -53,7 +54,7 @@
 - `users.py` 회원·크레딧, `auth.py` SMS 인증, `bookmarks.py`, `chat.py`.
 - `db.py` 세션/폴백, `queue.py` 액션 큐, `realtime.py` Socket.IO, `config.py` env 설정.
 - `middleware.py` — rate limit + 요청 로깅(요청마다 `X-Request-Id` 발급·응답 반환, 2초 이상은 warning).
-- `metrics.py` — 라우트별 지연/에러와 외부 연동 폴백 비율(`externals`). `GET /admin/metrics`(ADMIN_TOKEN).
+- `metrics.py` — 라우트별 지연/에러, 외부 연동 폴백 비율(`externals`), 임계 초과 `alerts`. `GET /admin/metrics`(ADMIN_TOKEN).
 - 미처리 예외는 `main.py` 전역 핸들러가 `request_id` 를 담아 응답(내부 스택은 로그로만).
 
 ### 리뷰 (`app/reviews/`) — 약관 주의(REVIEW_DATA_SOURCES.md)
