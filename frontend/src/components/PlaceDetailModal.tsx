@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 
 import { Badge, Button, Skeleton } from "@/components/ui";
+import { naverMapUrl } from "@/services/mapLink";
 import { api } from "@/services/api";
 import { useCourseStore } from "@/store/courseStore";
 import { toast } from "@/store/toastStore";
@@ -223,6 +224,15 @@ export default function PlaceDetailModal({
         >
           {revisit ? "또 가고 싶은 곳 ✓" : "또 가고 싶어요"}
         </Button>
+
+        <a
+          href={naverMapUrl(place)}
+          target="_blank"
+          rel="noopener noreferrer"
+          style={{ marginRight: "var(--sp-2)" }}
+        >
+          <Button size="sm">지도에서 열기</Button>
+        </a>
 
         <Button ref={closeRef} onClick={onClose} size="sm" style={{ marginTop: "var(--sp-2)" }}>
           닫기
