@@ -63,3 +63,18 @@ test("삭제한 장소를 되돌리기로 복원한다", async ({ page }) => {
   await page.getByLabel("되돌리기").click();
   await expect(page.getByText(first, { exact: true })).toBeVisible();
 });
+
+test("마이페이지에서 코스를 복제한다", async ({ page }) => {
+  const userId = await signup();
+  await page.addInitScript((uid) => localStorage.setItem("coursepilot_user_id", uid), userId);
+
+  await page.goto("/");
+  await page.getByText("새 코스 시작").click();
+  await page.getByLabel("조건 입력").fill("성수동 오전 10시 5시간 도보");
+  await page.getByText("전송").click();
+  await expect(page.getByText(/1\. 성수동 장소/)).toBeVisible({ timeout: 15_000 });
+
+  await page.goto("/mypage");
+  await page.getByRole("button", { name: /복제$/ }).first().click();
+  await expect(page.getByText(/\(사본\)/).first()).toBeVisible();
+});
