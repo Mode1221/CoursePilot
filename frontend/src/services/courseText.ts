@@ -1,3 +1,4 @@
+import { courseStats, formatCost } from "@/services/courseStats";
 import { formatPlanDate } from "@/services/courseDate";
 import type { Course } from "@/types";
 import { MODE_LABEL } from "@/types";
@@ -24,6 +25,9 @@ export function courseToText(course: Course, shareUrl?: string): string {
     }
   });
   if (course.items.length === 0) lines.push("(아직 장소가 없어요)");
+  const { costPerPerson, costKnown, places } = courseStats(course);
+  const cost = formatCost(costPerPerson);
+  if (cost) lines.push(`예상 비용: 1인 ${cost}${costKnown < places ? " 이상" : ""}`);
   if (shareUrl) lines.push("", shareUrl);
   return lines.join("\n");
 }
