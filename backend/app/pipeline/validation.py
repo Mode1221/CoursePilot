@@ -79,6 +79,8 @@ async def build_timeline(
     mode = constraints.travel_mode
     cursor = _as_datetime(constraints.start_time or DEFAULT_START_TIME)
     end_dt = _as_datetime(constraints.end_time) if constraints.end_time else None
+    if end_dt is not None and end_dt <= cursor:
+        end_dt += timedelta(days=1)  # 자정을 넘기는 코스(예: 22시~1시)
 
     timeline: list[TimelineItem] = []
     prev: Place | None = None
