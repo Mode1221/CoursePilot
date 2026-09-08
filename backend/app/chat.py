@@ -13,6 +13,10 @@ class ChatMessage(BaseModel):
     text: str
 
 
+# 인메모리 폴백은 개발/비상용이므로 코스당 보관량에 상한을 둔다(무한 증가 방지)
+MAX_MEM_MESSAGES = 200
+
+
 class ChatStore:
     def __init__(self) -> None:
         self._mem: dict[str, list[ChatMessage]] = defaultdict(list)
@@ -27,7 +31,10 @@ class ChatStore:
                 s.add(ChatMessageModel(course_id=course_id, role=role, text=text))
                 s.commit()
             return msg
-        self._mem[course_id].append(msg)
+        history = self._mem[course_id]
+        history.append(msg)
+        if len(history) > MAX_MEM_MESSAGES:
+            del history[: len(history) - MAX_MEM_MESSAGES]  # 오래된 것부터 버린다
         return msg
 
     def list(self, course_id: str) -> list[ChatMessage]:
@@ -44,7 +51,7 @@ class ChatStore:
                     .order_by(ChatMessageModel.created_at, ChatMessageModel.id)
                 ).all()
                 return [ChatMessage(role=r[0], text=r[1]) for r in rows]
-        return list(self._mem[course_id])
+        return list(self._mem.get(course_id, []))
 
 
 chat_store = ChatStore()
