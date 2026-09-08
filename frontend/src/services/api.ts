@@ -9,7 +9,12 @@ export interface GenerateResponse {
 const BASE = process.env.NEXT_PUBLIC_API_BASE || "http://localhost:8000";
 
 export class ApiError extends Error {
-  constructor(public status: number, message: string) {
+  constructor(
+    public status: number,
+    message: string,
+    /** 서버가 붙인 추적 id. 문의 시 이 값으로 로그를 찾을 수 있다. */
+    public requestId?: string,
+  ) {
     super(message);
   }
 }
@@ -33,7 +38,8 @@ async function request<T>(path: string, opts: RequestOptions = {}): Promise<T> {
   });
   if (!res.ok) {
     const detail = await res.json().then((b) => b?.detail).catch(() => null);
-    throw new ApiError(res.status, detail || `${path} failed`);
+    const requestId = res.headers.get("X-Request-Id") ?? undefined;
+    throw new ApiError(res.status, detail || `${path} failed`, requestId);
   }
   // 204/빈 응답 대비
   const text = await res.text();

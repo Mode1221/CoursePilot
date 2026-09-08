@@ -32,6 +32,12 @@ function stageLabel(stage: string | null): string {
   return stage ? STAGE_LABELS[stage] ?? stage : "";
 }
 
+/** 오류 메시지에 추적 id 를 덧붙인다(문의 시 로그 대조용). */
+function errorMessage(e: unknown, fallback: string): string {
+  if (!(e instanceof ApiError)) return fallback;
+  return e.requestId ? `${e.message} (오류 코드: ${e.requestId})` : e.message;
+}
+
 export default function ChatPanel({ courseId }: { courseId: string }) {
   const [text, setText] = useState("");
   const [sending, setSending] = useState(false);
@@ -83,7 +89,7 @@ export default function ChatPanel({ courseId }: { courseId: string }) {
       }
       refreshCredits();
     } catch (e) {
-      setError(e instanceof ApiError ? e.message : "요청 실패");
+      setError(errorMessage(e, "요청 실패"));
     } finally {
       setSending(false);
     }
@@ -107,7 +113,7 @@ export default function ChatPanel({ courseId }: { courseId: string }) {
           : "완화된 조건으로 코스를 다시 구성했어요.",
       );
     } catch (e) {
-      setError(e instanceof ApiError ? e.message : "재시도 실패");
+      setError(errorMessage(e, "재시도 실패"));
     } finally {
       setSending(false);
     }
