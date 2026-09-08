@@ -24,7 +24,25 @@ class Settings(BaseSettings):
     # 리뷰 소스(요약/스코어링 1순위: Google Places). 미설정 시 Mock 폴백
     google_maps_api_key: str = ""
 
+    # SMS 인증 (NHN Cloud SMS). 미설정 시 개발용 폴백(코드 응답/로그 노출).
+    nhn_sms_app_key: str = ""
+    nhn_sms_secret_key: str = ""
+    nhn_sms_sender: str = ""  # 발신번호(사전 등록 필요)
+
+    # 결제 (포트원/아임포트 v1). 미설정 시 개발용 폴백(검증 생략).
+    portone_api_key: str = ""
+    portone_api_secret: str = ""
+    point_price_krw: int = 1000  # 포인트 1개당 가격(결제금액 검증용)
+
     cors_origins: list[str] = ["http://localhost:3000"]
+
+    @property
+    def sms_enabled(self) -> bool:
+        return bool(self.nhn_sms_app_key and self.nhn_sms_secret_key and self.nhn_sms_sender)
+
+    @property
+    def payment_enabled(self) -> bool:
+        return bool(self.portone_api_key and self.portone_api_secret)
 
 
 settings = Settings()
