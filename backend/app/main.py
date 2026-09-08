@@ -32,7 +32,7 @@ from app.realtime import (
     broadcast_state,
     sio,
 )
-from app.schemas import Course, Place
+from app.schemas import Course, Place, PlanConstraints
 from app.store import store
 from app.users import CreditError, Preferences, user_store
 
@@ -393,7 +393,7 @@ async def relax(course_id: str, x_user_id: str | None = Header(default=None)) ->
             course.locked = False
             store.save(course)
             await broadcast_lock(course_id, False)
-        ai_text = _ai_reply(course, True, result.needs_confirmation)
+        ai_text = _ai_reply(course, True, result.needs_confirmation, constraints=result.constraints)
         chat_store.append(course_id, "ai", ai_text)
         await broadcast_state(course_id, course.model_dump(mode="json"))
         await broadcast_message(course_id, "ai", ai_text)
@@ -452,6 +452,7 @@ async def generate(
         needs_confirmation = False
         is_edit = False
         region_guessed = False  # 지역을 못 알아들어 기본 지역으로 만든 경우
+        gen_constraints: PlanConstraints | None = None  # 편집 명령이면 None
         old_ids = [it.place.id for it in course.items]
         try:
             edit_cmd = parse_edit(req.text) if course.items else EditCommand(action="none")
@@ -465,6 +466,7 @@ async def generate(
                 course.items = result.timeline
                 relaxed = result.relaxed
                 needs_confirmation = result.needs_confirmation
+                gen_constraints = result.constraints
                 region_guessed = result.constraints.region is None
                 if result.constraints.region:
                     course.region = result.constraints.region
@@ -519,7 +521,9 @@ async def generate(
             dropped = [pid for pid in old_ids if pid not in set(new_ids)]
             popularity_store.bump_many(dropped, weight=-1)
 
-        ai_text = _ai_reply(course, relaxed, needs_confirmation, region_guessed)
+        ai_text = _ai_reply(
+            course, relaxed, needs_confirmation, region_guessed, gen_constraints
+        )
         chat_store.append(course_id, "ai", ai_text)
         await broadcast_state(course_id, course.model_dump(mode="json"))
         await broadcast_message(course_id, "ai", ai_text)
@@ -532,7 +536,11 @@ async def generate(
 
 
 def _ai_reply(
-    course: Course, relaxed: bool, needs_confirmation: bool, region_guessed: bool = False
+    course: Course,
+    relaxed: bool,
+    needs_confirmation: bool,
+    region_guessed: bool = False,
+    constraints: PlanConstraints | None = None,
 ) -> str:
     n = len(course.items)
     if needs_confirmation:
@@ -544,8 +552,12 @@ def _ai_reply(
     first = course.items[0] if course.items else None
     if first is not None and first.arrive is not None:
         parts.append(f"{first.arrive.strftime('%H:%M')} 시작")
+    if constraints is not None and constraints.start_place:
+        parts.append(f"{constraints.start_place} 출발")
     prefix = f"{' '.join(parts)}, " if parts else ""
     base = f"{prefix}{n}곳으로 코스를 구성했어요."
+    if constraints is not None and constraints.prefer_indoor:
+        base += " 비 예보라 실내 위주로 골랐어요."
     if relaxed:
         base += " 일부 조건은 완화했어요."
     if region_guessed:
