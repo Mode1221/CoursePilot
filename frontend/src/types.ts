@@ -42,6 +42,7 @@ export interface Course {
   id: string;
   title: string;
   region?: string | null;
+  plan_date?: string | null; // YYYY-MM-DD (모임 날짜)
   items: TimelineItem[];
   locked: boolean;
 }
