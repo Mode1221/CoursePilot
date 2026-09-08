@@ -5,6 +5,7 @@
 from __future__ import annotations
 
 import logging
+import secrets
 from contextlib import asynccontextmanager
 from time import monotonic
 
@@ -99,8 +100,16 @@ async def health() -> dict:
 
 
 def _require_admin(token: str | None) -> None:
-    """ADMIN_TOKEN 이 설정된 환경에서는 일치하는 헤더가 있어야 한다(미설정=개발용 개방)."""
-    if settings.admin_token and token != settings.admin_token:
+    """ADMIN_TOKEN 이 설정된 환경에서는 일치하는 헤더가 있어야 한다(미설정=개발용 개방).
+
+    비교는 타이밍 공격을 피하려 상수 시간으로 한다.
+    """
+    if not settings.admin_token:
+        logging.getLogger("coursepilot").warning(
+            "ADMIN_TOKEN 미설정 — /admin/* 이 열려 있습니다(개발용). 배포 전 설정하세요."
+        )
+        return
+    if token is None or not secrets.compare_digest(token, settings.admin_token):
         raise HTTPException(status_code=401, detail="관리자 토큰이 필요합니다")
 
 

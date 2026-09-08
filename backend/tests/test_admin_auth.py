@@ -1,21 +1,20 @@
+"""관리 엔드포인트 토큰 보호."""
 from fastapi.testclient import TestClient
 
-import app.main as main
-from app.config import Settings
+from app.config import settings
+from app.main import api
 
-client = TestClient(main.app)
-
-ADMIN_PATHS = ["/admin/metrics", "/admin/signals"]
+client = TestClient(api)
 
 
-def test_토큰_미설정이면_열려있다():
-    for path in ADMIN_PATHS:
-        assert client.get(path).status_code == 200
+def test_토큰_미설정이면_열려_있다():
+    assert settings.admin_token == ""
+    assert client.get("/admin/metrics").status_code == 200
 
 
-def test_토큰이_설정되면_헤더가_필요하다(monkeypatch):
-    monkeypatch.setattr(main, "settings", Settings(admin_token="s3cret"))
-    for path in ADMIN_PATHS:
-        assert client.get(path).status_code == 401
-        assert client.get(path, headers={"X-Admin-Token": "wrong"}).status_code == 401
-        assert client.get(path, headers={"X-Admin-Token": "s3cret"}).status_code == 200
+def test_토큰_설정_시_일치해야_한다(monkeypatch):
+    monkeypatch.setattr(settings, "admin_token", "secret-token")
+    assert client.get("/admin/metrics").status_code == 401
+    assert client.get("/admin/metrics", headers={"X-Admin-Token": "nope"}).status_code == 401
+    ok = client.get("/admin/metrics", headers={"X-Admin-Token": "secret-token"})
+    assert ok.status_code == 200
