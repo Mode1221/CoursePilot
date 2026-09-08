@@ -42,3 +42,11 @@ def test_삭제하면_조회되지_않는다():
 def test_없는_코스는_404():
     assert client.patch("/courses/nope", json={"title": "x"}).status_code == 404
     assert client.delete("/courses/nope").status_code == 404
+
+
+def test_내_코스는_최근_순으로_나온다():
+    uid = client.post("/signup", json={"phone": "010-3333-4444"}).json()["user_id"]
+    first = _course(uid)
+    second = _course(uid)
+    ids = [c["id"] for c in client.get(f"/users/{uid}/courses").json()]
+    assert ids.index(second) < ids.index(first)

@@ -33,7 +33,8 @@ class CourseStore:
                     .order_by(CourseModel.updated_at.desc())
                 ).all()
                 return [Course.model_validate(r[0]) for r in rows]
-        return [c for c in self._mem.values() if c.owner_id == owner_id]
+        # DB 경로와 동일하게 최근 것부터(인메모리는 삽입 순서 = 생성 순서)
+        return [c for c in reversed(list(self._mem.values())) if c.owner_id == owner_id]
 
     def get_many(self, course_ids: list[str]) -> list[Course]:
         """여러 코스를 한 번에 조회(N+1 방지). 입력 순서를 보존, 없는 id는 생략."""
