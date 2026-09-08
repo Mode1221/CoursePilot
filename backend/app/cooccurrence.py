@@ -61,6 +61,48 @@ class CooccurrenceStore:
             ).all()
         return float(sum(r[0] for r in rows))
 
+    def affinities(self, candidate_ids: list[str], anchors: list[str]) -> dict[str, float]:
+        """후보들 각각의 앵커 친화도를 한 번에 계산(후보마다 조회하지 않는다)."""
+        if not candidate_ids or not anchors:
+            return {cid: 0.0 for cid in candidate_ids}
+        anchor_set = set(anchors)
+        result = {cid: 0.0 for cid in candidate_ids}
+        if not self._db_ready():
+            for key, count in self._mem.items():
+                pair = tuple(key)
+                if len(pair) != 2:
+                    continue
+                a, b = pair
+                for cand, other in ((a, b), (b, a)):
+                    if cand in result and other in anchor_set and cand != other:
+                        result[cand] += count
+            return result
+
+        from sqlalchemy import or_, select
+
+        from app.db import SessionLocal
+        from app.models import CooccurrenceModel
+
+        ids = set(candidate_ids) | anchor_set
+        with SessionLocal() as s:
+            rows = s.execute(
+                select(
+                    CooccurrenceModel.place_a,
+                    CooccurrenceModel.place_b,
+                    CooccurrenceModel.count,
+                ).where(
+                    or_(
+                        CooccurrenceModel.place_a.in_(ids),
+                        CooccurrenceModel.place_b.in_(ids),
+                    )
+                )
+            ).all()
+        for a, b, count in rows:
+            for cand, other in ((a, b), (b, a)):
+                if cand in result and other in anchor_set and cand != other:
+                    result[cand] += count
+        return result
+
     def top_partners(self, place_id: str, k: int = 5) -> list[tuple[str, float]]:
         """place_id 와 가장 자주 함께 채택된 장소 상위 k (id, count) 내림차순."""
         if self._db_ready():

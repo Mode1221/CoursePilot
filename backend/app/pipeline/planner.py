@@ -285,7 +285,8 @@ def _cf_pick(ranked: list[Place], slots: list[str]) -> list[Place]:
             continue
         anchors = [p.id for p in picked]
         # 랭킹(내림차순)을 유지하며 친화도 높은 후보 우선(안정 정렬)
-        best = max(cands, key=lambda p: cooccurrence_store.affinity(p.id, anchors))
+        scores = cooccurrence_store.affinities([p.id for p in cands], anchors)
+        best = max(cands, key=lambda p: scores.get(p.id, 0.0))
         picked.append(best)
         used.add(best.id)
     return picked
