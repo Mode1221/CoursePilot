@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 
+import { Badge, Button, Skeleton } from "@/components/ui";
 import { api } from "@/services/api";
 import { useCourseStore } from "@/store/courseStore";
 import type { Place } from "@/types";
@@ -68,7 +69,7 @@ export default function PlaceDetailModal({
       style={{
         position: "fixed",
         inset: 0,
-        background: "rgba(0,0,0,0.4)",
+        background: "rgba(9, 16, 21, .55)",
         display: "flex",
         alignItems: "center",
         justifyContent: "center",
@@ -81,20 +82,38 @@ export default function PlaceDetailModal({
         aria-modal="true"
         aria-labelledby={titleId}
         onClick={(e) => e.stopPropagation()}
-        style={{ background: "#fff", borderRadius: 12, padding: 24, width: 360, maxWidth: "90%" }}
+        className="cp-enter"
+        style={{
+          background: "var(--surface)",
+          color: "var(--text)",
+          borderRadius: "var(--r-lg)",
+          padding: "var(--sp-6)",
+          width: 380,
+          maxWidth: "92%",
+          maxHeight: "85vh",
+          overflow: "auto",
+          boxShadow: "var(--shadow-2)",
+        }}
       >
         <h3 id={titleId} style={{ marginTop: 0 }}>{place.name}</h3>
-        {place.category && <div style={{ color: "#888" }}>{place.category}</div>}
-        {place.address && <div style={{ color: "#888", fontSize: 13 }}>{place.address}</div>}
+        {place.category && <Badge>{place.category}</Badge>}
+        {place.address && <div style={{ color: "var(--text-muted)", fontSize: "var(--fs-sm)", marginTop: "var(--sp-2)" }}>{place.address}</div>}
         {place.rating != null && <div>⭐ {place.rating.toFixed(1)}</div>}
-        {place.price != null && <div style={{ fontSize: 13 }}>1인 약 {place.price.toLocaleString()}원</div>}
+        {place.price != null && <div style={{ fontSize: "var(--fs-sm)", color: "var(--text-muted)" }}>1인 약 {place.price.toLocaleString()}원</div>}
         {(place.open_time || place.close_time) && (
-          <div style={{ fontSize: 13 }}>
+          <div style={{ fontSize: "var(--fs-sm)", color: "var(--text-muted)" }}>
             영업 {place.open_time?.slice(0, 5)}~{place.close_time?.slice(0, 5)}
           </div>
         )}
         <h4>리뷰 요약</h4>
-        <p style={{ color: "#444", fontSize: 14 }}>{summary}</p>
+        {summary === "불러오는 중…" ? (
+          <div style={{ display: "grid", gap: "var(--sp-2)" }}>
+            <Skeleton height={12} />
+            <Skeleton height={12} width="80%" />
+          </div>
+        ) : (
+          <p style={{ color: "var(--text-muted)", fontSize: "var(--fs-sm)" }}>{summary}</p>
+        )}
 
         <h4>다녀왔다면 별점을 남겨주세요</h4>
         <div role="group" aria-label="별점" style={{ display: "flex", gap: 4 }}>
@@ -111,35 +130,45 @@ export default function PlaceDetailModal({
                 background: "none",
                 cursor: "pointer",
                 fontSize: 22,
-                color: myStars != null && n <= myStars ? "#f5a623" : "#ccc",
+                color: myStars != null && n <= myStars ? "#f5a623" : "var(--border)",
               }}
             >
               ★
             </button>
           ))}
         </div>
-        {myStars != null && <p style={{ color: "#3a7", fontSize: 13 }}>평가 감사합니다!</p>}
+        {myStars != null && <p style={{ color: "var(--brand-strong)", fontSize: "var(--fs-sm)" }}>평가 감사합니다!</p>}
 
         {related.length > 0 && (
           <>
             <h4>함께 가요</h4>
-            <ul style={{ margin: 0, paddingLeft: 18, color: "#444", fontSize: 13 }}>
+            <ul style={{ margin: 0, padding: 0, listStyle: "none", display: "grid", gap: "var(--sp-2)" }}>
               {related.map((r) => (
-                <li key={r.id} style={{ display: "flex", justifyContent: "space-between", gap: 8 }}>
+                <li
+                  key={r.id}
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "space-between",
+                    gap: "var(--sp-2)",
+                    fontSize: "var(--fs-sm)",
+                    color: "var(--text-muted)",
+                  }}
+                >
                   <span>
                     {r.name}
                     {r.category ? ` · ${r.category}` : ""}
                   </span>
                   {editable && (
-                    <button
+                    <Button
+                      size="sm"
                       onClick={() => {
                         addPlace(r.id);
                         onClose();
                       }}
-                      style={{ fontSize: 12 }}
                     >
                       추가
-                    </button>
+                    </Button>
                   )}
                 </li>
               ))}
@@ -147,21 +176,23 @@ export default function PlaceDetailModal({
           </>
         )}
 
-        <button
+        <Button
           aria-pressed={revisit}
           onClick={() => {
             if (revisit) return;
             setRevisit(true);
             api.revisit(place.id).catch(() => {});
           }}
-          style={{ marginTop: 8, marginRight: 8 }}
+          size="sm"
+          variant={revisit ? "primary" : "secondary"}
+          style={{ marginTop: "var(--sp-2)", marginRight: "var(--sp-2)" }}
         >
           {revisit ? "또 가고 싶은 곳 ✓" : "또 가고 싶어요"}
-        </button>
+        </Button>
 
-        <button ref={closeRef} onClick={onClose} style={{ marginTop: 8 }}>
+        <Button ref={closeRef} onClick={onClose} size="sm" style={{ marginTop: "var(--sp-2)" }}>
           닫기
-        </button>
+        </Button>
       </div>
     </div>
   );

@@ -15,7 +15,7 @@ async function signup(): Promise<string> {
 test("참여자(비로그인)는 AI 챗봇을 쓸 수 없다", async ({ page }) => {
   await page.goto("/");
   await page.getByText("새 코스 시작").click();
-  await expect(page.getByText("참여자는 수동 편집만 가능합니다.")).toBeVisible();
+  await expect(page.getByText(/참여자는 수동 편집만 가능/)).toBeVisible();
 });
 
 test("생성자는 코스를 생성하고 타임라인을 본다", async ({ page }) => {
@@ -24,7 +24,7 @@ test("생성자는 코스를 생성하고 타임라인을 본다", async ({ page
 
   await page.goto("/");
   await page.getByText("새 코스 시작").click();
-  await page.getByPlaceholder("조건을 입력하세요").fill("성수동 오전 10시 5시간 코스 도보");
+  await page.getByLabel("조건 입력").fill("성수동 오전 10시 5시간 코스 도보");
   await page.getByText("전송").click();
 
   // AI 응답 + 타임라인 렌더 확인 (특정 장소명 대신 순번 프리픽스로 일반화)
@@ -39,7 +39,7 @@ test("장소 상세 모달이 리뷰 요약을 보여준다", async ({ page }) =
 
   await page.goto("/");
   await page.getByText("새 코스 시작").click();
-  await page.getByPlaceholder("조건을 입력하세요").fill("성수동 오전 10시 5시간 도보");
+  await page.getByLabel("조건 입력").fill("성수동 오전 10시 5시간 도보");
   await page.getByText("전송").click();
   await page.getByText(/1\. 성수동 장소/).click();
 

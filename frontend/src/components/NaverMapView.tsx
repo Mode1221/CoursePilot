@@ -86,5 +86,5 @@ export default function NaverMapView({
     };
   }, [items, clientId, onSelect]);
 
-  return <div ref={ref} style={{ width: "100%", height: 240, borderRadius: 8, background: "#e9eef3" }} aria-label="코스 지도" />;
+  return <div ref={ref} style={{ width: "100%", height: 240, borderRadius: 8, background: "var(--surface-2)" }} aria-label="코스 지도" />;
 }

@@ -10,11 +10,11 @@ export default function ConnectionBanner() {
     <div
       role="status"
       style={{
-        background: "#fdf2e2",
-        color: "#c8791b",
-        borderBottom: "1px solid #f0d9b0",
-        padding: "6px 14px",
-        fontSize: 13,
+        background: "var(--surface-2)",
+        color: "var(--warn)",
+        borderBottom: "1px solid var(--border)",
+        padding: "var(--sp-2) var(--sp-4)",
+        fontSize: "var(--fs-sm)",
         textAlign: "center",
       }}
     >
