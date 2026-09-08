@@ -98,6 +98,8 @@
 ## 10. 인프라·배포
 - ✅ 관리 엔드포인트 토큰 보호(`ADMIN_TOKEN`, 미설정 시 개발용 개방)
 - ✅ 개인 데이터(코스 목록·북마크·크레딧·선호) 본인 요청만 허용, AI 명령은 코스 생성자만
+- ✅ 인증번호 시도 5회 제한·재발송 쿨다운(60초)·번호당 시간당 5회, 같은 번호 재가입은 기존 계정
+- ✅ 결제 원장으로 동일 imp_uid 재사용(리플레이) 차단 — 인메모리(배포 전 DB 이전 필요)
 - ✅ 관측: 구조적 요청 로깅 + `GET /admin/metrics`(라우트별 요청수·에러·p50/p95), `GET /admin/signals`
 - ✅ DB/pgvector 영속 + 인메모리 폴백, rate limit·요청 로깅
 - ✅ CI(ruff/eslint/tsc/pytest/vitest/Playwright)
