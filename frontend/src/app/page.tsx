@@ -7,7 +7,7 @@ import { useEffect, useState } from "react";
 import { Button, Card } from "@/components/ui";
 import { api } from "@/services/api";
 import { toast } from "@/store/toastStore";
-import { useUserStore } from "@/store/userStore";
+import { storedUserId, useUserStore } from "@/store/userStore";
 
 // 랜딩: 가치 제안 + 예시 프롬프트로 바로 시작(예시 클릭 시 해당 조건으로 코스 생성).
 const EXAMPLES = [
@@ -29,7 +29,9 @@ export default function Home() {
   async function start(seed?: string) {
     setLoading(true);
     try {
-      const course = await api.createCourse(userId ?? undefined);
+      // 첫 렌더 직후 클릭하면 세션 로드가 끝나기 전일 수 있다 → 저장된 id 를 직접 읽는다
+      const ownerId = userId ?? storedUserId() ?? undefined;
+      const course = await api.createCourse(ownerId);
       const q = seed ? `?seed=${encodeURIComponent(seed)}` : "";
       router.push(`/plan/${course.id}${q}`);
     } catch {

@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it } from "vitest";
 
-import { useUserStore } from "./userStore";
+import { storedUserId, useUserStore } from "./userStore";
 
 const KEY = "coursepilot_user_id";
 
@@ -26,4 +26,11 @@ describe("userStore", () => {
     useUserStore.getState().load();
     expect(useUserStore.getState().userId).toBeNull();
   });
+});
+
+it("storedUserId 는 스토어 로드 전에도 저장된 id 를 준다", () => {
+  window.localStorage.setItem("coursepilot_user_id", "u-stored");
+  expect(storedUserId()).toBe("u-stored");
+  window.localStorage.removeItem("coursepilot_user_id");
+  expect(storedUserId()).toBeNull();
 });

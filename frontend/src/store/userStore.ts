@@ -11,6 +11,12 @@ interface UserState {
   setQuestionsLeft: (n: number) => void;
 }
 
+/** 스토어 로드 전에도 저장된 세션 id 를 읽는다(첫 렌더 직후 클릭 대비). */
+export function storedUserId(): string | null {
+  if (typeof window === "undefined") return null;
+  return window.localStorage.getItem(KEY);
+}
+
 export const useUserStore = create<UserState>((set) => ({
   userId: null,
   questionsLeft: null,
