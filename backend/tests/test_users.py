@@ -68,3 +68,23 @@ def test_preferences_do_not_override_explicit():
     c = PlanConstraints(region="강남역")
     _apply_preferences(c, {"region": "성수동"})
     assert c.region == "강남역"  # 명시값 유지
+
+
+def test_환불은_무료분을_먼저_복원한다():
+    from app.users import UserStore
+
+    store = UserStore()
+    user = store.create("01000000000")
+    store.consume_credit(user.id)
+    refunded = store.refund_credit(user.id)
+    assert refunded.credits_used == 0
+    assert refunded.points == 0
+
+
+def test_사용분이_없으면_포인트로_환불한다():
+    from app.users import UserStore
+
+    store = UserStore()
+    user = store.create("01000000001")
+    refunded = store.refund_credit(user.id)
+    assert refunded.points == 1
