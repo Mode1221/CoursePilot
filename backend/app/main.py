@@ -309,9 +309,11 @@ async def my_courses(
 
 
 @api.get("/users/{user_id}/bookmarks", response_model=list[Course])
-async def my_bookmarks(user_id: str, x_user_id: str | None = Header(default=None)) -> list[Course]:
+async def my_bookmarks(
+    user_id: str, limit: int = 50, x_user_id: str | None = Header(default=None)
+) -> list[Course]:
     _require_self(user_id, x_user_id)
-    ids = bookmark_store.list_course_ids(user_id)
+    ids = bookmark_store.list_course_ids(user_id, max(1, min(limit, 100)))
     return store.get_many(ids)
 
 
