@@ -9,6 +9,8 @@ from fastapi import Request
 from fastapi.responses import JSONResponse
 from starlette.middleware.base import BaseHTTPMiddleware
 
+from app.metrics import metrics_store
+
 logger = logging.getLogger("coursepilot")
 
 # 생성된 rate limiter 인스턴스 레지스트리(테스트 격리용 리셋 훅)
@@ -35,6 +37,10 @@ class RequestLogMiddleware(BaseHTTPMiddleware):
             response.status_code,
             elapsed_ms,
         )
+        # 라우트 템플릿 기준 집계(경로 파라미터가 카디널리티를 늘리지 않도록)
+        route = request.scope.get("route")
+        path = getattr(route, "path", request.url.path)
+        metrics_store.record(f"{request.method} {path}", response.status_code, elapsed_ms)
         return response
 
 
