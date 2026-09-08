@@ -300,10 +300,12 @@ async def duplicate_course(
 
 
 @api.get("/users/{user_id}/courses", response_model=list[Course])
-async def my_courses(user_id: str, x_user_id: str | None = Header(default=None)) -> list[Course]:
-    """마이페이지: 내가 생성한 코스 히스토리 (9-4)."""
+async def my_courses(
+    user_id: str, limit: int = 50, x_user_id: str | None = Header(default=None)
+) -> list[Course]:
+    """마이페이지: 내가 생성한 코스 히스토리 (9-4). 최근 limit 개."""
     _require_self(user_id, x_user_id)
-    return store.list_by_owner(user_id)
+    return store.list_by_owner(user_id, max(1, min(limit, 100)))
 
 
 @api.get("/users/{user_id}/bookmarks", response_model=list[Course])
