@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 
-import MapView from "@/components/MapView";
+import MapCanvas from "@/components/MapCanvas";
 import PlaceDetailModal from "@/components/PlaceDetailModal";
 import { useCourseStore } from "@/store/courseStore";
 import { MODE_LABEL, type Place } from "@/types";
@@ -28,7 +28,7 @@ export default function MapPanel({ readOnly = false }: { readOnly?: boolean }) {
   return (
     <div style={{ padding: 16 }}>
       <div style={{ marginBottom: 16 }}>
-        <MapView items={course.items} onSelect={(i) => setSelected(course.items[i].place)} />
+        <MapCanvas items={course.items} onSelect={(i) => setSelected(course.items[i].place)} />
       </div>
 
       <h3>타임라인 {locked && <span style={{ color: "#c60" }}>(잠금)</span>}</h3>

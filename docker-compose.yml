@@ -31,6 +31,8 @@ services:
     build: ./frontend
     environment:
       NEXT_PUBLIC_API_BASE: http://localhost:8000
+      # 네이버 지도 렌더러 클라이언트 ID (없으면 SVG 폴백)
+      NEXT_PUBLIC_NAVER_MAP_CLIENT_ID: ${NEXT_PUBLIC_NAVER_MAP_CLIENT_ID:-}
     ports:
       - "3000:3000"
     depends_on:
