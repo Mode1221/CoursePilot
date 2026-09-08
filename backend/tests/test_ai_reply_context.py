@@ -26,3 +26,21 @@ def test_reply_without_date_keeps_start_time():
 
 def test_needs_confirmation_unchanged():
     assert "완화할까요" in _ai_reply(_course(), False, True)
+
+
+def test_reply_mentions_start_place():
+    from app.schemas import PlanConstraints
+
+    text = _ai_reply(_course(), False, False, constraints=PlanConstraints(start_place="강남역"))
+    assert "강남역 출발" in text
+
+
+def test_reply_mentions_indoor_when_rainy():
+    from app.schemas import PlanConstraints
+
+    text = _ai_reply(_course(), False, False, constraints=PlanConstraints(prefer_indoor=True))
+    assert "실내 위주" in text
+
+
+def test_reply_unchanged_without_constraints():
+    assert "출발" not in _ai_reply(_course(), False, False)
