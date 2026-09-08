@@ -7,6 +7,7 @@ import { Badge, Button, EmptyState } from "@/components/ui";
 import PlaceDetailModal from "@/components/PlaceDetailModal";
 import PlaceSearchPanel from "@/components/PlaceSearchPanel";
 import { courseStats, formatCost, formatDuration } from "@/services/courseStats";
+import { naverMapUrl } from "@/services/mapLink";
 import { courseToText } from "@/services/courseText";
 import { useCourseStore } from "@/store/courseStore";
 import { toast } from "@/store/toastStore";
@@ -112,9 +113,26 @@ export default function MapPanel({ readOnly = false }: { readOnly?: boolean }) {
                 {item.arrive?.slice(0, 5)}~{item.depart?.slice(0, 5)}
               </span>
             </div>
-            {item.place.category && (
-              <div style={{ color: "var(--text-muted)", fontSize: "var(--fs-sm)" }}>{item.place.category}</div>
-            )}
+            <div
+              style={{
+                color: "var(--text-muted)",
+                fontSize: "var(--fs-sm)",
+                display: "flex",
+                gap: "var(--sp-2)",
+              }}
+            >
+              {item.place.category && <span>{item.place.category}</span>}
+              {/* 공유받은 사람도 편집 버튼 없이 바로 길을 찾을 수 있게 항상 노출 */}
+              <a
+                href={naverMapUrl(item.place)}
+                target="_blank"
+                rel="noopener noreferrer"
+                onClick={(e) => e.stopPropagation()}
+                aria-label={`${item.place.name} 지도에서 보기`}
+              >
+                지도
+              </a>
+            </div>
             {item.travel_to_next && (
               <div style={{ color: "var(--brand-strong)", fontSize: "var(--fs-sm)", marginTop: "var(--sp-1)" }}>
                 → 다음까지 {item.travel_to_next.duration_min}분 ({MODE_LABEL[item.travel_to_next.mode]})
