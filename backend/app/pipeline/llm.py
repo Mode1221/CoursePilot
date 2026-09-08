@@ -25,7 +25,13 @@ _PARAMS = {
         "travel_mode": {"type": "string", "enum": ["walk", "car", "transit"]},
         "budget_max": {"type": "integer", "description": "1인 기준 원 단위 하드 제약"},
         "party_size": {"type": "integer", "description": "참여 인원수"},
+        "stop_count": {"type": "integer", "description": "방문할 장소 개수(예: 2차 → 2)"},
         "keywords": {"type": "array", "items": {"type": "string"}},
+        "exclude_keywords": {
+            "type": "array",
+            "items": {"type": "string"},
+            "description": "제외 조건 예: 술집 빼고 → [\"술집\"]",
+        },
     },
 }
 # OpenAI Function Calling 포맷
@@ -106,11 +112,18 @@ async def _decompose_openai(text: str) -> dict | None:
 def _to_constraints(args: dict, text: str) -> PlanConstraints:
     base = parse_constraints(text)  # 규칙 기반 결과를 기본값으로, LLM 값으로 덮어쓰기
     data = base.model_dump()
-    for key in ("region", "duration_min", "max_travel_min", "budget_max", "party_size"):
+    for key in (
+        "region", "duration_min", "max_travel_min", "budget_max", "party_size", "stop_count"
+    ):
         if args.get(key) is not None:
             data[key] = args[key]
     if args.get("keywords"):
-        data["keywords"] = args["keywords"]
+        # 규칙 파서가 넣은 조건(우천 시 "실내" 등)이 사라지지 않도록 합친다
+        merged = list(base.keywords)
+        merged += [k for k in args["keywords"] if k not in merged]
+        data["keywords"] = merged
+    if args.get("exclude_keywords"):
+        data["exclude_keywords"] = args["exclude_keywords"]
     if args.get("travel_mode"):
         data["travel_mode"] = TravelMode(args["travel_mode"])
     for key in ("start_time", "end_time"):
