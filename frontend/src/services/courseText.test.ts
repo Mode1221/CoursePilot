@@ -39,3 +39,15 @@ describe("courseToText", () => {
     expect(text.endsWith("\nhttps://x/share/c1")).toBe(true);
   });
 });
+
+it("예상 비용 줄을 붙인다", () => {
+  const course = {
+    id: "c",
+    title: "t",
+    locked: false,
+    items: [
+      { place: { id: "a", name: "A", lat: 0, lng: 0, price: 20000 }, travel_to_next: null },
+    ],
+  } as unknown as Course;
+  expect(courseToText(course)).toContain("예상 비용: 1인 2만원");
+});
