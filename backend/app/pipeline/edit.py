@@ -17,7 +17,8 @@ _ORDINALS = {
     "첫": 1, "두": 2, "세": 3, "네": 4, "다섯": 5,
     "여섯": 6, "일곱": 7, "여덟": 8, "아홉": 9, "열": 10,
 }
-_REPLACE_RE = re.compile(r"(바꿔|교체|변경)")
+# "다른 곳으로", "딴 데로" 처럼 동사 없이 교체를 뜻하는 표현도 받는다.
+_REPLACE_RE = re.compile(r"(바꿔|바꾸|교체|변경|다른\s*(?:곳|데|장소)|딴\s*(?:곳|데))")
 _REMOVE_RE = re.compile(r"(빼|삭제|제거|없애)")
 # 교체 대상 키워드: "빵집으로", "카페로" 등 조사 앞 명사
 _TARGET_RE = re.compile(r"([가-힣A-Za-z]+?)(?:으로|로)\s*(?:바꿔|교체|변경)")
@@ -32,7 +33,7 @@ class EditCommand:
 
 def parse_edit(text: str) -> EditCommand:
     idx = _find_index(text)
-    if idx < 0:
+    if idx < 0 and idx != LAST_INDEX:
         return EditCommand(action="none")
 
     if _REPLACE_RE.search(text):
@@ -44,15 +45,23 @@ def parse_edit(text: str) -> EditCommand:
     return EditCommand(action="none")
 
 
+# "마지막"은 호출측에서 코스 길이를 알아야 하므로 특별값으로 표시
+LAST_INDEX = -2
+
+
 def _find_index(text: str) -> int:
-    # "3번째" 처럼 숫자
-    m = re.search(r"(\d+)\s*번째", text)
+    # "3번째" / "3번" 처럼 숫자
+    m = re.search(r"(\d+)\s*번(?:째)?", text)
     if m:
         return int(m.group(1)) - 1
-    # "두 번째" 처럼 한글 서수
+    # "두 번째" 처럼 한글 서수 ("번째" 없이 "두 번" 도 허용)
     for word, n in _ORDINALS.items():
-        if re.search(word + r"\s*번째", text):
+        if re.search(word + r"\s*번(?:째)?", text):
             return n - 1
+    if "마지막" in text:
+        return LAST_INDEX
+    if re.search(r"처음|맨\s*앞", text):
+        return 0
     return -1
 
 
@@ -61,11 +70,12 @@ async def apply_edit(
 ) -> list[TimelineItem]:
     """편집 명령을 적용해 갱신된 타임라인을 반환. 전체 동선 재계산."""
     items = list(course.items)
-    if not (0 <= cmd.index < len(items)):
+    index = len(items) - 1 if cmd.index == LAST_INDEX else cmd.index
+    if not (0 <= index < len(items)):
         return items
 
     if cmd.action == "remove":
-        items.pop(cmd.index)
+        items.pop(index)
     elif cmd.action == "replace":
         existing_ids = {it.place.id for it in items}
         region = course.region or DEFAULT_REGION
@@ -75,7 +85,7 @@ async def apply_edit(
         replacement = next((p for p in candidates if p.id not in existing_ids), None)
         if replacement is None:
             return items
-        items[cmd.index] = TimelineItem(place=replacement)
+        items[index] = TimelineItem(place=replacement)
 
     start = items[0].arrive if items and items[0].arrive else DEFAULT_START_TIME
     mode = _infer_mode(items)
