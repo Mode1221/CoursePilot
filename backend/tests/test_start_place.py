@@ -34,3 +34,25 @@ def test_출발지에서_가장_가까운_곳이_먼저다():
 async def test_출발지가_있어도_코스가_생성된다():
     result = await generate_course("강남역에서 출발해서 저녁 코스", MockMapService())
     assert result.timeline
+
+
+async def test_출발지_조회는_재시도해도_한_번만_한다():
+    from app.adapters.map_service import MapService, MockMapService
+    from app.schemas import Route, TravelMode
+
+    class CountingMapService(MapService):
+        def __init__(self) -> None:
+            self.origin_calls = 0
+            self._mock = MockMapService()
+
+        async def search_places(self, region, keywords, limit=10):
+            if region == "강남역" and limit == 1:  # 출발지 지오코딩 호출만 센다
+                self.origin_calls += 1
+            return await self._mock.search_places(region, keywords, limit=limit)
+
+        async def get_route(self, origin: Place, dest: Place, mode: TravelMode) -> Route:
+            return await self._mock.get_route(origin, dest, mode)
+
+    svc = CountingMapService()
+    await generate_course("강남역에서 출발해서 놀자", svc, force_relax=True)
+    assert svc.origin_calls == 1
