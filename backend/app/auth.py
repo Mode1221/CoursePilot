@@ -22,6 +22,10 @@ class TooManyRequests(Exception):
     """발송 쿨다운/상한 초과."""
 
 
+class SmsSendFailed(Exception):
+    """SMS 발송 실패(벤더 오류)."""
+
+
 class VerificationStore:
     def __init__(self) -> None:
         self._codes: dict[str, tuple[str, float]] = {}      # phone -> (code, expiry)
@@ -98,11 +102,19 @@ async def request_code(phone: str) -> str | None:
         raise TooManyRequests
     code = verification_store.issue(phone)
     from app.adapters.sms import get_sms_service
+    from app.metrics import metrics_store
 
     sms = get_sms_service()
     if sms is None:
         return code  # 개발용: 발송 없이 코드 노출
-    await sms.send(phone, f"[CoursePilot] 인증번호 {code}")
+    try:
+        sent = await sms.send(phone, f"[CoursePilot] 인증번호 {code}")
+    except Exception as exc:  # 벤더 오류를 500 이 아니라 명확한 실패로 알린다
+        metrics_store.record_external("sms.send", ok=False)
+        raise SmsSendFailed from exc
+    metrics_store.record_external("sms.send", ok=bool(sent))
+    if not sent:
+        raise SmsSendFailed
     return None
 
 
