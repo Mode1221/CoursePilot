@@ -56,7 +56,7 @@
 - ✅ 요약 폴백은 원문 대신 태그로만 구성(약관 안전), 리뷰 소스 실패 시 Mock 폴백
 
 ## 3-2. 관측성
-- ✅ `GET /admin/metrics` — 라우트별 요청 수·4xx/5xx·p50/p95, 외부 연동 폴백 비율(externals: 지도·리뷰·LLM)
+- ✅ `GET /admin/metrics` — 라우트별 요청 수·4xx/5xx·p50/p95, 외부 연동 폴백 비율(externals: 지도·리뷰·LLM), 임계 초과 알림(`alerts`)
 - ✅ `GET /admin/signals` — 학습 신호 관측 (둘 다 ADMIN_TOKEN 필요)
 - ✅ 요청 ID(`X-Request-Id`) 발급·반환, 2초 이상 요청은 warning 로깅
 - ✅ 미처리 예외도 요청 ID를 담아 안내(내부 스택은 서버 로그로만)

@@ -47,4 +47,29 @@ def test_요청이_없으면_0():
         "error_rate": 0.0,
         "routes": [],
         "externals": [],
+        "alerts": [],
     }
+
+
+def test_폴백률이_높으면_알림에_뜬다():
+    metrics_store.clear()
+    for _ in range(9):
+        metrics_store.record_external("naver.search", ok=False)
+    metrics_store.record_external("naver.search", ok=True)
+    alerts = metrics_store.snapshot()["alerts"]
+    assert alerts == [{"kind": "fallback_rate", "target": "naver.search", "value": 0.9}]
+
+
+def test_표본이_적으면_알리지_않는다():
+    metrics_store.clear()
+    metrics_store.record_external("naver.search", ok=False)
+    assert metrics_store.snapshot()["alerts"] == []
+
+
+def test_5xx_비율이_높으면_알림에_뜬다():
+    metrics_store.clear()
+    for _ in range(19):
+        metrics_store.record("GET /courses", 200, 10.0)
+    metrics_store.record("GET /courses", 500, 10.0)
+    alerts = metrics_store.snapshot()["alerts"]
+    assert alerts[0]["kind"] == "error_rate"
