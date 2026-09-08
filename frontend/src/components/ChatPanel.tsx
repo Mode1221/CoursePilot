@@ -24,8 +24,9 @@ const STAGE_LABELS: Record<string, string> = {
 // 첫 사용자가 무엇을 입력할지 바로 알 수 있게 하는 예시(클릭 시 입력창에 채움)
 const EXAMPLES = [
   "토요일 오후 1시 성수동, 3시간, 도보 10분 이내",
-  "금요일 7시 강남역 회식, 4명, 1인 3만원",
+  "금요일 7시 강남역에서 출발, 회식 4명, 1인 3만원",
   "일요일 오전 11시 연남동 브런치 데이트",
+  "내일 비 온대, 홍대에서 두 군데만",
 ];
 
 function stageLabel(stage: string | null): string {
