@@ -55,6 +55,14 @@ export const api = {
   reorder: (id: string, placeIds: string[]) =>
     request<Course>(`/courses/${id}/reorder`, { method: "POST", body: { place_ids: placeIds } }),
 
+  setItems: (id: string, placeIds: string[]) =>
+    request<Course>(`/courses/${id}/items`, { method: "POST", body: { place_ids: placeIds } }),
+
+  searchPlaces: (region: string, q = "", limit = 8) =>
+    request<import("@/types").Place[]>(
+      `/places/search?region=${encodeURIComponent(region)}&q=${encodeURIComponent(q)}&limit=${limit}`,
+    ),
+
   addPlace: (id: string, placeId: string) =>
     request<Course>(`/courses/${id}/places`, { method: "POST", body: { place_id: placeId } }),
 

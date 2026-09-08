@@ -17,6 +17,7 @@ interface CourseState {
   messages: ChatMessage[]; // append-only 채팅 로그 (5-2)
   connected: boolean; // 소켓 연결 상태 (5-4)
   notFound: boolean; // 코스 없음(404)
+  history: string[][]; // 수동 편집 되돌리기 스택 (편집 직전 place_id 목록)
   setCourse: (course: Course) => void;
   setLocked: (locked: boolean) => void;
   setStage: (stage: string | null) => void;
@@ -28,6 +29,8 @@ interface CourseState {
   reorder: (from: number, to: number) => Promise<void>;
   remove: (index: number) => Promise<void>;
   addPlace: (placeId: string) => Promise<void>;
+  undo: () => Promise<void>;
+  canUndo: () => boolean;
 }
 
 async function recalcRoutes(items: TimelineItem[]): Promise<TimelineItem[]> {
@@ -49,6 +52,7 @@ export const useCourseStore = create<CourseState>((set, get) => ({
   messages: [],
   connected: true,
   notFound: false,
+  history: [],
   setCourse: (course) => set({ course, locked: course.locked, notFound: false }),
   setLocked: (locked) => set({ locked }),
   setStage: (stage) => set({ stage }),
@@ -64,20 +68,23 @@ export const useCourseStore = create<CourseState>((set, get) => ({
     const items = [...course.items];
     const [moved] = items.splice(from, 1);
     items.splice(to, 0, moved);
-    await applyManualEdit(get, set, course, items);
+    pushHistory(get, set, course);
+    await applyManualEdit(set, course, items);
   },
 
   remove: async (index) => {
     const { course, locked } = get();
     if (!course || locked) return;
     const items = course.items.filter((_, i) => i !== index);
-    await applyManualEdit(get, set, course, items);
+    pushHistory(get, set, course);
+    await applyManualEdit(set, course, items);
   },
 
   // 추천("함께 가요") 장소 추가: 서버가 동선 재계산 후 최종 상태 반환.
   addPlace: async (placeId) => {
     const { course, locked } = get();
     if (!course || locked) return;
+    pushHistory(get, set, course);
     try {
       const updated = await api.addPlace(course.id, placeId);
       set({ course: updated });
@@ -85,10 +92,36 @@ export const useCourseStore = create<CourseState>((set, get) => ({
       /* 이미 포함/오프라인 등: 무시 */
     }
   },
+
+  canUndo: () => get().history.length > 0,
+
+  // 되돌리기: 편집 직전 place_id 목록을 서버에 통째로 설정(삭제된 장소도 복원됨).
+  undo: async () => {
+    const { course, locked, history } = get();
+    if (!course || locked || history.length === 0) return;
+    const prev = history[history.length - 1];
+    set({ history: history.slice(0, -1) });
+    try {
+      const updated = await api.setItems(course.id, prev);
+      set({ course: updated });
+    } catch {
+      /* 오프라인/테스트: 스택만 되감음 */
+    }
+  },
 }));
 
-async function applyManualEdit(
+const HISTORY_MAX = 20;
+
+function pushHistory(
   get: () => CourseState,
+  set: (partial: Partial<CourseState>) => void,
+  course: Course,
+): void {
+  const snapshot = course.items.map((it) => it.place.id);
+  set({ history: [...get().history, snapshot].slice(-HISTORY_MAX) });
+}
+
+async function applyManualEdit(
   set: (partial: Partial<CourseState>) => void,
   course: Course,
   items: TimelineItem[],
@@ -97,7 +130,7 @@ async function applyManualEdit(
   set({ course: { ...course, items: recalced } });
   try {
     // 서버 큐 경유로 영속화 + 참가자 broadcast. 실패해도 로컬 상태는 유지.
-    await api.reorder(course.id, items.map((it) => it.place.id));
+    await api.setItems(course.id, items.map((it) => it.place.id));
   } catch {
     /* 오프라인/테스트 환경: 로컬 반영만 유지 */
   }
