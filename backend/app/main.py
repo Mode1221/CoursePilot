@@ -10,6 +10,7 @@ from contextlib import asynccontextmanager
 import socketio
 from fastapi import FastAPI, Header, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import Response
 from pydantic import BaseModel, Field
 
 from app.adapters.map_service import get_map_service
@@ -268,6 +269,22 @@ def _owned_course(course_id: str, user_id: str | None) -> Course:
     if course.owner_id is not None and course.owner_id != user_id:
         raise HTTPException(status_code=403, detail="코스 생성자만 변경할 수 있어요")
     return course
+
+
+@api.get("/courses/{course_id}/calendar.ics")
+async def course_calendar(course_id: str) -> Response:
+    """코스를 캘린더 앱에 넣을 수 있는 .ics 로 내보낸다."""
+    from app.calendar import to_ics
+
+    course = store.get(course_id)
+    if course is None:
+        raise HTTPException(status_code=404, detail="course not found")
+    filename = f"coursepilot-{course_id}.ics"
+    return Response(
+        content=to_ics(course),
+        media_type="text/calendar; charset=utf-8",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )
 
 
 @api.get("/courses/{course_id}", response_model=Course)

@@ -6,6 +6,7 @@ import { useCallback, useEffect, useState } from "react";
 import CourseTitle from "@/components/CourseTitle";
 import { Badge, Button, Input } from "@/components/ui";
 import { api, ApiError } from "@/services/api";
+import { saveCalendar } from "@/services/calendar";
 import { shareService } from "@/services/shareService";
 import { useCourseStore } from "@/store/courseStore";
 import { toast } from "@/store/toastStore";
@@ -143,6 +144,11 @@ export default function ChatPanel({ courseId }: { courseId: string }) {
         <span style={{ display: "flex", gap: "var(--sp-2)" }}>
           {course != null && course.items.length > 0 && (
             <Button size="sm" onClick={markCompleted}>다녀왔어요</Button>
+          )}
+          {course != null && course.items.length > 0 && (
+            <Button size="sm" onClick={() => saveCalendar(courseId)}>
+              캘린더
+            </Button>
           )}
           <Button
             size="sm"
