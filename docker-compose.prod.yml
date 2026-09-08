@@ -39,6 +39,7 @@ services:
       PORTONE_API_SECRET: ${PORTONE_API_SECRET:-}
       # 백엔드를 2개 이상 띄울 때만 설정(단일 인스턴스면 비워둔다)
       REDIS_URL: ${REDIS_URL:-}
+      ADMIN_TOKEN: ${ADMIN_TOKEN:-}
     depends_on:
       db:
         condition: service_healthy

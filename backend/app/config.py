@@ -38,6 +38,10 @@ class Settings(BaseSettings):
     # 미설정이면 단일 프로세스 메모리 매니저(개발/소규모 운영 기본값).
     redis_url: str = ""
 
+    # 관리 엔드포인트(/admin/*) 보호. 설정 시 X-Admin-Token 헤더가 일치해야 한다.
+    # 비워두면 개발 편의를 위해 열려 있으므로, 배포 시에는 반드시 설정한다.
+    admin_token: str = ""
+
     cors_origins: list[str] = ["http://localhost:3000"]
 
     @property

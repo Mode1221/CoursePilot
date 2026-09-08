@@ -82,20 +82,28 @@ async def health() -> dict:
     return {"status": "ok"}
 
 
+def _require_admin(token: str | None) -> None:
+    """ADMIN_TOKEN 이 설정된 환경에서는 일치하는 헤더가 있어야 한다(미설정=개발용 개방)."""
+    if settings.admin_token and token != settings.admin_token:
+        raise HTTPException(status_code=401, detail="관리자 토큰이 필요합니다")
+
+
 @api.get("/admin/metrics")
-async def admin_metrics() -> dict:
+async def admin_metrics(x_admin_token: str | None = Header(default=None)) -> dict:
     """엔드포인트별 요청 수·에러·지연(p50/p95). 인메모리, 인스턴스 단위."""
+    _require_admin(x_admin_token)
     from app.metrics import metrics_store
 
     return metrics_store.snapshot()
 
 
 @api.get("/admin/signals")
-async def admin_signals() -> dict:
+async def admin_signals(x_admin_token: str | None = Header(default=None)) -> dict:
     """학습 신호 관측(튜닝용). 축적된 피드백·전략·만족도 지표를 요약.
 
     개인정보 없이 집계값만 노출. 운영자 계수 튜닝·품질 모니터링에 사용.
     """
+    _require_admin(x_admin_token)
     from app.feedback import feedback_store
     from app.outcome import outcome_store
     from app.strategy import strategy_store
