@@ -76,6 +76,9 @@ class UserStore:
 
     def refund_credit(self, user_id: str) -> User | None:
         """소비한 크레딧 1회 되돌리기. 무료 사용분을 먼저 복원, 없으면 포인트로 환불."""
+        if is_ready():
+            return self._refund_credit_db(user_id)
+
         user = self.get(user_id)
         if user is None:
             return None
@@ -84,6 +87,22 @@ class UserStore:
         else:
             user.points += 1
         return self._save(user)
+
+    def _refund_credit_db(self, user_id: str) -> User | None:
+        """행 잠금으로 원자적 환불 → 동시 차감/환불에서 유실되지 않는다."""
+        from app.db import SessionLocal
+        from app.models import UserModel
+
+        with SessionLocal() as s:
+            row = s.get(UserModel, user_id, with_for_update=True)
+            if row is None:
+                return None
+            if row.credits_used > 0:
+                row.credits_used -= 1
+            else:
+                row.points += 1
+            s.commit()
+            return self._to_user(row)
 
     def get(self, user_id: str) -> User | None:
         if is_ready():
