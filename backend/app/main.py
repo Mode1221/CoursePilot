@@ -8,9 +8,9 @@ import logging
 from contextlib import asynccontextmanager
 
 import socketio
-from fastapi import FastAPI, Header, HTTPException
+from fastapi import FastAPI, Header, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import Response
+from fastapi.responses import JSONResponse, Response
 from pydantic import BaseModel, Field
 
 from app.adapters.map_service import get_map_service
@@ -63,6 +63,21 @@ api.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+
+@api.exception_handler(Exception)
+async def unhandled_error(request: Request, exc: Exception) -> JSONResponse:
+    """예상 못 한 오류도 추적 가능한 응답으로. 내부 details 는 노출하지 않는다."""
+    request_id = getattr(request.state, "request_id", "-")
+    logging.getLogger("coursepilot").exception("[%s] unhandled error", request_id)
+    return JSONResponse(
+        status_code=500,
+        content={
+            "detail": "일시적인 오류가 발생했어요. 잠시 후 다시 시도해주세요.",
+            "request_id": request_id,
+        },
+        headers={"X-Request-Id": request_id},
+    )
 
 
 class GenerateRequest(BaseModel):
