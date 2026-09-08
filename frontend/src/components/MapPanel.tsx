@@ -7,7 +7,9 @@ import { Badge, Button, EmptyState } from "@/components/ui";
 import PlaceDetailModal from "@/components/PlaceDetailModal";
 import PlaceSearchPanel from "@/components/PlaceSearchPanel";
 import { courseStats, formatDuration } from "@/services/courseStats";
+import { courseToText } from "@/services/courseText";
 import { useCourseStore } from "@/store/courseStore";
+import { toast } from "@/store/toastStore";
 import { MODE_LABEL, type Place } from "@/types";
 
 // 시각화 패널: 지도(SVG 렌더) + 타임라인. 실제 지도 SDK 는 mapService 어댑터로 교체 예정.
@@ -40,11 +42,20 @@ export default function MapPanel({ readOnly = false }: { readOnly?: boolean }) {
         <h3 style={{ margin: 0 }}>타임라인</h3>
         {course.items.length > 0 && <CourseSummary course={course} />}
         {locked && <Badge tone="warn">잠금</Badge>}
+        {course.items.length > 0 && (
+          <Button
+            size="sm"
+            aria-label="코스 텍스트 복사"
+            style={{ marginLeft: readOnly ? "auto" : undefined }}
+            onClick={() => copyCourse(course)}
+          >
+            텍스트 복사
+          </Button>
+        )}
         {!readOnly && (
           <Button
             size="sm"
             aria-label="되돌리기"
-            style={{ marginLeft: "auto" }}
             disabled={editDisabled || historyLen === 0}
             onClick={() => undo()}
           >
@@ -152,4 +163,15 @@ function CourseSummary({ course }: { course: Parameters<typeof courseStats>[0] }
   return (
     <span style={{ color: "var(--text-muted)", fontSize: "var(--fs-sm)" }}>{parts.join(" · ")}</span>
   );
+}
+
+/** 코스를 메신저에 붙여넣을 수 있는 텍스트로 클립보드에 복사. */
+async function copyCourse(course: Parameters<typeof courseToText>[0]): Promise<void> {
+  const url = typeof window !== "undefined" ? `${window.location.origin}/share/${course.id}` : undefined;
+  try {
+    await navigator.clipboard.writeText(courseToText(course, url));
+    toast("코스를 복사했어요. 채팅방에 붙여넣어 보세요.", "success");
+  } catch {
+    toast("복사하지 못했어요.", "error");
+  }
 }
