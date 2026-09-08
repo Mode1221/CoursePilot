@@ -96,3 +96,17 @@ def test_시간당_발송_상한이_있다():
         # 쿨다운을 지난 것처럼 이력을 과거로 밀어 둔다
         store._sends[phone] = [t - RESEND_COOLDOWN - 1 for t in store._sends[phone]]
     assert store.can_send(phone) is False
+
+
+def test_SMS_발송_실패는_502_로_알린다(monkeypatch):
+    import app.adapters.sms as sms_module
+    from app.main import api
+
+    class _Failing:
+        async def send(self, phone: str, text: str) -> bool:
+            raise RuntimeError("vendor down")
+
+    monkeypatch.setattr(sms_module, "get_sms_service", lambda: _Failing())
+    client = TestClient(api)
+    res = client.post("/auth/sms/request", json={"phone": "010-5555-3333"})
+    assert res.status_code == 502
