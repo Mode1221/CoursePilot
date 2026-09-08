@@ -6,6 +6,7 @@ import { Badge, Button, Input } from "@/components/ui";
 import { api, ApiError } from "@/services/api";
 import { shareService } from "@/services/shareService";
 import { useCourseStore } from "@/store/courseStore";
+import { toast } from "@/store/toastStore";
 import { useUserStore } from "@/store/userStore";
 
 const STAGE_LABELS: Record<string, string> = {
@@ -100,6 +101,8 @@ export default function ChatPanel({ courseId }: { courseId: string }) {
     if (res) {
       setCompleted(true);
       setNotice("다녀오셨군요! 만족하셨나요?");
+    } else {
+      toast("기록을 저장하지 못했어요.", "error");
     }
   }
 
@@ -116,6 +119,9 @@ export default function ChatPanel({ courseId }: { courseId: string }) {
     if (res) {
       setQuestionsLeft(res.questions_left);
       setError(null);
+      toast("질문 5회를 충전했어요.", "success");
+    } else {
+      toast("충전에 실패했어요. 잠시 후 다시 시도해주세요.", "error");
     }
   }
 
