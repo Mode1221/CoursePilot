@@ -24,4 +24,5 @@
 8. **행정** (코드 밖) — 포트원 가맹계약, SMS 발신번호 등록, 개인정보처리방침.
 
 ## 참고
+- 푸시 전 로컬 검증: `./scripts/check.sh` (E2E 포함은 `--e2e`).
 - 전체 현황: `docs/STATUS.md` / 아키텍처: `docs/ARCHITECTURE.md` / 데이터 전략: `docs/DATA_STRATEGY.md`.
