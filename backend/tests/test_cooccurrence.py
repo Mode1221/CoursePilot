@@ -21,3 +21,13 @@ def test_accumulates_over_courses():
     cs.bump_course(["a", "b"])
     cs.bump_course(["a", "b"])
     assert cs.affinity("a", ["b"]) == 2.0
+
+
+def test_affinity_는_여러_앵커를_합산한다():
+    from app.cooccurrence import CooccurrenceStore
+
+    store = CooccurrenceStore()
+    store.bump_course(["a", "b", "c"])
+    assert store.affinity("a", ["b", "c"]) == 2.0
+    assert store.affinity("a", ["a"]) == 0.0
+    assert store.affinity("a", []) == 0.0

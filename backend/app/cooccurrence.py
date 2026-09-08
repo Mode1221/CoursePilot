@@ -18,39 +18,48 @@ class CooccurrenceStore:
     def bump_course(self, place_ids: list[str], weight: float = 1.0) -> None:
         """코스에 함께 담긴 장소 쌍을 모두 가중 누적."""
         uniq = list(dict.fromkeys(place_ids))  # 중복 제거·순서 유지
-        for a, b in combinations(uniq, 2):
-            self._add(a, b, weight)
+        pairs = list(combinations(uniq, 2))
+        if not pairs:
+            return
+        if not self._db_ready():
+            for a, b in pairs:
+                self._mem[frozenset((a, b))] += weight
+            return
+        # 쌍마다 커밋하면 장소 수의 제곱만큼 왕복한다 → 한 세션에서 처리
+        from app.db import SessionLocal
+        from app.models import CooccurrenceModel
 
-    def _add(self, a: str, b: str, weight: float) -> None:
-        if self._db_ready():
-            from app.db import SessionLocal
-            from app.models import CooccurrenceModel
-
-            lo, hi = sorted((a, b))
-            with SessionLocal() as s:
+        with SessionLocal() as s:
+            for a, b in pairs:
+                lo, hi = sorted((a, b))
                 row = s.get(CooccurrenceModel, (lo, hi))
                 if row is None:
                     s.add(CooccurrenceModel(place_a=lo, place_b=hi, count=weight))
                 else:
                     row.count += weight
-                s.commit()
-            return
-        self._mem[frozenset((a, b))] += weight
+            s.commit()
 
     def affinity(self, place_id: str, anchors: list[str]) -> float:
         """anchors(이미 담긴 장소들)와 place_id 의 공동 채택 합계."""
-        return sum(self._pair(place_id, a) for a in anchors if a != place_id)
+        others = [a for a in anchors if a != place_id]
+        if not others:
+            return 0.0
+        if not self._db_ready():
+            return sum(self._mem.get(frozenset((place_id, a)), 0.0) for a in others)
+        # 앵커마다 조회하면 후보 수 × 앵커 수만큼 쿼리가 난다 → 한 번에 읽는다
+        from sqlalchemy import select, tuple_
 
-    def _pair(self, a: str, b: str) -> float:
-        if self._db_ready():
-            from app.db import SessionLocal
-            from app.models import CooccurrenceModel
+        from app.db import SessionLocal
+        from app.models import CooccurrenceModel
 
-            lo, hi = sorted((a, b))
-            with SessionLocal() as s:
-                row = s.get(CooccurrenceModel, (lo, hi))
-                return row.count if row else 0.0
-        return self._mem.get(frozenset((a, b)), 0.0)
+        keys = [tuple(sorted((place_id, a))) for a in others]
+        with SessionLocal() as s:
+            rows = s.execute(
+                select(CooccurrenceModel.count).where(
+                    tuple_(CooccurrenceModel.place_a, CooccurrenceModel.place_b).in_(keys)
+                )
+            ).all()
+        return float(sum(r[0] for r in rows))
 
     def top_partners(self, place_id: str, k: int = 5) -> list[tuple[str, float]]:
         """place_id 와 가장 자주 함께 채택된 장소 상위 k (id, count) 내림차순."""
