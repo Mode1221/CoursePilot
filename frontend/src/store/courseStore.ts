@@ -3,6 +3,7 @@ import { create } from "zustand";
 
 import { api } from "@/services/api";
 import { mapService } from "@/services/mapService";
+import { toast } from "@/store/toastStore";
 import type { Course, TimelineItem, TravelMode } from "@/types";
 
 export interface ChatMessage {
@@ -89,7 +90,7 @@ export const useCourseStore = create<CourseState>((set, get) => ({
       const updated = await api.addPlace(course.id, placeId);
       set({ course: updated });
     } catch {
-      /* 이미 포함/오프라인 등: 무시 */
+      toast("장소를 추가하지 못했어요. 잠시 후 다시 시도해주세요.", "error");
     }
   },
 
@@ -105,7 +106,7 @@ export const useCourseStore = create<CourseState>((set, get) => ({
       const updated = await api.setItems(course.id, prev);
       set({ course: updated });
     } catch {
-      /* 오프라인/테스트: 스택만 되감음 */
+      toast("되돌리지 못했어요. 연결 상태를 확인해주세요.", "error");
     }
   },
 }));
@@ -132,6 +133,6 @@ async function applyManualEdit(
     // 서버 큐 경유로 영속화 + 참가자 broadcast. 실패해도 로컬 상태는 유지.
     await api.setItems(course.id, items.map((it) => it.place.id));
   } catch {
-    /* 오프라인/테스트 환경: 로컬 반영만 유지 */
+    toast("변경 사항을 저장하지 못했어요. 새로고침하면 이전 상태로 돌아갑니다.", "error");
   }
 }

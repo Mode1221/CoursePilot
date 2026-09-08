@@ -7,6 +7,7 @@ import NotFound from "@/components/NotFound";
 import { Button } from "@/components/ui";
 import { api } from "@/services/api";
 import { useCourseStore } from "@/store/courseStore";
+import { toast } from "@/store/toastStore";
 import { useUserStore } from "@/store/userStore";
 
 // 공유 읽기 전용 뷰 (4-5). AI 대화 기록 없이 픽스된 최종 타임라인/지도만 열람.
@@ -31,8 +32,13 @@ export default function ShareView({ id }: { id: string }) {
 
   async function bookmark() {
     if (!userId) return;
-    await api.addBookmark(userId, id).catch(() => {});
-    setSaved(true);
+    try {
+      await api.addBookmark(userId, id);
+      setSaved(true);
+      toast("북마크에 저장했어요.", "success");
+    } catch {
+      toast("북마크에 저장하지 못했어요.", "error");
+    }
   }
 
   return (
