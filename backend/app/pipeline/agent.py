@@ -49,7 +49,13 @@ async def generate_course(
     map_service: MapService,
     preferences: dict | None = None,
     on_progress: ProgressFn | None = None,
+    force_relax: bool = False,
 ) -> PlanResult:
+    """자연어 요청 → 코스.
+
+    force_relax=True 면 원래 조건으로의 첫 시도를 건너뛰고 곧장 완화한다
+    (사용자가 "조건을 완화해도 좋다"고 답한 뒤의 재시도용).
+    """
     progress = on_progress or _noop
 
     await progress("decomposition")  # 문장 분해
@@ -62,7 +68,7 @@ async def generate_course(
     await progress("validation")  # 물리 제약 검증
 
     enough = _min_valid(constraints)
-    if len(timeline) >= enough:
+    if len(timeline) >= enough and not force_relax:
         await progress("done")
         return PlanResult(constraints, timeline, relaxed=False, needs_confirmation=False)
 
@@ -72,13 +78,15 @@ async def generate_course(
     from app.feedback import feedback_store
 
     factor = 1.5 + 0.5 * feedback_store.acceptance_rate()  # 1.75 기본, 2.0 상한
+    if force_relax:
+        factor = 2.0  # 사용자가 완화에 동의했으므로 가장 과감한 폭을 쓴다
     relaxed_c = constraints.model_copy(deep=True)
     if relaxed_c.max_travel_min is not None:
         relaxed_c.max_travel_min = int(relaxed_c.max_travel_min * factor)
     timeline = await _attempt(relaxed_c, map_service)
 
     # 그래도 부족하면 소프트 키워드 제약을 완화(다이어트 등 하드성 키워드는 유지)
-    if len(timeline) < enough and relaxed_c.keywords:
+    if (len(timeline) < enough or force_relax) and relaxed_c.keywords:
         relaxed_c.keywords = [k for k in relaxed_c.keywords if k in _HARD_KEYWORDS]
         timeline = await _attempt(relaxed_c, map_service)
 
