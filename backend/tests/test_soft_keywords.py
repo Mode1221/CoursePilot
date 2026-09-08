@@ -1,7 +1,7 @@
+from app.adapters.map_service import MapService
 from app.pipeline.agent import MAX_QUERY_KEYWORDS, _attempt
 from app.pipeline.decomposition import parse_constraints
 from app.schemas import Place, PlanConstraints, Route, TravelMode
-from app.adapters.map_service import MapService
 
 
 def test_실사용_표현을_키워드로_잡는다():
