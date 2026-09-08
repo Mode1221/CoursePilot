@@ -72,9 +72,11 @@ async def summarize_reviews(reviews: list[str]) -> str:
 
     from app.config import settings
     from app.llm_client import get_openai_client
+    from app.metrics import metrics_store
 
     client = get_openai_client()
     if client is None:
+        metrics_store.record_external("llm.review_summary", ok=False)
         return _tag_summary(reviews)
 
     try:
@@ -89,8 +91,11 @@ async def summarize_reviews(reviews: list[str]) -> str:
                 {"role": "user", "content": joined},
             ],
         )
-        return resp.choices[0].message.content or _tag_summary(reviews)
+        content = resp.choices[0].message.content
+        metrics_store.record_external("llm.review_summary", ok=bool(content))
+        return content or _tag_summary(reviews)
     except Exception:
+        metrics_store.record_external("llm.review_summary", ok=False)
         return _tag_summary(reviews)
 
 

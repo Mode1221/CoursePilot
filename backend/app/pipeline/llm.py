@@ -47,6 +47,8 @@ _ANTHROPIC_TOOL = {
 
 async def decompose(text: str) -> PlanConstraints:
     """자연어 → PlanConstraints. 키 없거나 실패 시 규칙 기반 폴백."""
+    from app.metrics import metrics_store
+
     try:
         if settings.llm_provider == "openai":
             args = await _decompose_openai(text)
@@ -55,7 +57,10 @@ async def decompose(text: str) -> PlanConstraints:
     except Exception:
         args = None
     if args is None:
+        # 키 미설정도 폴백으로 집계한다(실제로 규칙 파서가 쓰였다는 사실이 중요)
+        metrics_store.record_external("llm.decompose", ok=False)
         return parse_constraints(text)
+    metrics_store.record_external("llm.decompose", ok=True)
     return _to_constraints(args, text)
 
 
