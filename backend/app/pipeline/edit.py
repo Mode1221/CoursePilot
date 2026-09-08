@@ -29,19 +29,40 @@ class EditCommand:
     action: str  # "replace" | "remove" | "none"
     index: int = -1  # 0-based
     keyword: str = ""
+    match: str = ""  # 순서 대신 이름/카테고리로 지목한 경우("카페 빼줘")
+
+
+# 순서 없이 이름·카테고리로 지목한 경우(코스를 봐야 위치를 안다)
+MATCH_INDEX = -3
+# 카테고리를 가리키는 일상 표현 → Place.category
+_CATEGORY_WORDS = {
+    "카페": "cafe",
+    "커피": "cafe",
+    "식당": "restaurant",
+    "맛집": "restaurant",
+    "밥집": "restaurant",
+    "술집": "bar",
+    "바": "bar",
+    "포차": "bar",
+}
 
 
 def parse_edit(text: str) -> EditCommand:
     idx = _find_index(text)
+    match = ""
     if idx < 0 and idx != LAST_INDEX:
-        return EditCommand(action="none")
+        # 순서를 못 찾았으면 "카페 빼줘"처럼 카테고리로 지목했는지 본다
+        match = next((cat for word, cat in _CATEGORY_WORDS.items() if word in text), "")
+        if not match:
+            return EditCommand(action="none")
+        idx = MATCH_INDEX
 
     if _REPLACE_RE.search(text):
         m = _TARGET_RE.search(text)
         keyword = m.group(1) if m else ""
-        return EditCommand(action="replace", index=idx, keyword=keyword)
+        return EditCommand(action="replace", index=idx, keyword=keyword, match=match)
     if _REMOVE_RE.search(text):
-        return EditCommand(action="remove", index=idx)
+        return EditCommand(action="remove", index=idx, match=match)
     return EditCommand(action="none")
 
 
@@ -70,7 +91,15 @@ async def apply_edit(
 ) -> list[TimelineItem]:
     """편집 명령을 적용해 갱신된 타임라인을 반환. 전체 동선 재계산."""
     items = list(course.items)
-    index = len(items) - 1 if cmd.index == LAST_INDEX else cmd.index
+    if cmd.index == MATCH_INDEX:
+        index = next(
+            (i for i, it in enumerate(items) if it.place.category == cmd.match),
+            -1,
+        )
+    elif cmd.index == LAST_INDEX:
+        index = len(items) - 1
+    else:
+        index = cmd.index
     if not (0 <= index < len(items)):
         return items
 
