@@ -6,6 +6,7 @@ import MapCanvas from "@/components/MapCanvas";
 import { Badge, Button, EmptyState } from "@/components/ui";
 import PlaceDetailModal from "@/components/PlaceDetailModal";
 import PlaceSearchPanel from "@/components/PlaceSearchPanel";
+import { courseStats, formatDuration } from "@/services/courseStats";
 import { useCourseStore } from "@/store/courseStore";
 import { MODE_LABEL, type Place } from "@/types";
 
@@ -37,6 +38,7 @@ export default function MapPanel({ readOnly = false }: { readOnly?: boolean }) {
 
       <div style={{ display: "flex", alignItems: "center", gap: "var(--sp-2)", marginBottom: "var(--sp-3)" }}>
         <h3 style={{ margin: 0 }}>타임라인</h3>
+        {course.items.length > 0 && <CourseSummary course={course} />}
         {locked && <Badge tone="warn">잠금</Badge>}
         {!readOnly && (
           <Button
@@ -138,5 +140,16 @@ export default function MapPanel({ readOnly = false }: { readOnly?: boolean }) {
         <PlaceDetailModal place={selected} onClose={() => setSelected(null)} editable={!editDisabled} />
       )}
     </div>
+  );
+}
+
+/** 장소 수 · 총 소요시간 · 이동시간 한 줄 요약. */
+function CourseSummary({ course }: { course: Parameters<typeof courseStats>[0] }) {
+  const { places, travelMin, totalMin } = courseStats(course);
+  const parts = [`${places}곳`];
+  if (totalMin > 0) parts.push(`총 ${formatDuration(totalMin)}`);
+  if (travelMin > 0) parts.push(`이동 ${formatDuration(travelMin)}`);
+  return (
+    <span style={{ color: "var(--text-muted)", fontSize: "var(--fs-sm)" }}>{parts.join(" · ")}</span>
   );
 }
