@@ -1,3 +1,4 @@
+import { formatPlanDate } from "@/services/courseDate";
 import type { Course } from "@/types";
 import { MODE_LABEL } from "@/types";
 
@@ -10,7 +11,8 @@ import { MODE_LABEL } from "@/types";
  * 2. 전시 B (14:12~16:00)
  */
 export function courseToText(course: Course, shareUrl?: string): string {
-  const lines: string[] = [course.title];
+  const day = formatPlanDate(course.plan_date);
+  const lines: string[] = [day ? `${course.title} — ${day}` : course.title];
   course.items.forEach((item, i) => {
     const time =
       item.arrive && item.depart ? ` (${item.arrive.slice(0, 5)}~${item.depart.slice(0, 5)})` : "";
