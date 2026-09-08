@@ -50,6 +50,8 @@ _PARTY_WORDS = {"혼자": 1, "둘이": 2, "두명": 2, "셋이": 3, "세명": 3,
 # 예산이 "총액"임을 알려주는 표현 (1인 기준으로 나눠서 쓴다)
 _TOTAL_BUDGET_WORDS = ("총", "다 해서", "다해서", "전부", "합쳐서", "모두")
 
+# "도보로만", "걸어서만" 처럼 수단을 고정해달라는 표현
+_STRICT_MODE_RE = re.compile(r"(?:도보|걸어서|차량|대중교통)\s*로?만|만\s*(?:도보|이동)")
 _MODE_MAP = {"도보": TravelMode.WALK, "차량": TravelMode.CAR, "대중교통": TravelMode.TRANSIT}
 _SOFT_KEYWORDS = [
     "조용한", "활기찬", "비건", "채식", "분위기", "가성비", "뷰", "데이트",
@@ -215,6 +217,8 @@ def parse_constraints(text: str, today: date | None = None) -> PlanConstraints:
         if tm.group(1) in _MODE_MAP:
             c.travel_mode = _MODE_MAP[tm.group(1)]
         c.max_travel_min = int(tm.group(2))
+    if _STRICT_MODE_RE.search(text):
+        c.strict_travel_mode = True
 
     # 예산 (하드 제약): 범위 → 만원 단위 → 원 단위 순으로 본다
     br = _BUDGET_RANGE_RE.search(text)

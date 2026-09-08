@@ -78,6 +78,29 @@ def is_open_during(place: Place, arrive: time, depart: time) -> bool:
     return True
 
 
+# 도보가 이 시간을 넘으면 그 구간만 대중교통으로 갈아탄다(수단 혼합).
+WALK_SWITCH_MIN = 20
+
+
+async def _best_route(
+    prev: Place,
+    place: Place,
+    mode: TravelMode,
+    constraints: PlanConstraints,
+    map_service: MapService,
+) -> Route:
+    """기본 수단으로 경로를 구하되, 너무 먼 도보 구간은 대중교통으로 대체한다."""
+    route = await map_service.get_route(prev, place, mode)
+    if (
+        mode is not TravelMode.WALK
+        or constraints.strict_travel_mode
+        or route.duration_min <= WALK_SWITCH_MIN
+    ):
+        return route
+    alt = await map_service.get_route(prev, place, TravelMode.TRANSIT)
+    return alt if alt.duration_min < route.duration_min else route
+
+
 async def build_timeline(
     places: list[Place],
     constraints: PlanConstraints,
@@ -110,7 +133,7 @@ async def build_timeline(
         route: Route | None = None
         arrive_dt = cursor
         if prev is not None:
-            route = await map_service.get_route(prev, place, mode)
+            route = await _best_route(prev, place, mode, constraints, map_service)
             if (
                 constraints.max_travel_min is not None
                 and route.duration_min > constraints.max_travel_min
