@@ -15,6 +15,16 @@ from app.schemas import PlanConstraints, TimelineItem
 
 MIN_VALID = 3  # 유효 후보가 이 개수 미만이면 조건 완화
 
+
+def _min_valid(constraints: PlanConstraints) -> int:
+    """이 요청에서 "충분하다"고 볼 장소 수.
+
+    사용자가 "2차까지"처럼 개수를 직접 말했으면 그 수를 넘길 이유가 없다.
+    """
+    if constraints.stop_count:
+        return max(1, min(MIN_VALID, constraints.stop_count))
+    return MIN_VALID
+
 # 완화해도 유지할 하드성 키워드(식이 제한 등 타협 불가)
 _HARD_KEYWORDS = {"비건", "채식", "할랄", "글루텐프리", "노키즈"}
 
@@ -51,7 +61,8 @@ async def generate_course(
     timeline = await _attempt(constraints, map_service)
     await progress("validation")  # 물리 제약 검증
 
-    if len(timeline) >= MIN_VALID:
+    enough = _min_valid(constraints)
+    if len(timeline) >= enough:
         await progress("done")
         return PlanResult(constraints, timeline, relaxed=False, needs_confirmation=False)
 
@@ -67,11 +78,11 @@ async def generate_course(
     timeline = await _attempt(relaxed_c, map_service)
 
     # 그래도 부족하면 소프트 키워드 제약을 완화(다이어트 등 하드성 키워드는 유지)
-    if len(timeline) < MIN_VALID and relaxed_c.keywords:
+    if len(timeline) < enough and relaxed_c.keywords:
         relaxed_c.keywords = [k for k in relaxed_c.keywords if k in _HARD_KEYWORDS]
         timeline = await _attempt(relaxed_c, map_service)
 
-    needs_confirmation = len(timeline) < MIN_VALID
+    needs_confirmation = len(timeline) < enough
     await progress("done")
     return PlanResult(relaxed_c, timeline, relaxed=True, needs_confirmation=needs_confirmation)
 
