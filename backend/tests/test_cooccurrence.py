@@ -31,3 +31,13 @@ def test_affinity_는_여러_앵커를_합산한다():
     assert store.affinity("a", ["b", "c"]) == 2.0
     assert store.affinity("a", ["a"]) == 0.0
     assert store.affinity("a", []) == 0.0
+
+
+def test_affinities_는_후보별_합산을_한번에_준다():
+    from app.cooccurrence import CooccurrenceStore
+
+    store = CooccurrenceStore()
+    store.bump_course(["a", "b", "c"])
+    scores = store.affinities(["b", "c", "z"], ["a"])
+    assert scores == {"b": 1.0, "c": 1.0, "z": 0.0}
+    assert store.affinities([], ["a"]) == {}
