@@ -78,3 +78,4 @@ class PlanConstraints(BaseModel):
     stop_count: int | None = None  # 방문할 장소 개수("2차", "세 군데")
     companion: str | None = None  # 동행유형: 데이트/친구/가족/회식/혼자 (컨텍스트 신호)
     keywords: list[str] = Field(default_factory=list)  # 조용한, 비건 등 소프트 제약
+    exclude_keywords: list[str] = Field(default_factory=list)  # "술집 빼고" 같은 제외 조건
