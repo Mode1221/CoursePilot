@@ -12,17 +12,11 @@ from __future__ import annotations
 
 from collections import defaultdict
 
-from pydantic import BaseModel
-
-
-class FeedbackEvent(BaseModel):
-    kind: str
-    detail: str = ""
-
 
 class FeedbackStore:
     def __init__(self) -> None:
-        self._mem: dict[str, list[FeedbackEvent]] = defaultdict(list)
+        # 집계(kind별 카운트)만 쓰이므로 이벤트 원문을 쌓지 않는다(무한 증가 방지)
+        self._mem: dict[str, int] = defaultdict(int)
 
     def log(self, course_id: str, kind: str, detail: str = "") -> None:
         if self._db_ready():
@@ -33,7 +27,7 @@ class FeedbackStore:
                 s.add(FeedbackModel(course_id=course_id, kind=kind, detail=detail))
                 s.commit()
             return
-        self._mem[course_id].append(FeedbackEvent(kind=kind, detail=detail))
+        self._mem[kind] += 1
 
     def counts(self, kind: str | None = None) -> dict[str, int]:
         """kind별 집계(간단 학습용). DB/인메모리 공통."""
@@ -48,12 +42,9 @@ class FeedbackStore:
                 if kind:
                     stmt = stmt.where(FeedbackModel.kind == kind)
                 return {k: n for k, n in s.execute(stmt).all()}
-        agg: dict[str, int] = defaultdict(int)
-        for events in self._mem.values():
-            for e in events:
-                if kind is None or e.kind == kind:
-                    agg[e.kind] += 1
-        return dict(agg)
+        if kind is not None:
+            return {kind: self._mem[kind]} if self._mem.get(kind) else {}
+        return dict(self._mem)
 
     def acceptance_rate(self, default: float = 0.5) -> float:
         """완화 수용률(#16). accepted/(accepted+rejected). 표본 없으면 default.
