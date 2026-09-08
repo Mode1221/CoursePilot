@@ -63,3 +63,4 @@ test("삭제한 장소를 되돌리기로 복원한다", async ({ page }) => {
   await page.getByLabel("되돌리기").click();
   await expect(page.getByText(first, { exact: true })).toBeVisible();
 });
+
