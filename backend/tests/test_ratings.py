@@ -39,7 +39,8 @@ def test_rating_endpoint_validates():
 async def test_planner_uses_self_rating():
     rating_store._mem.clear()
     cands = await MockMapService().search_places("성수동", [], limit=6)
-    target = cands[-1]
+    # 낮 시간대에 영업하는 후보로 지정(심야 술집은 기본 시작 시각에 영업 전)
+    target = next(p for p in cands if p.category != "bar")
     for _ in range(5):
         rating_store.submit(target.id, 5)
     c = PlanConstraints(region="성수동", duration_min=180)

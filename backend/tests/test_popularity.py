@@ -48,7 +48,8 @@ async def test_planner_prefers_popular_place(monkeypatch):
     popularity_store._mem.clear()
     cooccurrence_store._mem.clear()
     cands = await MockMapService().search_places("성수동", [], limit=6)
-    popular = cands[-1]  # 임의 장소에 큰 인기 부여
+    # 낮 시간대에 영업하는 후보로 지정(심야 술집은 기본 시작 시각에 영업 전)
+    popular = next(p for p in cands if p.category != "bar")
     popularity_store.bump(popular.id, weight=100)
 
     c = PlanConstraints(region="성수동", duration_min=180)

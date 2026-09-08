@@ -28,6 +28,14 @@ class MapService(ABC):
         """두 장소 간 실제 이동 시간/거리 계산."""
 
 
+# (카테고리, 개점, 마감). 밤 코스도 만들어볼 수 있도록 심야 영업(bar)을 섞는다.
+_MOCK_KINDS = [
+    ("restaurant", 11, 22),
+    ("cafe", 10, 22),
+    ("bar", 18, 2),
+]
+
+
 class MockMapService(MapService):
     """개발/테스트용. 결정론적 더미 데이터를 반환한다."""
 
@@ -37,20 +45,22 @@ class MockMapService(MapService):
         base_lat, base_lng = 37.5445, 127.0557  # 성수동 근방
         places: list[Place] = []
         for i in range(limit):
+            category, open_h, close_h = _MOCK_KINDS[i % len(_MOCK_KINDS)]
             places.append(
                 Place(
                     id=f"mock-{region}-{i}",
                     name=f"{region} 장소 {i + 1}",
-                    category="cafe" if i % 2 else "restaurant",
+                    category=category,
                     address=f"{region} 어딘가 {i + 1}",
                     lat=base_lat + i * 0.001,
                     lng=base_lng + i * 0.001,
                     rating=4.0 + (i % 5) * 0.1,
                     price=10_000 + (i % 5) * 5_000,  # 1만~3만원
-                    open_time=time(10, 0),
-                    close_time=time(22, 0),
-                    break_start=time(15, 0) if i % 3 == 0 else None,
-                    break_end=time(17, 0) if i % 3 == 0 else None,
+                    open_time=time(open_h, 0),
+                    close_time=time(close_h, 0),
+                    # 브레이크는 낮 영업 식당에만 (술집은 해당 없음)
+                    break_start=time(15, 0) if category == "restaurant" and i % 3 == 0 else None,
+                    break_end=time(17, 0) if category == "restaurant" and i % 3 == 0 else None,
                 )
             )
         return places
