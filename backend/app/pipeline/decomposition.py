@@ -36,6 +36,10 @@ _BUDGET_MAN_RE = re.compile(r"(\d+)\s*만\s*(?:(\d)\s*천)?\s*원")
 _BUDGET_WON_RE = re.compile(r"(\d{4,})\s*원")
 # 인원수: "4명", "3인" / 숫자 없이 쓰는 표현도 함께 본다
 _PARTY_RE = re.compile(r"(\d{1,2})\s*(?:명|인)(?!분)")
+# "술집 빼고", "매운 거 말고" 처럼 제외를 뜻하는 표현
+_EXCLUDE_RE = re.compile(
+    r"([가-힣]{2,6}?)\s*(?:은|는|을|를|이|가|거|건)?\s*(?:빼고|제외하고|제외|말고|없이)"
+)
 _STOP_NUM_RE = re.compile(r"(\d)\s*(?:차|군데|곳)")
 _STOP_WORDS = {"한 곳": 1, "한곳": 1, "두 곳": 2, "두곳": 2, "두 군데": 2, "세 곳": 3, "세곳": 3, "세 군데": 3, "네 곳": 4, "네곳": 4}
 _PARTY_WORDS = {"혼자": 1, "둘이": 2, "두명": 2, "셋이": 3, "세명": 3, "넷이": 4, "네명": 4}
@@ -238,5 +242,8 @@ def parse_constraints(text: str, today: date | None = None) -> PlanConstraints:
             c.companion = label
             break
 
-    c.keywords = [k for k in _SOFT_KEYWORDS if k in text]
+    # 제외 조건: "술집 빼고" → 해당 표현은 소프트 키워드에서 빼고 감점 대상으로 남긴다
+    c.exclude_keywords = [m.group(1) for m in _EXCLUDE_RE.finditer(text)]
+    excluded = set(c.exclude_keywords)
+    c.keywords = [k for k in _SOFT_KEYWORDS if k in text and k not in excluded]
     return c

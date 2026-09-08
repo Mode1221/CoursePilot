@@ -88,6 +88,10 @@ def score_place(
     if comp_kw and any(k in haystack for k in comp_kw):
         score += 0.15
 
+    # 제외 조건: 사용자가 빼달라고 한 성격이면 크게 감점(하드에 가까운 소프트 제약)
+    if any(k.lower() in haystack for k in constraints.exclude_keywords):
+        score -= 0.5
+
     # 인원수 컨텍스트: 대인원은 단체석, 소수는 조용한 자리 쪽이 실패가 적다
     party_kw = _party_keywords(constraints.party_size)
     if party_kw and any(k in haystack for k in party_kw):
