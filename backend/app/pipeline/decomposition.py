@@ -20,6 +20,14 @@ _TIME_OF_DAY_RE = re.compile(r"(새벽|아침|점심|낮|오후|저녁|밤)")
 # 12시간제에서 오후로 해석해야 하는 표현
 _PM_WORDS = {"오후", "저녁", "밤", "낮"}
 _DURATION_RE = re.compile(r"(\d{1,2})\s*시간\s*(반)?")
+# "저녁 7시부터 10시까지" 같은 범위 표현
+_RANGE_RE = re.compile(
+    r"(오전|오후|아침|점심|낮|저녁|밤|새벽)?\s*(\d{1,2})\s*시\s*(?:\d{1,2}\s*분)?\s*"
+    r"(?:부터|에서|~|-|–)\s*"
+    r"(오전|오후|아침|점심|낮|저녁|밤|새벽)?\s*(\d{1,2})\s*시(?:\s*(\d{1,2})\s*분)?\s*(?:까지)?"
+)
+# 시간 표현 관용구 → 소요 시간(분)
+_DURATION_WORDS = {"반나절": 240, "하루 종일": 480, "하루종일": 480}
 _TRAVEL_RE = re.compile(r"(도보|차량|대중교통)?\s*(\d{1,3})\s*분")
 # "3만원", "3만 5천원" 은 만원, 그 외 "20000원" 은 원 단위
 _BUDGET_MAN_RE = re.compile(r"(\d+)\s*만\s*(?:(\d)\s*천)?\s*원")
@@ -59,6 +67,27 @@ _KNOWN_REGIONS = sorted(
 )
 
 
+def _to_24h(hour: int, marker: str | None) -> int:
+    """12시간제 표현을 24시간제로. 마커가 없으면 입력을 그대로 존중한다."""
+    if marker in _PM_WORDS and hour < 12:
+        return hour + 12
+    if marker in ("오전", "아침") and hour == 12:
+        return 0
+    return hour
+
+
+def _end_hour(hour: int, marker: str | None, start_marker: str | None, start_h: int) -> int:
+    """종료 시각 해석. 표시가 없으면 시작의 시간대를 물려받되,
+    그렇게 하면 구간이 거꾸로 되는 경우("밤 10시부터 1시까지")에는 물려받지 않는다.
+    """
+    if marker:
+        return _to_24h(hour, marker)
+    inherited = _to_24h(hour, start_marker)
+    if inherited > start_h:
+        return inherited
+    return hour  # 자정을 넘긴 것으로 보고 그대로(다음 날) 해석
+
+
 def parse_constraints(text: str) -> PlanConstraints:
     """규칙 기반 조건 추출. LLM 폴백/오프라인 개발용."""
     c = PlanConstraints()
@@ -88,15 +117,36 @@ def parse_constraints(text: str) -> PlanConstraints:
         if tod:
             c.start_time = time(_TIME_OF_DAY[tod.group(1)], 0)
 
+    # 범위 표현("7시부터 10시까지")이면 종료 시각까지 함께 잡는다
+    rm = _RANGE_RE.search(text)
+    if rm:
+        start_h = _to_24h(int(rm.group(2)), rm.group(1))
+        end_h = _end_hour(int(rm.group(4)), rm.group(3), rm.group(1), start_h)
+        end_min = int(rm.group(5)) if rm.group(5) else 0
+        c.start_time = time(start_h, c.start_time.minute if c.start_time else 0)
+        c.end_time = time(end_h % 24, min(end_min, 59))
+        span = (end_h * 60 + end_min) - (start_h * 60)
+        c.duration_min = span if span > 0 else span + 24 * 60
+
     # 소요 시간 → 종료 시각 (N시간 / N시간 반)
     dm = _DURATION_RE.search(text)
-    if dm:
+    if dm and not rm:
         c.duration_min = int(dm.group(1)) * 60 + (30 if dm.group(2) else 0)
         if c.start_time:
             total = c.start_time.hour * 60 + c.start_time.minute + c.duration_min
             # 자정을 넘기면 시각으로 절단하지 않고 종료 미지정(같은 날 내 열림)으로 둔다.
             if total < 24 * 60:
                 c.end_time = time(total // 60, total % 60)
+
+    if c.duration_min is None:
+        for word, minutes in _DURATION_WORDS.items():
+            if word in text:
+                c.duration_min = minutes
+                if c.start_time:
+                    total = c.start_time.hour * 60 + c.start_time.minute + minutes
+                    if total < 24 * 60:
+                        c.end_time = time(total // 60, total % 60)
+                break
 
     # 이동수단 + 이동시간 상한
     tm = _TRAVEL_RE.search(text)
