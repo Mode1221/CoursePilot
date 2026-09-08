@@ -21,10 +21,22 @@ export default function ShareView({ id }: { id: string }) {
   const [saved, setSaved] = useState(false);
 
   useEffect(() => {
+    // 다른 공유 링크로 이동하면 이전 응답이 늦게 와 남지 않도록 무시한다
+    let cancelled = false;
     setNotFound(false);
     load();
-    api.getCourse(id).then(setCourse).catch(() => setNotFound(true));
+    api
+      .getCourse(id)
+      .then((course) => {
+        if (!cancelled) setCourse(course);
+      })
+      .catch(() => {
+        if (!cancelled) setNotFound(true);
+      });
     api.view(id).catch(() => {}); // 열람 신호(#5)
+    return () => {
+      cancelled = true;
+    };
   }, [id, setCourse, setNotFound, load]);
 
   if (notFound) {
