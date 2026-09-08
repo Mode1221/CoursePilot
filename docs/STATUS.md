@@ -55,6 +55,7 @@
 ## 3-2. 관측성
 - ✅ `GET /admin/metrics` — 라우트별 요청 수·4xx/5xx·p50/p95, 외부 연동 폴백 비율(externals: 지도·리뷰·LLM)
 - ✅ `GET /admin/signals` — 학습 신호 관측 (둘 다 ADMIN_TOKEN 필요)
+- ✅ 요청 ID(`X-Request-Id`) 발급·반환, 2초 이상 요청은 warning 로깅
 
 ## 4. 데이터 학습 신호 (docs/DATA_STRATEGY.md) — 전부 ✅
 - 채택·북마크·생존율·교체 음의신호
