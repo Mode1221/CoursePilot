@@ -26,8 +26,18 @@ def stay_minutes(place: Place) -> int:
     return 60  # 카페·전시·기타
 
 
+def _is_overnight(place: Place) -> bool:
+    """새벽에 닫는 영업시간(예: 18:00~02:00)인지."""
+    return bool(place.open_time and place.close_time and place.close_time <= place.open_time)
+
+
 def is_open_at(place: Place, t: time) -> bool:
     """해당 시각에 영업 중인지 (영업시간 + 브레이크 타임 반영)."""
+    if _is_overnight(place):
+        # 자정을 넘겨 영업: 개점 이후이거나 마감 이전(다음 날 새벽)이면 영업 중
+        if not (t >= place.open_time or t < place.close_time):
+            return False
+        return not _overlaps_break(t, place)
     if place.open_time and t < place.open_time:
         return False
     if place.close_time and t >= place.close_time:
@@ -42,7 +52,13 @@ def is_open_during(place: Place, arrive: time, depart: time) -> bool:
     """
     if not is_open_at(place, arrive):
         return False
-    if place.close_time and depart > place.close_time:
+    if _is_overnight(place):
+        # 새벽 마감: 출발 시각도 영업 구간 안이어야 하고, 체류가 하루를 넘지 않아야 한다
+        if not (depart > arrive or depart <= place.close_time):
+            return False
+        if depart > arrive and depart > place.close_time and depart <= place.open_time:
+            return False
+    elif place.close_time and depart > place.close_time:
         return False  # 체류가 폐점 시각을 넘김
     if place.break_start and place.break_end:
         # 체류 구간이 브레이크 시작과 겹치면 폐기 (arrive < break_start < depart)
