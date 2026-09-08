@@ -16,14 +16,25 @@ def _overlaps_break(t: time, place: Place) -> bool:
     return False
 
 
-def stay_minutes(place: Place) -> int:
-    """카테고리별 기본 체류시간. 식당은 길게, 카페/전시는 보통."""
+LARGE_PARTY = 5  # 이 인원부터 주문·자리 잡기에 시간이 더 걸린다
+LARGE_PARTY_EXTRA_MIN = 20
+
+
+def stay_minutes(place: Place, party_size: int | None = None) -> int:
+    """카테고리별 기본 체류시간. 식당은 길게, 카페/전시는 보통.
+
+    대인원은 주문·계산에 시간이 더 걸리므로 여유를 더한다.
+    """
     cat = (place.category or "").lower()
     if any(k in cat for k in ("restaurant", "식당", "음식", "고기", "한식", "일식", "중식")):
-        return 90
-    if any(k in cat for k in ("bar", "술", "펍", "포차")):
-        return 120
-    return 60  # 카페·전시·기타
+        base = 90
+    elif any(k in cat for k in ("bar", "술", "펍", "포차")):
+        base = 120
+    else:
+        base = 60  # 카페·전시·기타
+    if party_size is not None and party_size >= LARGE_PARTY:
+        base += LARGE_PARTY_EXTRA_MIN
+    return base
 
 
 def _is_overnight(place: Place) -> bool:
@@ -108,7 +119,7 @@ async def build_timeline(
             arrive_dt = cursor + timedelta(minutes=route.duration_min)
 
         arrive = arrive_dt.time()
-        depart_dt = arrive_dt + timedelta(minutes=stay_minutes(place))
+        depart_dt = arrive_dt + timedelta(minutes=stay_minutes(place, constraints.party_size))
         if not is_open_during(place, arrive, depart_dt.time()):
             continue  # 도착~출발 체류가 영업시간/브레이크 위반 → 폐기 (cursor 유지)
 
