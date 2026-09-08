@@ -255,9 +255,13 @@ async def purchase_points(
         if payment_ledger.is_used(req.imp_uid):
             # 같은 결제로 반복 충전(리플레이) 차단
             raise HTTPException(status_code=409, detail="이미 처리된 결제입니다")
+        from app.metrics import metrics_store
+
         try:
             result = await pay.verify(req.imp_uid)
+            metrics_store.record_external("payment.verify", ok=True)
         except Exception:
+            metrics_store.record_external("payment.verify", ok=False)
             raise HTTPException(status_code=502, detail="결제 검증에 실패했습니다") from None
         expected = req.points * settings.point_price_krw
         if not result.paid or result.amount < expected:
