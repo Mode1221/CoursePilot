@@ -87,7 +87,27 @@ def score_place(
     comp_kw = _COMPANION_KEYWORDS.get(constraints.companion or "", ())
     if comp_kw and any(k in haystack for k in comp_kw):
         score += 0.15
+
+    # 인원수 컨텍스트: 대인원은 단체석, 소수는 조용한 자리 쪽이 실패가 적다
+    party_kw = _party_keywords(constraints.party_size)
+    if party_kw and any(k in haystack for k in party_kw):
+        score += 0.1
     return score
+
+
+LARGE_PARTY = 5  # 이 인원부터는 단체석 여부가 중요해진다
+_LARGE_PARTY_KEYWORDS = ("룸", "단체", "홀", "연회", "코스")
+_SMALL_PARTY_KEYWORDS = ("카운터", "조용", "아담")
+
+
+def _party_keywords(party_size: int | None) -> tuple[str, ...]:
+    if party_size is None:
+        return ()
+    if party_size >= LARGE_PARTY:
+        return _LARGE_PARTY_KEYWORDS
+    if party_size <= 2:
+        return _SMALL_PARTY_KEYWORDS
+    return ()
 
 
 # 동행유형별 선호 특성(이름/카테고리에 등장 시 가점)
