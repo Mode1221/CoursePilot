@@ -71,5 +71,6 @@ class PlanConstraints(BaseModel):
     max_travel_min: int | None = None
     travel_mode: TravelMode = TravelMode.WALK
     budget_max: int | None = None  # 하드 제약
+    party_size: int | None = None  # 인원수
     companion: str | None = None  # 동행유형: 데이트/친구/가족/회식/혼자 (컨텍스트 신호)
     keywords: list[str] = Field(default_factory=list)  # 조용한, 비건 등 소프트 제약

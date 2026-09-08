@@ -23,7 +23,8 @@ _PARAMS = {
         "duration_min": {"type": "integer"},
         "max_travel_min": {"type": "integer"},
         "travel_mode": {"type": "string", "enum": ["walk", "car", "transit"]},
-        "budget_max": {"type": "integer", "description": "원 단위 하드 제약"},
+        "budget_max": {"type": "integer", "description": "1인 기준 원 단위 하드 제약"},
+        "party_size": {"type": "integer", "description": "참여 인원수"},
         "keywords": {"type": "array", "items": {"type": "string"}},
     },
 }
@@ -100,7 +101,7 @@ async def _decompose_openai(text: str) -> dict | None:
 def _to_constraints(args: dict, text: str) -> PlanConstraints:
     base = parse_constraints(text)  # 규칙 기반 결과를 기본값으로, LLM 값으로 덮어쓰기
     data = base.model_dump()
-    for key in ("region", "duration_min", "max_travel_min", "budget_max"):
+    for key in ("region", "duration_min", "max_travel_min", "budget_max", "party_size"):
         if args.get(key) is not None:
             data[key] = args[key]
     if args.get("keywords"):
