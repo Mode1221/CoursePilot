@@ -1,6 +1,6 @@
-"""LLM 연동. Function Calling 기반 조건 분해 (7-1).
+"""LLM 연동. 도구 호출(Function/Tool Calling) 기반 조건 분해 (7-1).
 
-OPENAI_API_KEY 가 없으면 규칙 기반 파서로 폴백한다.
+기본 프로바이더는 Anthropic Claude Haiku 4.5. 키 없거나 실패 시 규칙 기반 파서로 폴백.
 모델 역할은 "문장 파싱 + 도구 호출"로 한정 — 사실 정보는 API가 제공(할루시네이션 차단).
 """
 from __future__ import annotations
@@ -11,51 +11,90 @@ from app.config import settings
 from app.pipeline.decomposition import parse_constraints
 from app.schemas import PlanConstraints, TravelMode
 
-_TOOL = {
+_SYSTEM = "모임/데이트 코스 조건 추출기. 사용자 문장에 명시된 값만 채운다."
+_TOOL_NAME = "set_constraints"
+# 도구 파라미터 스키마(프로바이더 공통 JSON Schema)
+_PARAMS = {
+    "type": "object",
+    "properties": {
+        "region": {"type": "string", "description": "지역명 예: 성수동"},
+        "start_time": {"type": "string", "description": "HH:MM 24시간"},
+        "end_time": {"type": "string", "description": "HH:MM 24시간"},
+        "duration_min": {"type": "integer"},
+        "max_travel_min": {"type": "integer"},
+        "travel_mode": {"type": "string", "enum": ["walk", "car", "transit"]},
+        "budget_max": {"type": "integer", "description": "원 단위 하드 제약"},
+        "keywords": {"type": "array", "items": {"type": "string"}},
+    },
+}
+# OpenAI Function Calling 포맷
+_OPENAI_TOOL = {
     "type": "function",
     "function": {
-        "name": "set_constraints",
+        "name": _TOOL_NAME,
         "description": "사용자 문장에서 모임 코스 조건을 추출한다.",
-        "parameters": {
-            "type": "object",
-            "properties": {
-                "region": {"type": "string", "description": "지역명 예: 성수동"},
-                "start_time": {"type": "string", "description": "HH:MM 24시간"},
-                "end_time": {"type": "string", "description": "HH:MM 24시간"},
-                "duration_min": {"type": "integer"},
-                "max_travel_min": {"type": "integer"},
-                "travel_mode": {"type": "string", "enum": ["walk", "car", "transit"]},
-                "budget_max": {"type": "integer", "description": "원 단위 하드 제약"},
-                "keywords": {"type": "array", "items": {"type": "string"}},
-            },
-        },
+        "parameters": _PARAMS,
     },
+}
+# Anthropic Tool Use 포맷
+_ANTHROPIC_TOOL = {
+    "name": _TOOL_NAME,
+    "description": "사용자 문장에서 모임 코스 조건을 추출한다.",
+    "input_schema": _PARAMS,
 }
 
 
 async def decompose(text: str) -> PlanConstraints:
     """자연어 → PlanConstraints. 키 없거나 실패 시 규칙 기반 폴백."""
+    try:
+        if settings.llm_provider == "openai":
+            args = await _decompose_openai(text)
+        else:
+            args = await _decompose_anthropic(text)
+    except Exception:
+        args = None
+    if args is None:
+        return parse_constraints(text)
+    return _to_constraints(args, text)
+
+
+async def _decompose_anthropic(text: str) -> dict | None:
+    from app.llm_client import get_anthropic_client
+
+    client = get_anthropic_client()
+    if client is None:
+        return None
+    resp = await client.messages.create(
+        model=settings.anthropic_model,
+        max_tokens=512,
+        system=_SYSTEM,
+        tools=[_ANTHROPIC_TOOL],
+        tool_choice={"type": "tool", "name": _TOOL_NAME},
+        messages=[{"role": "user", "content": text}],
+    )
+    for block in resp.content:
+        if block.type == "tool_use" and block.name == _TOOL_NAME:
+            return dict(block.input)
+    return None
+
+
+async def _decompose_openai(text: str) -> dict | None:
     from app.llm_client import get_openai_client
 
     client = get_openai_client()
     if client is None:
-        return parse_constraints(text)
-
-    try:
-        resp = await client.chat.completions.create(
-            model=settings.openai_model,
-            messages=[
-                {"role": "system", "content": "모임/데이트 코스 조건 추출기. 명시된 값만 채운다."},
-                {"role": "user", "content": text},
-            ],
-            tools=[_TOOL],
-            tool_choice={"type": "function", "function": {"name": "set_constraints"}},
-        )
-        call = resp.choices[0].message.tool_calls[0]
-        args = json.loads(call.function.arguments)
-        return _to_constraints(args, text)
-    except Exception:
-        return parse_constraints(text)
+        return None
+    resp = await client.chat.completions.create(
+        model=settings.openai_model,
+        messages=[
+            {"role": "system", "content": _SYSTEM},
+            {"role": "user", "content": text},
+        ],
+        tools=[_OPENAI_TOOL],
+        tool_choice={"type": "function", "function": {"name": _TOOL_NAME}},
+    )
+    call = resp.choices[0].message.tool_calls[0]
+    return json.loads(call.function.arguments)
 
 
 def _to_constraints(args: dict, text: str) -> PlanConstraints:
