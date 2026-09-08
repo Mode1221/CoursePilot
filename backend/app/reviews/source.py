@@ -123,9 +123,14 @@ class SafeReviewSource(ReviewSource):
         self._fallback = fallback
 
     async def fetch(self, place_name: str, limit: int = 10) -> list[RawReview]:
+        from app.metrics import metrics_store
+
         try:
-            return await self._primary.fetch(place_name, limit)
+            reviews = await self._primary.fetch(place_name, limit)
+            metrics_store.record_external("reviews.fetch", ok=True)
+            return reviews
         except Exception:
+            metrics_store.record_external("reviews.fetch", ok=False)
             return await self._fallback.fetch(place_name, limit)
 
 

@@ -27,9 +27,26 @@ def _percentile(values: list[float], pct: float) -> float:
     return round(ordered[idx], 1)
 
 
+@dataclass
+class ExternalStat:
+    """외부 어댑터 호출 결과. 폴백 비율이 곧 외부 연동 건강도다."""
+
+    ok: int = 0
+    fallback: int = 0
+
+
 class MetricsStore:
     def __init__(self) -> None:
         self._routes: dict[str, RouteStat] = defaultdict(RouteStat)
+        self._externals: dict[str, ExternalStat] = defaultdict(ExternalStat)
+
+    def record_external(self, name: str, ok: bool) -> None:
+        """외부 호출 1건 기록. ok=False 면 폴백으로 처리된 호출."""
+        stat = self._externals[name]
+        if ok:
+            stat.ok += 1
+        else:
+            stat.fallback += 1
 
     def record(self, key: str, status: int, elapsed_ms: float) -> None:
         stat = self._routes[key]
@@ -58,14 +75,29 @@ class MetricsStore:
         routes.sort(key=lambda r: -r["count"])
         total = sum(r["count"] for r in routes)
         errors = sum(r["errors"] for r in routes)
+        externals = [
+            {
+                "name": name,
+                "ok": stat.ok,
+                "fallback": stat.fallback,
+                "fallback_rate": (
+                    round(stat.fallback / (stat.ok + stat.fallback), 4)
+                    if (stat.ok + stat.fallback)
+                    else 0.0
+                ),
+            }
+            for name, stat in sorted(self._externals.items())
+        ]
         return {
             "total_requests": total,
             "error_rate": round(errors / total, 4) if total else 0.0,
             "routes": routes,
+            "externals": externals,
         }
 
     def clear(self) -> None:
         self._routes.clear()
+        self._externals.clear()
 
 
 metrics_store = MetricsStore()

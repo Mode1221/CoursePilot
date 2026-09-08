@@ -91,16 +91,27 @@ class SafeMapService(MapService):
         self._fallback = fallback
 
     async def search_places(self, region, keywords, limit=10):
+        from app.metrics import metrics_store
+
         try:
             result = await self._primary.search_places(region, keywords, limit)
-            return result or await self._fallback.search_places(region, keywords, limit)
+            if result:
+                metrics_store.record_external("map.search_places", ok=True)
+                return result
         except Exception:
-            return await self._fallback.search_places(region, keywords, limit)
+            pass
+        metrics_store.record_external("map.search_places", ok=False)
+        return await self._fallback.search_places(region, keywords, limit)
 
     async def get_route(self, origin, dest, mode):
+        from app.metrics import metrics_store
+
         try:
-            return await self._primary.get_route(origin, dest, mode)
+            route = await self._primary.get_route(origin, dest, mode)
+            metrics_store.record_external("map.get_route", ok=True)
+            return route
         except Exception:
+            metrics_store.record_external("map.get_route", ok=False)
             return await self._fallback.get_route(origin, dest, mode)
 
 
