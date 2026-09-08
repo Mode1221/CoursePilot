@@ -10,6 +10,7 @@ from datetime import date, datetime, timedelta
 from app.schemas import Course
 
 PRODID = "-//CoursePilot//KO"
+ALARM_MINUTES_BEFORE = 30  # 첫 장소 도착 30분 전 알림
 
 
 def _escape(text: str) -> str:
@@ -76,6 +77,15 @@ def to_ics(course: Course, day: date | None = None, now: datetime | None = None)
             f"DTEND:{_stamp(end)}",
             _fold(f"SUMMARY:{_escape(item.place.name)}"),
         ]
+        if i == 0:
+            # 첫 장소만 알림(모든 칸에 알림이 울리면 성가시다)
+            lines += [
+                "BEGIN:VALARM",
+                "ACTION:DISPLAY",
+                f"TRIGGER:-PT{ALARM_MINUTES_BEFORE}M",
+                _fold(f"DESCRIPTION:{_escape(course.title)} 곧 시작해요"),
+                "END:VALARM",
+            ]
         if item.place.address:
             lines.append(_fold(f"LOCATION:{_escape(item.place.address)}"))
         if item.travel_to_next:
