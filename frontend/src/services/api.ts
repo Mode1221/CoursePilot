@@ -55,6 +55,10 @@ export const api = {
   generate: (id: string, text: string, userId?: string) =>
     request<GenerateResponse>(`/courses/${id}/generate`, { method: "POST", body: { text }, userId }),
 
+  // 완화 동의 후 재시도(크레딧 미소모)
+  relax: (id: string, userId?: string) =>
+    request<GenerateResponse>(`/courses/${id}/relax`, { method: "POST", userId }),
+
   signup: (phone: string) =>
     request<{ user_id: string; credits_left: number }>("/signup", { method: "POST", body: { phone } }),
 

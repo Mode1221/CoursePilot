@@ -344,6 +344,51 @@ class GenerateResponse(BaseModel):
     needs_confirmation: bool  # 완화로도 부족 → 사용자 확인 필요 (7-4)
 
 
+@api.post("/courses/{course_id}/relax", response_model=GenerateResponse)
+async def relax(course_id: str, x_user_id: str | None = Header(default=None)) -> GenerateResponse:
+    """"조건을 완화해도 좋다"는 답변에 대한 재시도.
+
+    직전 요청 문장을 그대로 다시 쓰되 완화를 강제한다. 사용자가 새 질문을 한 게
+    아니므로 크레딧은 차감하지 않는다.
+    """
+    if store.get(course_id) is None:
+        raise HTTPException(status_code=404, detail="course not found")
+    if x_user_id is None:
+        raise HTTPException(status_code=403, detail="AI 챗봇은 생성자만 사용할 수 있습니다")
+    last_user_text = next(
+        (m.text for m in reversed(chat_store.list(course_id)) if m.role == "user"), None
+    )
+    if last_user_text is None:
+        raise HTTPException(status_code=400, detail="완화할 이전 요청이 없습니다")
+
+    async def action() -> GenerateResponse:
+        course = store.get(course_id)
+        if course is None:
+            raise HTTPException(status_code=404, detail="course not found")
+        course.locked = True
+        await broadcast_lock(course_id, True)
+        try:
+            result = await generate_course(
+                last_user_text, get_map_service(), None, None, force_relax=True
+            )
+            course.items = result.timeline
+            if result.constraints.region:
+                course.region = result.constraints.region
+        finally:
+            course.locked = False
+            store.save(course)
+            await broadcast_lock(course_id, False)
+        ai_text = _ai_reply(course, True, result.needs_confirmation)
+        chat_store.append(course_id, "ai", ai_text)
+        await broadcast_state(course_id, course.model_dump(mode="json"))
+        await broadcast_message(course_id, "ai", ai_text)
+        return GenerateResponse(
+            course=course, relaxed=True, needs_confirmation=result.needs_confirmation
+        )
+
+    return await queues.run(course_id, action)
+
+
 @api.post("/courses/{course_id}/generate", response_model=GenerateResponse)
 async def generate(
     course_id: str,

@@ -92,10 +92,24 @@ export default function ChatPanel({ courseId }: { courseId: string }) {
   async function relaxFeedback(accepted: boolean) {
     setConfirmRelax(false);
     api.feedback(courseId, accepted ? "relax_accepted" : "relax_rejected").catch(() => {});
-    if (accepted) {
-      setNotice("완화된 조건으로 진행합니다.");
-    } else {
+    if (!accepted) {
       setNotice("조건을 다시 입력해 주세요.");
+      return;
+    }
+    setNotice("조건을 완화해 다시 찾는 중이에요…");
+    setSending(true);
+    try {
+      const res = await api.relax(courseId, userId ?? undefined);
+      setCourse(res.course);
+      setNotice(
+        res.needs_confirmation
+          ? "완화해도 장소가 부족해요. 지역이나 시간을 바꿔 보시겠어요?"
+          : "완화된 조건으로 코스를 다시 구성했어요.",
+      );
+    } catch (e) {
+      setError(e instanceof ApiError ? e.message : "재시도 실패");
+    } finally {
+      setSending(false);
     }
   }
 
