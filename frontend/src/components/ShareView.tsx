@@ -6,6 +6,7 @@ import MapPanel from "@/components/MapPanel";
 import NotFound from "@/components/NotFound";
 import { Button } from "@/components/ui";
 import { api } from "@/services/api";
+import { saveCalendar } from "@/services/calendar";
 import { useCourseStore } from "@/store/courseStore";
 import { toast } from "@/store/toastStore";
 import { useUserStore } from "@/store/userStore";
@@ -53,11 +54,21 @@ export default function ShareView({ id }: { id: string }) {
         }}
       >
         <strong>공유된 코스</strong>
-        {userId && (
-          <Button size="sm" variant={saved ? "secondary" : "primary"} onClick={bookmark} disabled={saved}>
-            {saved ? "북마크됨" : "북마크"}
+        <span style={{ display: "flex", gap: "var(--sp-2)" }}>
+          <Button size="sm" onClick={() => saveCalendar(id)}>
+            캘린더
           </Button>
-        )}
+          {userId && (
+            <Button
+              size="sm"
+              variant={saved ? "secondary" : "primary"}
+              onClick={bookmark}
+              disabled={saved}
+            >
+              {saved ? "북마크됨" : "북마크"}
+            </Button>
+          )}
+        </span>
       </header>
       <MapPanel readOnly />
     </div>
