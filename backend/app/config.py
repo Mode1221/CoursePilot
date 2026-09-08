@@ -34,7 +34,15 @@ class Settings(BaseSettings):
     portone_api_secret: str = ""
     point_price_krw: int = 1000  # 포인트 1개당 가격(결제금액 검증용)
 
+    # 다중 인스턴스 확장: 설정 시 Socket.IO 가 Redis pub/sub 로 인스턴스 간 브로드캐스트.
+    # 미설정이면 단일 프로세스 메모리 매니저(개발/소규모 운영 기본값).
+    redis_url: str = ""
+
     cors_origins: list[str] = ["http://localhost:3000"]
+
+    @property
+    def multi_instance(self) -> bool:
+        return bool(self.redis_url)
 
     @property
     def sms_enabled(self) -> bool:
