@@ -34,6 +34,8 @@ _BUDGET_MAN_RE = re.compile(r"(\d+)\s*만\s*(?:(\d)\s*천)?\s*원")
 _BUDGET_WON_RE = re.compile(r"(\d{4,})\s*원")
 # 인원수: "4명", "3인" / 숫자 없이 쓰는 표현도 함께 본다
 _PARTY_RE = re.compile(r"(\d{1,2})\s*(?:명|인)(?!분)")
+_STOP_NUM_RE = re.compile(r"(\d)\s*(?:차|군데|곳)")
+_STOP_WORDS = {"한 곳": 1, "한곳": 1, "두 곳": 2, "두곳": 2, "두 군데": 2, "세 곳": 3, "세곳": 3, "세 군데": 3, "네 곳": 4, "네곳": 4}
 _PARTY_WORDS = {"혼자": 1, "둘이": 2, "두명": 2, "셋이": 3, "세명": 3, "넷이": 4, "네명": 4}
 # 예산이 "총액"임을 알려주는 표현 (1인 기준으로 나눠서 쓴다)
 _TOTAL_BUDGET_WORDS = ("총", "다 해서", "다해서", "전부", "합쳐서", "모두")
@@ -168,6 +170,13 @@ def parse_constraints(text: str) -> PlanConstraints:
         wm = _BUDGET_WON_RE.search(text)
         if wm:
             c.budget_max = int(wm.group(1))
+
+    # 방문 개수: "2차", "세 군데" 등
+    sm = _STOP_NUM_RE.search(text)
+    if sm:
+        c.stop_count = max(1, min(int(sm.group(1)), 6))
+    else:
+        c.stop_count = next((n for w, n in _STOP_WORDS.items() if w in text), None)
 
     # 인원수
     pm = _PARTY_RE.search(text)

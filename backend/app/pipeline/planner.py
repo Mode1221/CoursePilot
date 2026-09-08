@@ -107,6 +107,8 @@ SLOT_HOURS = 2  # 한 칸(방문+이동)에 대략 2시간
 def desired_slots(constraints: PlanConstraints) -> list[str]:
     dur = constraints.duration_min or 180
     n = max(2, min(4, dur // 90))
+    if constraints.stop_count:  # "2차", "세 군데" 처럼 개수를 직접 말했으면 그 값을 따른다
+        n = max(2, min(4, constraints.stop_count))
     evening = constraints.start_time is not None and constraints.start_time.hour >= 18
     comp = constraints.companion
 
