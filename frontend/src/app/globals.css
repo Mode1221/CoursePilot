@@ -1,0 +1,108 @@
+/* 디자인 토큰 — 색/간격/타이포/반경/그림자 단일 소스.
+   컴포넌트는 인라인 하드코딩 대신 var(--*) 를 사용한다. 다크모드 자동 대응. */
+:root {
+  /* 브랜드 */
+  --brand: #0f9d84;
+  --brand-strong: #0a7d69;
+  --brand-weak: #e6f5f2;
+  --brand-contrast: #ffffff;
+
+  /* 의미색 */
+  --danger: #d0453b;
+  --warn: #b4690e;
+  --accent: #3a6ee0;
+
+  /* 표면·텍스트 */
+  --bg: #ffffff;
+  --bg-subtle: #f6f8fa;
+  --surface: #ffffff;
+  --surface-2: #f2f4f7;
+  --border: #e3e8ee;
+  --text: #16202a;
+  --text-muted: #5c6b7a;
+  --text-faint: #8b98a5;
+
+  /* 간격 (4의 배수) */
+  --sp-1: 4px;  --sp-2: 8px;  --sp-3: 12px; --sp-4: 16px;
+  --sp-5: 20px; --sp-6: 24px; --sp-8: 32px; --sp-12: 48px;
+
+  /* 타이포 */
+  --fs-xs: 12px; --fs-sm: 13px; --fs-md: 15px; --fs-lg: 18px; --fs-xl: 24px; --fs-2xl: 32px;
+  --lh: 1.55;
+
+  /* 반경·그림자·모션 */
+  --r-sm: 6px; --r-md: 10px; --r-lg: 14px; --r-full: 999px;
+  --shadow-1: 0 1px 2px rgba(16, 32, 42, .06), 0 1px 3px rgba(16, 32, 42, .08);
+  --shadow-2: 0 8px 24px rgba(16, 32, 42, .12);
+  --dur: 160ms;
+  --ease: cubic-bezier(.2, .7, .3, 1);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --brand: #2fbfa4;
+    --brand-strong: #46d6ba;
+    --brand-weak: #10322c;
+    --brand-contrast: #05201b;
+
+    --danger: #ff6b60;
+    --warn: #e0a355;
+    --accent: #7aa2f7;
+
+    --bg: #0f1519;
+    --bg-subtle: #141c22;
+    --surface: #182129;
+    --surface-2: #1f2a33;
+    --border: #2a3742;
+    --text: #e8eef4;
+    --text-muted: #a3b1bf;
+    --text-faint: #7d8b99;
+
+    --shadow-1: 0 1px 2px rgba(0, 0, 0, .4);
+    --shadow-2: 0 8px 24px rgba(0, 0, 0, .5);
+  }
+}
+
+* { box-sizing: border-box; }
+
+html, body {
+  margin: 0;
+  padding: 0;
+  background: var(--bg);
+  color: var(--text);
+  font-family: system-ui, -apple-system, "Segoe UI", Roboto, "Noto Sans KR", sans-serif;
+  font-size: var(--fs-md);
+  line-height: var(--lh);
+  -webkit-font-smoothing: antialiased;
+}
+
+h1 { font-size: var(--fs-2xl); line-height: 1.25; margin: 0 0 var(--sp-3); letter-spacing: -.02em; }
+h2 { font-size: var(--fs-xl); line-height: 1.3; margin: 0 0 var(--sp-3); letter-spacing: -.01em; }
+h3 { font-size: var(--fs-lg); margin: 0 0 var(--sp-2); }
+h4 { font-size: var(--fs-md); margin: var(--sp-4) 0 var(--sp-2); color: var(--text-muted); }
+p  { margin: 0 0 var(--sp-3); }
+
+/* 키보드 사용자에게만 또렷한 포커스 링 */
+:focus-visible {
+  outline: 2px solid var(--brand);
+  outline-offset: 2px;
+  border-radius: var(--r-sm);
+}
+
+/* 모션 민감 사용자 배려 */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation-duration: .01ms !important; transition-duration: .01ms !important; }
+}
+
+/* 로딩 스켈레톤 */
+@keyframes cp-shimmer { 0% { background-position: -200% 0; } 100% { background-position: 200% 0; } }
+.cp-skeleton {
+  background: linear-gradient(90deg, var(--surface-2) 25%, var(--border) 37%, var(--surface-2) 63%);
+  background-size: 200% 100%;
+  animation: cp-shimmer 1.4s ease-in-out infinite;
+  border-radius: var(--r-sm);
+}
+
+/* 진입 애니메이션 */
+@keyframes cp-fade-up { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: none; } }
+.cp-enter { animation: cp-fade-up var(--dur) var(--ease); }

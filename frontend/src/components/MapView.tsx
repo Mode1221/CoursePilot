@@ -20,13 +20,13 @@ export default function MapView({
   return (
     <svg
       viewBox={`0 0 ${W} ${H}`}
-      style={{ display: "block", width: "100%", height: 240, background: "#e9eef3", borderRadius: 8 }}
+      style={{ display: "block", width: "100%", height: 240, background: "var(--surface-2)", borderRadius: 8 }}
       role="img"
       aria-label="코스 지도"
     >
       <defs>
         <pattern id="cp-grid" width="40" height="40" patternUnits="userSpaceOnUse">
-          <path d="M40 0H0V40" fill="none" stroke="#dbe2ea" strokeWidth="1" />
+          <path d="M40 0H0V40" fill="none" stroke="var(--border)" strokeWidth="1" />
         </pattern>
       </defs>
       <rect width={W} height={H} fill="url(#cp-grid)" />
@@ -35,7 +35,7 @@ export default function MapView({
         <polyline
           points={pts.map((p) => `${p.x},${p.y}`).join(" ")}
           fill="none"
-          stroke="#0f9d84"
+          stroke="var(--brand)"
           strokeWidth={3}
           strokeDasharray="2 8"
           strokeLinecap="round"
@@ -53,8 +53,8 @@ export default function MapView({
         const w = label.length * 7 + 14;
         return (
           <g key={`leg-${i}`}>
-            <rect x={mx - w / 2} y={my - 11} width={w} height={20} rx={10} fill="#ffffff" stroke="#0f9d84" />
-            <text x={mx} y={my + 3} textAnchor="middle" fontSize={11} fill="#0a6d5c">
+            <rect x={mx - w / 2} y={my - 11} width={w} height={20} rx={10} fill="var(--surface)" stroke="var(--brand)" />
+            <text x={mx} y={my + 3} textAnchor="middle" fontSize={11} fill="var(--brand-strong)">
               {label}
             </text>
           </g>
@@ -63,8 +63,8 @@ export default function MapView({
 
       {pts.map((p, i) => (
         <g key={items[i].place.id} style={{ cursor: "pointer" }} onClick={() => onSelect?.(i)}>
-          <circle cx={p.x} cy={p.y} r={14} fill={pinColor(items[i].place.category)} stroke="#fff" strokeWidth={3} />
-          <text x={p.x} y={p.y + 5} textAnchor="middle" fontSize={13} fill="#fff" fontWeight={700}>
+          <circle cx={p.x} cy={p.y} r={14} fill={pinColor(items[i].place.category)} stroke="var(--surface)" strokeWidth={3} />
+          <text x={p.x} y={p.y + 5} textAnchor="middle" fontSize={13} fill="var(--brand-contrast)" fontWeight={700}>
             {i + 1}
           </text>
         </g>
@@ -74,8 +74,8 @@ export default function MapView({
 }
 
 function pinColor(category?: string | null): string {
-  if (!category) return "#e0533a";
-  return /카페|cafe|디저트|베이커리|빵/i.test(category) ? "#3a6ee0" : "#e0533a";
+  if (!category) return "var(--danger)";
+  return /카페|cafe|디저트|베이커리|빵/i.test(category) ? "var(--accent)" : "var(--danger)";
 }
 
 function project(items: TimelineItem[]): { x: number; y: number }[] {

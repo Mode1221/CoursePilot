@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 
+import { Badge, Button, Input } from "@/components/ui";
 import { api, ApiError } from "@/services/api";
 import { shareService } from "@/services/shareService";
 import { useCourseStore } from "@/store/courseStore";
@@ -15,6 +16,13 @@ const STAGE_LABELS: Record<string, string> = {
   editing: "부분 수정 반영",
   done: "마무리",
 };
+
+// 첫 사용자가 무엇을 입력할지 바로 알 수 있게 하는 예시(클릭 시 입력창에 채움)
+const EXAMPLES = [
+  "토요일 오후 1시 성수동, 3시간, 도보 10분 이내",
+  "금요일 7시 강남역 회식, 4명, 1인 3만원",
+  "일요일 오전 11시 연남동 브런치 데이트",
+];
 
 function stageLabel(stage: string | null): string {
   return stage ? STAGE_LABELS[stage] ?? stage : "";
@@ -42,6 +50,12 @@ export default function ChatPanel({ courseId }: { courseId: string }) {
   useEffect(() => {
     load();
   }, [load]);
+
+  // 랜딩에서 예시로 진입한 경우(?seed=) 입력창을 미리 채워 첫 시작 마찰을 없앤다.
+  useEffect(() => {
+    const seed = new URLSearchParams(window.location.search).get("seed");
+    if (seed) setText(seed);
+  }, []);
 
   useEffect(() => {
     refreshCredits();
@@ -106,85 +120,160 @@ export default function ChatPanel({ courseId }: { courseId: string }) {
   }
 
   return (
-    <div style={{ display: "flex", flexDirection: "column", height: "100%" }}>
-      <div style={{ padding: 12, borderBottom: "1px solid #eee", display: "flex", justifyContent: "space-between" }}>
-        <strong>{course?.title ?? "코스"}</strong>
-        <span style={{ display: "flex", gap: 8 }}>
+    <div style={{ display: "flex", flexDirection: "column", height: "100%", background: "var(--surface)" }}>
+      <header
+        style={{
+          padding: "var(--sp-3) var(--sp-4)",
+          borderBottom: "1px solid var(--border)",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "space-between",
+          gap: "var(--sp-2)",
+        }}
+      >
+        <strong style={{ fontSize: "var(--fs-md)" }}>{course?.title ?? "코스"}</strong>
+        <span style={{ display: "flex", gap: "var(--sp-2)" }}>
           {course != null && course.items.length > 0 && (
-            <button onClick={markCompleted}>다녀왔어요</button>
+            <Button size="sm" onClick={markCompleted}>다녀왔어요</Button>
           )}
-          <button onClick={() => shareService.share(`${window.location.origin}/share/${courseId}`)}>
+          <Button
+            size="sm"
+            variant="primary"
+            onClick={() => shareService.share(`${window.location.origin}/share/${courseId}`)}
+          >
             공유
-          </button>
+          </Button>
         </span>
-      </div>
+      </header>
 
-      <div style={{ flex: 1, padding: 12, overflow: "auto", display: "flex", flexDirection: "column", gap: 8 }}>
+      <div
+        style={{
+          flex: 1,
+          padding: "var(--sp-4)",
+          overflow: "auto",
+          display: "flex",
+          flexDirection: "column",
+          gap: "var(--sp-2)",
+        }}
+      >
         {messages.length === 0 && (
-          <p style={{ color: "#999", fontSize: 13 }}>
-            예: &quot;토요일 오후 1시 성수동, 3시간짜리 코스, 도보 10분 이내&quot;
-          </p>
+          <div style={{ color: "var(--text-muted)", fontSize: "var(--fs-sm)" }}>
+            <p style={{ marginBottom: "var(--sp-2)" }}>이렇게 입력해 보세요</p>
+            <div style={{ display: "flex", flexWrap: "wrap", gap: "var(--sp-2)" }}>
+              {EXAMPLES.map((ex) => (
+                <button
+                  key={ex}
+                  onClick={() => setText(ex)}
+                  style={{
+                    background: "var(--surface-2)",
+                    color: "var(--text)",
+                    border: "1px solid var(--border)",
+                    borderRadius: "var(--r-full)",
+                    padding: "6px 12px",
+                    fontSize: "var(--fs-sm)",
+                    cursor: "pointer",
+                    textAlign: "left",
+                  }}
+                >
+                  {ex}
+                </button>
+              ))}
+            </div>
+          </div>
         )}
+
         {messages.map((m, i) => (
           <div
             key={i}
+            className="cp-enter"
             style={{
               alignSelf: m.role === "user" ? "flex-end" : "flex-start",
               maxWidth: "85%",
-              padding: "8px 11px",
-              borderRadius: 12,
-              fontSize: 14,
-              background: m.role === "user" ? "#0f9d84" : "#f2f4f7",
-              color: m.role === "user" ? "#fff" : "#222",
+              padding: "var(--sp-2) var(--sp-3)",
+              borderRadius: "var(--r-lg)",
+              fontSize: "var(--fs-sm)",
+              background: m.role === "user" ? "var(--brand)" : "var(--surface-2)",
+              color: m.role === "user" ? "var(--brand-contrast)" : "var(--text)",
             }}
           >
             {m.text}
           </div>
         ))}
-        {userId != null && questionsLeft != null && questionsLeft > 0 && (
-          <p style={{ color: "#888", fontSize: 12 }}>질문 {questionsLeft}회 남음</p>
+
+        {locked && (
+          <div className="cp-enter" style={{ display: "flex", alignItems: "center", gap: "var(--sp-2)" }}>
+            <Badge tone="brand">AI 작업 중</Badge>
+            <span style={{ fontSize: "var(--fs-sm)", color: "var(--text-muted)" }}>
+              {stageLabel(stage)} · 편집이 잠깁니다
+            </span>
+          </div>
         )}
-        {userId != null && questionsLeft === 0 && (
-          <p style={{ color: "#c60", fontSize: 12 }}>
-            AI에게 질문하려면 포인트를 구매해주세요.{" "}
-            <button onClick={buyPoints} style={{ fontSize: 12 }}>
-              포인트 구매
-            </button>
+
+        {notice && (
+          <p className="cp-enter" style={{ color: "var(--warn)", fontSize: "var(--fs-sm)", margin: 0 }}>
+            {notice}
           </p>
         )}
-        {userId == null && (
-          <p style={{ color: "#888", fontSize: 12 }}>참여자는 수동 편집만 가능합니다.</p>
-        )}
-        {locked && <p style={{ color: "#c60" }}>AI 처리 중… {stageLabel(stage)} · 편집이 잠깁니다.</p>}
-        {notice && <p style={{ color: "#c60" }}>{notice}</p>}
+
         {confirmRelax && (
-          <div style={{ display: "flex", gap: 8 }}>
-            <button onClick={() => relaxFeedback(true)}>완화 수락</button>
-            <button onClick={() => relaxFeedback(false)}>직접 수정</button>
+          <div style={{ display: "flex", gap: "var(--sp-2)" }}>
+            <Button size="sm" variant="primary" onClick={() => relaxFeedback(true)}>완화 수락</Button>
+            <Button size="sm" onClick={() => relaxFeedback(false)}>직접 수정</Button>
           </div>
         )}
+
         {completed && (
-          <div style={{ display: "flex", gap: 8 }}>
-            <button onClick={() => rateSatisfaction(true)}>👍 만족</button>
-            <button onClick={() => rateSatisfaction(false)}>👎 아쉬움</button>
+          <div style={{ display: "flex", gap: "var(--sp-2)" }}>
+            <Button size="sm" onClick={() => rateSatisfaction(true)}>👍 만족</Button>
+            <Button size="sm" onClick={() => rateSatisfaction(false)}>👎 아쉬움</Button>
           </div>
         )}
-        {error && <p style={{ color: "#c00" }}>{error}</p>}
+
+        {error && (
+          <p className="cp-enter" style={{ color: "var(--danger)", fontSize: "var(--fs-sm)", margin: 0 }}>
+            {error}
+          </p>
+        )}
       </div>
 
-      <div style={{ padding: 12, borderTop: "1px solid #eee", display: "flex", gap: 8 }}>
-        <input
-          value={text}
-          onChange={(e) => setText(e.target.value)}
-          onKeyDown={(e) => e.key === "Enter" && send()}
-          placeholder="조건을 입력하세요"
-          disabled={sending}
-          style={{ flex: 1, padding: 8 }}
-        />
-        <button onClick={send} disabled={sending || locked}>
-          {sending ? "..." : "전송"}
-        </button>
-      </div>
+      <footer style={{ padding: "var(--sp-3) var(--sp-4)", borderTop: "1px solid var(--border)" }}>
+        <div
+          style={{
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "space-between",
+            marginBottom: "var(--sp-2)",
+            fontSize: "var(--fs-xs)",
+            color: "var(--text-muted)",
+            minHeight: 20,
+          }}
+        >
+          {userId != null && questionsLeft != null && questionsLeft > 0 && (
+            <span>질문 {questionsLeft}회 남음</span>
+          )}
+          {userId != null && questionsLeft === 0 && (
+            <span style={{ color: "var(--warn)", display: "flex", alignItems: "center", gap: "var(--sp-2)" }}>
+              질문 횟수를 모두 사용했어요
+              <Button size="sm" variant="ghost" onClick={buyPoints}>포인트 구매</Button>
+            </span>
+          )}
+          {userId == null && <span>참여자는 수동 편집만 가능합니다</span>}
+        </div>
+        <div style={{ display: "flex", gap: "var(--sp-2)" }}>
+          <Input
+            value={text}
+            onChange={(e) => setText(e.target.value)}
+            onKeyDown={(e) => e.key === "Enter" && send()}
+            placeholder="예: 토요일 오후 1시 성수동, 3시간"
+            disabled={sending}
+            aria-label="조건 입력"
+            style={{ flex: 1 }}
+          />
+          <Button variant="primary" onClick={send} disabled={sending || locked}>
+            {sending ? "생성 중…" : "전송"}
+          </Button>
+        </div>
+      </footer>
     </div>
   );
 }

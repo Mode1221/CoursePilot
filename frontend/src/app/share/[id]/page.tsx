@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 
 import MapPanel from "@/components/MapPanel";
 import NotFound from "@/components/NotFound";
+import { Button } from "@/components/ui";
 import { api } from "@/services/api";
 import { useCourseStore } from "@/store/courseStore";
 import { useUserStore } from "@/store/userStore";
@@ -35,13 +36,22 @@ export default function SharePage({ params }: { params: { id: string } }) {
 
   return (
     <div style={{ maxWidth: 640, margin: "0 auto" }}>
-      {userId && (
-        <div style={{ padding: 12, textAlign: "right" }}>
-          <button onClick={bookmark} disabled={saved}>
+      <header
+        style={{
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "space-between",
+          padding: "var(--sp-3) var(--sp-4)",
+          borderBottom: "1px solid var(--border)",
+        }}
+      >
+        <strong>공유된 코스</strong>
+        {userId && (
+          <Button size="sm" variant={saved ? "secondary" : "primary"} onClick={bookmark} disabled={saved}>
             {saved ? "북마크됨" : "북마크"}
-          </button>
-        </div>
-      )}
+          </Button>
+        )}
+      </header>
       <MapPanel readOnly />
     </div>
   );
