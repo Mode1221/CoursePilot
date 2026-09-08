@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { courseStats, formatDuration } from "./courseStats";
+import { courseStats, formatCost, formatDuration } from "./courseStats";
 import type { Course, TimelineItem } from "@/types";
 
 function item(id: string, arrive: string, depart: string, travel?: number): TimelineItem {
@@ -21,7 +21,7 @@ function course(items: TimelineItem[]): Course {
 describe("courseStats", () => {
   it("장소 수·이동시간·총 소요시간을 계산한다", () => {
     const s = courseStats(course([item("a", "13:00", "14:00", 15), item("b", "14:15", "16:00")]));
-    expect(s).toEqual({ places: 2, travelMin: 15, totalMin: 180 });
+    expect(s).toMatchObject({ places: 2, travelMin: 15, totalMin: 180 });
   });
 
   it("자정을 넘기면 하루를 더한다", () => {
@@ -30,7 +30,7 @@ describe("courseStats", () => {
   });
 
   it("빈 코스는 0", () => {
-    expect(courseStats(course([]))).toEqual({ places: 0, travelMin: 0, totalMin: 0 });
+    expect(courseStats(course([]))).toMatchObject({ places: 0, travelMin: 0, totalMin: 0 });
   });
 });
 
@@ -40,4 +40,26 @@ describe("formatDuration", () => {
     expect(formatDuration(120)).toBe("2시간");
     expect(formatDuration(40)).toBe("40분");
   });
+});
+
+it("가격이 있는 장소만 1인 비용으로 합산한다", () => {
+  const course = {
+    id: "c",
+    title: "t",
+    locked: false,
+    items: [
+      { place: { id: "a", name: "A", lat: 0, lng: 0, price: 20000 }, travel_to_next: null },
+      { place: { id: "b", name: "B", lat: 0, lng: 0 }, travel_to_next: null },
+    ],
+  } as unknown as Course;
+  const stats = courseStats(course);
+  expect(stats.costPerPerson).toBe(20000);
+  expect(stats.costKnown).toBe(1);
+});
+
+it("금액을 사람이 읽기 좋게 만든다", () => {
+  expect(formatCost(45000)).toBe("4.5만원");
+  expect(formatCost(20000)).toBe("2만원");
+  expect(formatCost(8000)).toBe("8천원");
+  expect(formatCost(0)).toBeNull();
 });

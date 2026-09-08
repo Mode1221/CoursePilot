@@ -4,6 +4,8 @@ export interface CourseStats {
   places: number;
   travelMin: number; // 구간 이동시간 합
   totalMin: number; // 첫 도착 ~ 마지막 출발
+  costPerPerson: number; // 가격이 있는 장소들의 1인 예상 합계(원)
+  costKnown: number; // 가격 정보를 가진 장소 수
 }
 
 function toMinutes(hhmm: string): number {
@@ -23,7 +25,15 @@ export function courseStats(course: Course): CourseStats {
     totalMin = toMinutes(last) - toMinutes(first);
     if (totalMin < 0) totalMin += 24 * 60; // 자정을 넘긴 코스
   }
-  return { places: items.length, travelMin, totalMin };
+  const priced = items.filter((it) => typeof it.place.price === "number");
+  const costPerPerson = priced.reduce((sum, it) => sum + (it.place.price ?? 0), 0);
+  return {
+    places: items.length,
+    travelMin,
+    totalMin,
+    costPerPerson,
+    costKnown: priced.length,
+  };
 }
 
 /** "3시간 20분" / "40분" */
@@ -32,4 +42,14 @@ export function formatDuration(min: number): string {
   const m = min % 60;
   if (h === 0) return `${m}분`;
   return m === 0 ? `${h}시간` : `${h}시간 ${m}분`;
+}
+
+/** "4.5만원" / "8천원". 0이면 null. */
+export function formatCost(won: number): string | null {
+  if (won <= 0) return null;
+  if (won >= 10_000) {
+    const man = won / 10_000;
+    return `${Number.isInteger(man) ? man : man.toFixed(1)}만원`;
+  }
+  return `${Math.round(won / 1000)}천원`;
 }
