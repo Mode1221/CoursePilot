@@ -13,6 +13,7 @@
    - SMS/결제: `app/adapters/sms.py`, `app/adapters/payment.py` (NHN 응답 header, 포트원 v1 토큰/조회).
 
 ## P1 — 품질·데이터
+0. **자연어 커버리지 확대** — 규칙 파서는 지역·시각·범위·키워드·편집까지 처리(테스트: `tests/test_region_parsing.py`, `test_time_of_day.py`, `test_time_range.py`, `test_soft_keywords.py`, `test_edit_parser_more.py`). 남은 후보: 인원수, 요일/날짜, "N차" 표현.
 3. **리뷰 RAG 고도화** (🟡/⬜) — 약관 준수(요약 금지 소스 구분) 내 데이터 강화.
    - 파일: `app/reviews/{source,rag,embedding,sponsored}.py`, `docs/REVIEW_DATA_SOURCES.md`.
 4. **목적함수 계수 튜닝** — `outcome.py:separation()` / `strategy.py:counts()` / `feedback.acceptance_rate()` 데이터로 `planner.course_score`·`score_place` 가중치 조정. 관측: `GET /admin/signals`.
