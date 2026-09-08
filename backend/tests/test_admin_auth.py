@@ -1,6 +1,7 @@
+from fastapi.testclient import TestClient
+
 import app.main as main
 from app.config import Settings
-from fastapi.testclient import TestClient
 
 client = TestClient(main.app)
 
