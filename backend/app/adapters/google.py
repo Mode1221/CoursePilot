@@ -7,6 +7,7 @@ GOOGLE_MAPS_API_KEY 미설정/실패 시 보강을 건너뛰어 무영향(원본
 from __future__ import annotations
 
 import asyncio
+from functools import lru_cache
 
 import httpx
 
@@ -61,5 +62,7 @@ class GooglePlacesEnricher:
         return float(rating), int(top.get("user_ratings_total") or 0)
 
 
+@lru_cache(maxsize=1)
 def get_places_enricher() -> GooglePlacesEnricher:
+    """싱글턴. 매번 만들면 httpx 클라이언트(커넥션 풀)가 재사용되지 않고 쌓인다."""
     return GooglePlacesEnricher()
