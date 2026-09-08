@@ -13,25 +13,48 @@ from app.config import settings
 
 _CODE_TTL = 300      # 코드 유효 5분
 _VERIFIED_TTL = 1800  # 인증 상태 유지 30분
+MAX_ATTEMPTS = 5     # 코드 시도 횟수 상한(6자리 무차별 대입 차단)
 
 
 class VerificationStore:
     def __init__(self) -> None:
         self._codes: dict[str, tuple[str, float]] = {}      # phone -> (code, expiry)
         self._verified: dict[str, float] = {}                # phone -> expiry
+        self._attempts: dict[str, int] = {}                  # phone -> 남은 시도 수
 
     def issue(self, phone: str) -> str:
+        self._sweep()
         code = f"{secrets.randbelow(1_000_000):06d}"
         self._codes[phone] = (code, _time.time() + _CODE_TTL)
+        self._attempts[phone] = MAX_ATTEMPTS  # 재발급하면 시도 횟수도 초기화
         return code
 
     def verify(self, phone: str, code: str) -> bool:
         entry = self._codes.get(phone)
-        if not entry or entry[1] < _time.time() or entry[0] != code:
+        if not entry or entry[1] < _time.time():
+            self._forget(phone)
             return False
-        del self._codes[phone]
+        if entry[0] != code:
+            # 틀린 시도가 쌓이면 코드를 폐기한다(무차별 대입 차단, 재발급 필요)
+            self._attempts[phone] = self._attempts.get(phone, MAX_ATTEMPTS) - 1
+            if self._attempts[phone] <= 0:
+                self._forget(phone)
+            return False
+        self._forget(phone)
         self._verified[phone] = _time.time() + _VERIFIED_TTL
         return True
+
+    def _forget(self, phone: str) -> None:
+        self._codes.pop(phone, None)
+        self._attempts.pop(phone, None)
+
+    def _sweep(self) -> None:
+        """만료된 코드·인증 상태 정리(무한 증가 방지)."""
+        now = _time.time()
+        for phone in [p for p, (_, exp) in self._codes.items() if exp < now]:
+            self._forget(phone)
+        for phone in [p for p, exp in self._verified.items() if exp < now]:
+            del self._verified[phone]
 
     def is_verified(self, phone: str) -> bool:
         exp = self._verified.get(phone)
