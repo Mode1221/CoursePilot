@@ -29,12 +29,21 @@ class GooglePlacesEnricher:
         """평점 없는 장소만 Google 평점으로 보강. 실패는 개별 무시(부분 보강)."""
         if not self.enabled or not places:
             return places
+        # 이미 평점이 있는 장소까지 조회하면 호출 수·비용만 늘고 결과는 버려진다
+        targets = [p for p in places if p.rating is None]
+        if not targets:
+            return places
         results = await asyncio.gather(
-            *(self._rating_for(p) for p in places), return_exceptions=True
+            *(self._rating_for(p) for p in targets), return_exceptions=True
         )
-        for p, r in zip(places, results, strict=False):
-            if isinstance(r, tuple) and p.rating is None:
+        from app.metrics import metrics_store
+
+        for p, r in zip(targets, results, strict=False):
+            if isinstance(r, tuple):
                 p.rating = r[0]
+                metrics_store.record_external("google.rating", ok=True)
+            else:
+                metrics_store.record_external("google.rating", ok=False)
         return places
 
     async def _rating_for(self, place: Place) -> tuple[float, int] | None:

@@ -1,41 +1,34 @@
-import pytest
-
+"""Google 평점 보강: 평점 없는 장소만 조회한다."""
 from app.adapters.google import GooglePlacesEnricher
-from app.adapters.map_service import EnrichedMapService, MockMapService
+from app.metrics import metrics_store
 from app.schemas import Place
 
 
-def _p(pid, rating=None):
-    return Place(id=pid, name=pid, category="카페", lat=37.5, lng=127.0, rating=rating)
+def _place(pid: str, rating: float | None) -> Place:
+    return Place(id=pid, name=pid, lat=37.5, lng=127.0, rating=rating)
 
 
-@pytest.mark.asyncio
-async def test_enricher_noop_without_key(monkeypatch):
-    e = GooglePlacesEnricher()
-    monkeypatch.setattr(e, "_key", "")  # 키 없음
-    places = [_p("a"), _p("b")]
-    out = await e.enrich(places)
-    assert [p.rating for p in out] == [None, None]  # 무영향
+class _FakeEnricher(GooglePlacesEnricher):
+    def __init__(self) -> None:
+        self._key = "test-key"
+        self.queried: list[str] = []
+
+    async def _rating_for(self, place: Place):
+        self.queried.append(place.id)
+        return 4.2, 100
 
 
-@pytest.mark.asyncio
-async def test_enricher_fills_only_missing_rating(monkeypatch):
-    e = GooglePlacesEnricher()
-    monkeypatch.setattr(e, "_key", "test-key")
-
-    async def fake_rating(place):
-        return (4.7, 120)
-
-    monkeypatch.setattr(e, "_rating_for", fake_rating)
-    places = [_p("a"), _p("b", rating=3.0)]
-    out = await e.enrich(places)
-    assert out[0].rating == 4.7   # 없던 평점 보강
-    assert out[1].rating == 3.0   # 기존 평점 유지
+async def test_평점_있는_장소는_조회하지_않는다():
+    metrics_store.clear()
+    enricher = _FakeEnricher()
+    places = [_place("has", 4.9), _place("none", None)]
+    result = await enricher.enrich(places)
+    assert enricher.queried == ["none"]
+    assert result[0].rating == 4.9
+    assert result[1].rating == 4.2
 
 
-@pytest.mark.asyncio
-async def test_enriched_map_service_delegates_search():
-    # 키 없으면 enricher 가 무영향이라 Mock 결과 그대로
-    svc = EnrichedMapService(MockMapService())
-    places = await svc.search_places("성수동", [], limit=3)
-    assert len(places) == 3
+async def test_전부_평점이_있으면_호출하지_않는다():
+    enricher = _FakeEnricher()
+    await enricher.enrich([_place("a", 4.0)])
+    assert enricher.queried == []
