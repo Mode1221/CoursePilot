@@ -88,3 +88,12 @@ def test_사용분이_없으면_포인트로_환불한다():
     user = store.create("01000000001")
     refunded = store.refund_credit(user.id)
     assert refunded.points == 1
+
+
+def test_같은_번호로_다시_가입하면_기존_계정이다():
+    from app.users import UserStore
+
+    store = UserStore()
+    first = store.create("01055556666")
+    assert store.find_by_phone("01055556666").id == first.id
+    assert store.find_by_phone("01000000999") is None

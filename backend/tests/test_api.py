@@ -1,4 +1,7 @@
+
 """API 계층 통합 테스트 (TestClient, 인메모리 폴백). Socket.IO broadcast 는 no-op."""
+import itertools
+
 import pytest
 from fastapi.testclient import TestClient
 
@@ -10,8 +13,13 @@ def client():
     return TestClient(api)
 
 
+_phone_seq = itertools.count(1)
+
+
 def _signup(client) -> str:
-    return client.post("/signup", json={"phone": "010-0000-0000"}).json()["user_id"]
+    # 같은 번호로 재가입하면 같은 계정(크레딧 유지)이므로 테스트마다 번호를 달리한다
+    phone = f"010-0000-{next(_phone_seq):04d}"
+    return client.post("/signup", json={"phone": phone}).json()["user_id"]
 
 
 def test_participant_cannot_use_ai(client):
