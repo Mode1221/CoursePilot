@@ -144,9 +144,14 @@ class SmsVerifyBody(BaseModel):
 @api.post("/auth/sms/request")
 async def sms_request(req: SmsRequestBody) -> dict:
     """인증번호 발송. 실서비스는 발송만, 개발(키 미설정)은 코드를 응답에 노출."""
-    from app.auth import request_code
+    from app.auth import TooManyRequests, request_code
 
-    dev_code = await request_code(req.phone)
+    try:
+        dev_code = await request_code(req.phone)
+    except TooManyRequests:
+        raise HTTPException(
+            status_code=429, detail="잠시 후 다시 요청해주세요."
+        ) from None
     return {"sent": True, "dev_code": dev_code}  # dev_code 는 SMS 활성 시 null
 
 
