@@ -38,6 +38,6 @@ async def test_embed_dim():
 
 @pytest.mark.asyncio
 async def test_ingest_filters_sponsored_without_db():
-    # Mock 소스 4건 중 협찬 2건 제외 → 2건 통과
+    # Mock 소스 8건 중 협찬 2건 제외 → 6건 통과
     count = await ingest_place_reviews("p1", "테스트카페", db_ready=False)
-    assert count == 2
+    assert count == 6
