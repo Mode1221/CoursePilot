@@ -10,7 +10,7 @@ from dataclasses import dataclass
 from app.adapters.map_service import MapService
 from app.constants import DEFAULT_REGION
 from app.pipeline.llm import decompose
-from app.pipeline.planner import plan_course
+from app.pipeline.planner import desired_slots, plan_course
 from app.schemas import PlanConstraints, TimelineItem
 
 MIN_VALID = 3  # 유효 후보가 이 개수 미만이면 조건 완화
@@ -92,6 +92,8 @@ def _apply_preferences(constraints: PlanConstraints, prefs: dict) -> None:
 
 
 MAX_QUERY_KEYWORDS = 3  # 지역 + 키워드 3개까지만 검색 질의로 전달
+CANDIDATES_PER_SLOT = 6  # 칸마다 이 정도 후보가 있어야 카테고리·영업시간 필터를 견딘다
+MAX_CANDIDATES = 30
 
 
 async def _attempt(
@@ -100,6 +102,8 @@ async def _attempt(
     region = constraints.region or DEFAULT_REGION
     # 검색어가 길수록 결과가 급감하므로 상위 몇 개만 질의에 쓴다(나머지는 스코어링에서 반영).
     query_keywords = constraints.keywords[:MAX_QUERY_KEYWORDS]
-    candidates = await map_service.search_places(region, query_keywords, limit=10)
+    # 칸 수가 많을수록 후보가 더 필요하다(영업시간·카테고리 필터로 상당수가 탈락)
+    limit = min(MAX_CANDIDATES, max(10, len(desired_slots(constraints)) * CANDIDATES_PER_SLOT))
+    candidates = await map_service.search_places(region, query_keywords, limit=limit)
     # 스코어링·카테고리 템플릿·동선·Best-of-N 으로 최적 코스 선택
     return await plan_course(candidates, constraints, map_service)
