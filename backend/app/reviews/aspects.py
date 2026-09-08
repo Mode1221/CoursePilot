@@ -25,7 +25,13 @@ _ASPECTS: list[tuple[str, str, str]] = [
     ("양", r"양\s*(많|푸짐)|푸짐", r"양\s*(적|아쉽)|부족한\s*양"),
 ]
 
-MIN_HITS = 1  # 이 횟수 이상 언급된 태그만 노출
+MIN_HITS = 1  # 최소 언급 횟수(리뷰가 적을 때의 하한)
+MENTION_RATIO = 0.2  # 리뷰 수 대비 이 비율 이상 언급돼야 태그로 인정(1건 잡음 억제)
+
+
+def _threshold(review_count: int) -> int:
+    """리뷰가 많을수록 더 많이 언급된 축만 남긴다."""
+    return max(MIN_HITS, round(review_count * MENTION_RATIO))
 
 
 def extract_aspects(reviews: list[str]) -> tuple[list[str], list[str]]:
@@ -34,14 +40,15 @@ def extract_aspects(reviews: list[str]) -> tuple[list[str], list[str]]:
     한 태그가 양쪽 모두 걸리면 더 많이 언급된 쪽만 남긴다(모순 방지).
     """
     text = "\n".join(reviews)
+    need = _threshold(len(reviews))
     pros: dict[str, int] = {}
     cons: dict[str, int] = {}
     for tag, pos, neg in _ASPECTS:
         p = len(re.findall(pos, text))
         n = len(re.findall(neg, text))
-        if p >= MIN_HITS and p >= n:
+        if p >= need and p > n:
             pros[tag] = p
-        elif n >= MIN_HITS and n > p:
+        elif n >= need and n > p:
             cons[tag] = n
     return _top(pros), _top(cons)
 
