@@ -45,10 +45,13 @@ export default function NaverMapView({
   items,
   clientId,
   onSelect,
+  onFail,
 }: {
   items: TimelineItem[];
   clientId: string;
   onSelect?: (index: number) => void;
+  /** SDK 로드 실패 시 호출(상위에서 SVG 폴백으로 전환). */
+  onFail?: () => void;
 }) {
   const ref = useRef<HTMLDivElement>(null);
 
@@ -79,12 +82,12 @@ export default function NaverMapView({
         }
       })
       .catch(() => {
-        /* 로드 실패: 상위에서 SVG 폴백을 쓰거나 빈 지도 유지 */
+        if (!cancelled) onFail?.(); // 키 오류·네트워크 차단 등: 빈 지도 대신 폴백
       });
     return () => {
       cancelled = true;
     };
-  }, [items, clientId, onSelect]);
+  }, [items, clientId, onSelect, onFail]);
 
   return <div ref={ref} style={{ width: "100%", height: 240, borderRadius: 8, background: "var(--surface-2)" }} aria-label="코스 지도" />;
 }

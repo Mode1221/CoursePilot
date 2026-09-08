@@ -1,5 +1,7 @@
 "use client";
 
+import { useCallback, useState } from "react";
+
 import MapView from "@/components/MapView";
 import NaverMapView from "@/components/NaverMapView";
 import { type TimelineItem } from "@/types";
@@ -14,8 +16,11 @@ export default function MapCanvas({
   items: TimelineItem[];
   onSelect?: (index: number) => void;
 }) {
-  if (NAVER_ID) {
-    return <NaverMapView items={items} clientId={NAVER_ID} onSelect={onSelect} />;
+  const [sdkFailed, setSdkFailed] = useState(false);
+  const onFail = useCallback(() => setSdkFailed(true), []);
+
+  if (NAVER_ID && !sdkFailed) {
+    return <NaverMapView items={items} clientId={NAVER_ID} onSelect={onSelect} onFail={onFail} />;
   }
   return <MapView items={items} onSelect={onSelect} />;
 }
