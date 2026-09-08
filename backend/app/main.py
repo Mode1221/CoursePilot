@@ -810,6 +810,12 @@ async def rate_satisfaction(course_id: str, req: SatisfactionRequest) -> dict:
     return {"ok": True}
 
 
+def _reject_duplicates(place_ids: list[str]) -> None:
+    """같은 장소가 두 번 들어가면 이동시간 0 구간과 신호 왜곡이 생긴다."""
+    if len(set(place_ids)) != len(place_ids):
+        raise HTTPException(status_code=400, detail="같은 장소를 두 번 담을 수 없어요")
+
+
 class ReorderRequest(BaseModel):
     # 원하는 최종 순서. 빠진 id 는 삭제로 처리.
     place_ids: list[str] = Field(max_length=MAX_COURSE_ITEMS)
@@ -821,6 +827,7 @@ async def manual_reorder(course_id: str, req: ReorderRequest) -> Course:
 
     참여자(비로그인)도 가능하므로 인증/크레딧 불필요.
     """
+    _reject_duplicates(req.place_ids)
     if store.get(course_id) is None:
         raise HTTPException(status_code=404, detail="course not found")
 
@@ -925,6 +932,7 @@ async def set_items(course_id: str, req: SetItemsRequest) -> Course:
     현재 코스에 없는 id 는 전역 장소 저장소에서 복원하므로, 삭제한 장소를 되살리는
     되돌리기(undo)도 이 엔드포인트 하나로 처리된다. AI 미호출·무료.
     """
+    _reject_duplicates(req.place_ids)
     if store.get(course_id) is None:
         raise HTTPException(status_code=404, detail="course not found")
 
