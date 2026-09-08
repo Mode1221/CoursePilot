@@ -19,7 +19,8 @@ Next.js+TS+Zustand / FastAPI+PostgreSQL+pgvector / Socket.IO / GPT-4o-mini
 ## 개발 워크플로
 - 브랜치: `main`에서 `claude/<주제>` 파고 작업(직접 push 금지).
 - PR: 브랜치 push → PR 생성 → CI(ruff/eslint/tsc/pytest/vitest/Playwright) 그린 확인 → squash merge.
-- 검증(로컬): 백엔드 `cd backend && python -m pytest -q && ruff check .`, 프론트 `cd frontend && npx tsc --noEmit && npx eslint src --max-warnings 0 && pnpm test`.
+- 검증(로컬): `./scripts/check.sh` (백엔드 pytest·ruff → 프론트 tsc·eslint·vitest·build). E2E까지: `./scripts/check.sh --e2e`.
+  - 파일을 추가한 뒤에도 반드시 다시 실행할 것(새 테스트 파일의 lint 위반이 CI에서만 잡히는 경우가 있음).
 - 외부연동은 키 없으면 폴백 유지(테스트는 키 없는 환경 기준).
 
 ## 인수인계 문서
