@@ -22,7 +22,13 @@ describe("courseToText", () => {
   it("순번·시간·이동수단을 담은 텍스트를 만든다", () => {
     const text = courseToText(course([item("카페", "13:00:00", "14:00:00", 12), item("전시", "14:12:00", "16:00:00")]));
     expect(text).toBe(
-      ["성수동 데이트", "1. 카페 (13:00~14:00)", "   ↳ 도보 12분", "2. 전시 (14:12~16:00)"].join("\n"),
+      [
+        "성수동 데이트",
+        "1. 카페 (13:00~14:00)",
+        "   ↳ 도보 12분",
+        "2. 전시 (14:12~16:00)",
+        "총 소요: 3시간",
+      ].join("\n"),
     );
   });
 
@@ -50,4 +56,18 @@ it("예상 비용 줄을 붙인다", () => {
     ],
   } as unknown as Course;
   expect(courseToText(course)).toContain("예상 비용: 1인 2만원");
+});
+
+describe("총 소요", () => {
+  it("첫 도착~마지막 출발을 붙인다", () => {
+    const course = {
+      id: "c1",
+      title: "성수 코스",
+      items: [
+        { place: { id: "a", name: "A", lat: 0, lng: 0 }, arrive: "13:00", depart: "14:00" },
+        { place: { id: "b", name: "B", lat: 0, lng: 0 }, arrive: "14:20", depart: "16:00" },
+      ],
+    } as never;
+    expect(courseToText(course)).toContain("총 소요: 3시간");
+  });
 });
