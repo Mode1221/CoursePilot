@@ -11,7 +11,7 @@ from app.adapters.map_service import MapService
 from app.constants import DEFAULT_REGION
 from app.pipeline.llm import decompose
 from app.pipeline.planner import desired_slots, plan_course
-from app.schemas import PlanConstraints, TimelineItem
+from app.schemas import Place, PlanConstraints, TimelineItem
 
 MIN_VALID = 3  # 유효 후보가 이 개수 미만이면 조건 완화
 
@@ -124,5 +124,16 @@ async def _attempt(
     # 칸 수가 많을수록 후보가 더 필요하다(영업시간·카테고리 필터로 상당수가 탈락)
     limit = min(MAX_CANDIDATES, max(10, len(desired_slots(constraints)) * CANDIDATES_PER_SLOT))
     candidates = await map_service.search_places(region, query_keywords, limit=limit)
+    origin = await _resolve_origin(constraints, map_service)
     # 스코어링·카테고리 템플릿·동선·Best-of-N 으로 최적 코스 선택
-    return await plan_course(candidates, constraints, map_service)
+    return await plan_course(candidates, constraints, map_service, origin=origin)
+
+
+async def _resolve_origin(
+    constraints: PlanConstraints, map_service: MapService
+) -> Place | None:
+    """출발지 문자열을 좌표로 변환. 실패하면 None(기존 동선 로직 유지)."""
+    if not constraints.start_place:
+        return None
+    found = await map_service.search_places(constraints.start_place, [], limit=1)
+    return found[0] if found else None

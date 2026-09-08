@@ -67,6 +67,7 @@ class PlanConstraints(BaseModel):
     """자연어에서 분해된 조건(7-1 Decomposition 결과)."""
 
     region: str | None = None
+    start_place: str | None = None  # 출발지("강남역에서 출발")
     start_time: time | None = None
     end_time: time | None = None
     duration_min: int | None = None

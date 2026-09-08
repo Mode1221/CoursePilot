@@ -40,6 +40,10 @@ _PARTY_RE = re.compile(r"(\d{1,2})\s*(?:명|인)(?!분)")
 _EXCLUDE_RE = re.compile(
     r"([가-힣]{2,6}?)\s*(?:은|는|을|를|이|가|거|건)?\s*(?:빼고|제외하고|제외|말고|없이)"
 )
+# "강남역에서 출발", "홍대입구역에서 만나" 처럼 출발지를 지정하는 표현
+_START_PLACE_RE = re.compile(
+    r"([가-힣A-Za-z0-9]{2,12}?)\s*에서\s*(?:출발|만나|모여|시작)"
+)
 _STOP_NUM_RE = re.compile(r"(\d)\s*(?:차|군데|곳)")
 _STOP_WORDS = {"한 곳": 1, "한곳": 1, "두 곳": 2, "두곳": 2, "두 군데": 2, "세 곳": 3, "세곳": 3, "세 군데": 3, "네 곳": 4, "네곳": 4}
 _PARTY_WORDS = {"혼자": 1, "둘이": 2, "두명": 2, "셋이": 3, "세명": 3, "넷이": 4, "네명": 4}
@@ -148,6 +152,13 @@ def parse_constraints(text: str, today: date | None = None) -> PlanConstraints:
         c.region = region_m.group(1)
     else:
         c.region = next((r for r in _KNOWN_REGIONS if r in text), None)
+
+    # 출발지("강남역에서 출발") → 동선 시작점. 지역이 없으면 출발지를 지역으로도 쓴다.
+    sp = _START_PLACE_RE.search(text)
+    if sp:
+        c.start_place = sp.group(1)
+        if not c.region:
+            c.region = c.start_place
 
     # 시작 시각 (분/반 포함)
     hm = _HOUR_RE.search(text)
