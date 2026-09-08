@@ -1,13 +1,32 @@
 """Socket.IO 실시간 broadcast (5-4). 세션별 room으로 상태 변경 전파."""
 from __future__ import annotations
 
+import logging
+
 import socketio
 
 from app.config import settings
 
+logger = logging.getLogger("coursepilot")
+
+def _client_manager() -> socketio.AsyncManager | None:
+    """REDIS_URL 이 있으면 Redis pub/sub 매니저(다중 인스턴스), 없으면 None(단일 프로세스).
+
+    redis 패키지/서버가 없는 환경에서도 기동은 막지 않는다(경고 후 단일 프로세스 폴백).
+    """
+    if not settings.multi_instance:
+        return None
+    try:
+        return socketio.AsyncRedisManager(settings.redis_url)
+    except Exception:  # pragma: no cover - 의존성/접속 실패
+        logger.warning("REDIS_URL 이 설정됐지만 Redis 매니저 초기화 실패 → 단일 프로세스로 동작")
+        return None
+
+
 sio = socketio.AsyncServer(
     async_mode="asgi",
     cors_allowed_origins=settings.cors_origins,
+    client_manager=_client_manager(),
 )
 
 

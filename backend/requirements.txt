@@ -1,6 +1,7 @@
 fastapi==0.115.0
 uvicorn[standard]==0.30.6
 python-socketio==5.11.4
+redis==5.0.8  # 다중 인스턴스 시 Socket.IO Redis 매니저 (REDIS_URL 설정 시에만 사용)
 sqlalchemy==2.0.35
 psycopg[binary]==3.2.3
 pgvector==0.3.5
