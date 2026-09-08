@@ -5,6 +5,7 @@ import { useEffect, useState } from "react";
 
 import { Button, Card, EmptyState } from "@/components/ui";
 import { api } from "@/services/api";
+import { courseStats, formatDuration } from "@/services/courseStats";
 import { toast } from "@/store/toastStore";
 import { useUserStore } from "@/store/userStore";
 import type { Course } from "@/types";
@@ -94,7 +95,7 @@ function CourseList({
             <Card interactive style={{ padding: "var(--sp-3) var(--sp-4)" }}>
               <div style={{ fontWeight: 600 }}>{c.title}</div>
               <div style={{ color: "var(--text-muted)", fontSize: "var(--fs-sm)" }}>
-                {c.region ? `${c.region} · ` : ""}{c.items.length}곳
+                {summaryLine(c)}
               </div>
             </Card>
           </Link>
@@ -114,4 +115,14 @@ function CourseList({
       ))}
     </ul>
   );
+}
+
+/** 카드 부제: "성수동 · 3곳 · 총 5시간" */
+function summaryLine(course: Course): string {
+  const { places, totalMin } = courseStats(course);
+  const parts = [];
+  if (course.region) parts.push(course.region);
+  parts.push(`${places}곳`);
+  if (totalMin > 0) parts.push(`총 ${formatDuration(totalMin)}`);
+  return parts.join(" · ");
 }
