@@ -46,7 +46,8 @@ class BookmarkStore:
             return
         self._mem.discard((user_id, course_id))
 
-    def list_course_ids(self, user_id: str) -> list[str]:
+    def list_course_ids(self, user_id: str, limit: int = 50) -> list[str]:
+        """북마크한 코스 id 최근 순. 응답이 계속 커지지 않도록 상한을 둔다."""
         if is_ready():
             from sqlalchemy import select
 
@@ -58,9 +59,10 @@ class BookmarkStore:
                     select(BookmarkModel.course_id)
                     .where(BookmarkModel.user_id == user_id)
                     .order_by(BookmarkModel.created_at.desc())
+                    .limit(limit)
                 ).all()
                 return [r[0] for r in rows]
-        return [cid for (uid, cid) in self._mem if uid == user_id]
+        return [cid for (uid, cid) in self._mem if uid == user_id][:limit]
 
 
 bookmark_store = BookmarkStore()
