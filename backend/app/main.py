@@ -475,7 +475,15 @@ def _ai_reply(
     n = len(course.items)
     if needs_confirmation:
         return "조건에 맞는 장소가 부족합니다. 조건을 완화할까요?"
-    base = f"{n}곳으로 코스를 구성했어요."
+    # 무엇을 알아들었는지 먼저 되짚어 준다(잘못 알아들었으면 바로 정정 가능)
+    parts: list[str] = []
+    if course.plan_date:
+        parts.append(f"{course.plan_date.month}월 {course.plan_date.day}일")
+    first = course.items[0] if course.items else None
+    if first is not None and first.arrive is not None:
+        parts.append(f"{first.arrive.strftime('%H:%M')} 시작")
+    prefix = f"{' '.join(parts)}, " if parts else ""
+    base = f"{prefix}{n}곳으로 코스를 구성했어요."
     if relaxed:
         base += " 일부 조건은 완화했어요."
     if region_guessed:
