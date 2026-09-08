@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import logging
 import time
+import uuid
 from collections import deque
 
 from fastapi import Request
@@ -23,15 +24,24 @@ def reset_rate_limits() -> None:
         mw._hits.clear()
 
 
+SLOW_REQUEST_MS = 2000  # 이보다 느리면 경고로 남겨 눈에 띄게 한다
+
+
 class RequestLogMiddleware(BaseHTTPMiddleware):
-    """메서드/경로/상태/소요시간 구조적 로깅."""
+    """요청 id·메서드·경로·상태·소요시간 구조적 로깅."""
 
     async def dispatch(self, request: Request, call_next):
+        # 클라이언트가 보낸 id 를 우선 존중(프록시/앱에서 이어붙인 추적 id)
+        request_id = request.headers.get("X-Request-Id") or uuid.uuid4().hex[:12]
+        request.state.request_id = request_id
         start = time.perf_counter()
         response = await call_next(request)
         elapsed_ms = (time.perf_counter() - start) * 1000
-        logger.info(
-            "%s %s -> %d (%.1fms)",
+        response.headers["X-Request-Id"] = request_id  # 사용자 신고와 로그를 잇는 고리
+        log = logger.warning if elapsed_ms >= SLOW_REQUEST_MS else logger.info
+        log(
+            "[%s] %s %s -> %d (%.1fms)",
+            request_id,
             request.method,
             request.url.path,
             response.status_code,
