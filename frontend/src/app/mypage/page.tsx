@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 
 import { Button, Card, EmptyState } from "@/components/ui";
 import { api } from "@/services/api";
@@ -15,16 +15,24 @@ export default function MyPage() {
   const { userId, load } = useUserStore();
   const [courses, setCourses] = useState<Course[]>([]);
   const [bookmarks, setBookmarks] = useState<Course[]>([]);
+  const [loadError, setLoadError] = useState(false);
 
   useEffect(() => {
     load();
   }, [load]);
 
-  useEffect(() => {
+  const reload = useCallback(() => {
     if (!userId) return;
-    api.myCourses(userId).then(setCourses).catch(() => {});
-    api.myBookmarks(userId).then(setBookmarks).catch(() => {});
+    setLoadError(false);
+    Promise.all([api.myCourses(userId), api.myBookmarks(userId)])
+      .then(([mine, saved]) => {
+        setCourses(mine);
+        setBookmarks(saved);
+      })
+      .catch(() => setLoadError(true)); // 빈 목록처럼 보이지 않게 오류를 노출
   }, [userId]);
+
+  useEffect(reload, [reload]);
 
   if (!userId) {
     return (
@@ -45,6 +53,15 @@ export default function MyPage() {
   return (
     <main style={{ padding: "var(--sp-8) var(--sp-4)", maxWidth: 640, margin: "0 auto" }}>
       <h1>마이페이지</h1>
+
+      {loadError && (
+        <p role="alert" style={{ color: "var(--danger)", fontSize: "var(--fs-sm)" }}>
+          목록을 불러오지 못했어요.{" "}
+          <Button size="sm" onClick={reload}>
+            다시 시도
+          </Button>
+        </p>
+      )}
 
       <section style={{ marginTop: "var(--sp-6)" }}>
         <h2>내 코스</h2>

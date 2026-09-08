@@ -81,4 +81,14 @@ describe("PlaceDetailModal", () => {
     await waitFor(() => getByText(/관련장소/));
     expect((getByText("추가됨") as HTMLButtonElement).disabled).toBe(true);
   });
+
+  it("별점 저장이 실패하면 이전 상태로 되돌린다", async () => {
+    relatedPlaces.mockResolvedValue([]);
+    ratePlace.mockRejectedValueOnce(new Error("boom"));
+    const { getByLabelText } = render(<PlaceDetailModal place={place} onClose={vi.fn()} />);
+    fireEvent.click(getByLabelText("4점"));
+    await waitFor(() => expect(ratePlace).toHaveBeenCalled());
+    // 실패 후에는 "평가 감사합니다!" 문구가 남지 않는다
+    await waitFor(() => expect(document.body.textContent).not.toContain("평가 감사합니다"));
+  });
 });

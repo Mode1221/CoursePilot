@@ -5,6 +5,7 @@ import { useEffect, useRef, useState } from "react";
 import { Badge, Button, Skeleton } from "@/components/ui";
 import { api } from "@/services/api";
 import { useCourseStore } from "@/store/courseStore";
+import { toast } from "@/store/toastStore";
 import type { Place } from "@/types";
 
 
@@ -144,8 +145,12 @@ export default function PlaceDetailModal({
               key={n}
               aria-label={`${n}점`}
               onClick={() => {
+                const prev = myStars;
                 setMyStars(n);
-                api.ratePlace(place.id, n).catch(() => {});
+                api.ratePlace(place.id, n).catch(() => {
+                  setMyStars(prev); // 저장 실패는 UI 도 되돌린다
+                  toast("별점을 저장하지 못했어요.", "error");
+                });
               }}
               style={{
                 border: "none",
@@ -207,7 +212,10 @@ export default function PlaceDetailModal({
           onClick={() => {
             if (revisit) return;
             setRevisit(true);
-            api.revisit(place.id).catch(() => {});
+            api.revisit(place.id).catch(() => {
+              setRevisit(false);
+              toast("기록을 저장하지 못했어요.", "error");
+            });
           }}
           size="sm"
           variant={revisit ? "primary" : "secondary"}
