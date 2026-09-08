@@ -115,13 +115,27 @@ class NaverBlogLinkSource(ReviewSource):
         raise NotImplementedError
 
 
+class SafeReviewSource(ReviewSource):
+    """외부 소스 호출이 실패해도 폴백으로 응답을 이어 간다(지도 어댑터와 같은 원칙)."""
+
+    def __init__(self, primary: ReviewSource, fallback: ReviewSource) -> None:
+        self._primary = primary
+        self._fallback = fallback
+
+    async def fetch(self, place_name: str, limit: int = 10) -> list[RawReview]:
+        try:
+            return await self._primary.fetch(place_name, limit)
+        except Exception:
+            return await self._fallback.fetch(place_name, limit)
+
+
 def get_review_source() -> ReviewSource:
-    """요약/스코어링용 소스. Google 키가 있으면 Google, 없으면 Mock 폴백."""
+    """요약/스코어링용 소스. Google 키가 있으면 Google, 없거나 실패하면 Mock 폴백."""
     from app.config import settings
 
     if getattr(settings, "google_maps_api_key", ""):
         try:
-            return GooglePlacesReviewSource()
+            return SafeReviewSource(GooglePlacesReviewSource(), MockReviewSource())
         except Exception:
             pass
     return MockReviewSource()
