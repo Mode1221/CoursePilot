@@ -48,5 +48,5 @@ def test_내_코스는_최근_순으로_나온다():
     uid = client.post("/signup", json={"phone": "010-3333-4444"}).json()["user_id"]
     first = _course(uid)
     second = _course(uid)
-    ids = [c["id"] for c in client.get(f"/users/{uid}/courses").json()]
+    ids = [c["id"] for c in client.get(f"/users/{uid}/courses", headers={"X-User-Id": uid}).json()]
     assert ids.index(second) < ids.index(first)

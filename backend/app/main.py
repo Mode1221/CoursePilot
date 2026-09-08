@@ -178,8 +178,17 @@ async def signup(req: SignupRequest) -> dict:
     return {"user_id": user.id, "credits_left": user.credits_left}
 
 
+def _require_self(user_id: str, x_user_id: str | None) -> None:
+    """개인 데이터는 본인 요청만 허용(id 를 안다고 남의 것을 볼 수 없게)."""
+    if x_user_id != user_id:
+        raise HTTPException(status_code=403, detail="본인만 접근할 수 있어요")
+
+
 @api.put("/users/{user_id}/preferences")
-async def set_preferences(user_id: str, prefs: Preferences) -> dict:
+async def set_preferences(
+    user_id: str, prefs: Preferences, x_user_id: str | None = Header(default=None)
+) -> dict:
+    _require_self(user_id, x_user_id)
     user = user_store.set_preferences(user_id, prefs)
     if user is None:
         raise HTTPException(status_code=404, detail="user not found")
@@ -187,7 +196,8 @@ async def set_preferences(user_id: str, prefs: Preferences) -> dict:
 
 
 @api.get("/users/{user_id}/credits")
-async def get_credits(user_id: str) -> dict:
+async def get_credits(user_id: str, x_user_id: str | None = Header(default=None)) -> dict:
+    _require_self(user_id, x_user_id)
     user = user_store.get(user_id)
     if user is None:
         raise HTTPException(status_code=404, detail="user not found")
@@ -202,8 +212,11 @@ class PurchaseRequest(BaseModel):
 
 
 @api.post("/users/{user_id}/purchase")
-async def purchase_points(user_id: str, req: PurchaseRequest) -> dict:
+async def purchase_points(
+    user_id: str, req: PurchaseRequest, x_user_id: str | None = Header(default=None)
+) -> dict:
     """포인트 구매/충전 (9-2). 결제 활성 시 imp_uid 로 결제 검증 후 지급."""
+    _require_self(user_id, x_user_id)
     if req.points <= 0:
         raise HTTPException(status_code=400, detail="포인트는 1 이상이어야 합니다")
     if user_store.get(user_id) is None:
@@ -256,19 +269,24 @@ async def duplicate_course(
 
 
 @api.get("/users/{user_id}/courses", response_model=list[Course])
-async def my_courses(user_id: str) -> list[Course]:
+async def my_courses(user_id: str, x_user_id: str | None = Header(default=None)) -> list[Course]:
     """마이페이지: 내가 생성한 코스 히스토리 (9-4)."""
+    _require_self(user_id, x_user_id)
     return store.list_by_owner(user_id)
 
 
 @api.get("/users/{user_id}/bookmarks", response_model=list[Course])
-async def my_bookmarks(user_id: str) -> list[Course]:
+async def my_bookmarks(user_id: str, x_user_id: str | None = Header(default=None)) -> list[Course]:
+    _require_self(user_id, x_user_id)
     ids = bookmark_store.list_course_ids(user_id)
     return store.get_many(ids)
 
 
 @api.put("/users/{user_id}/bookmarks/{course_id}")
-async def add_bookmark(user_id: str, course_id: str) -> dict:
+async def add_bookmark(
+    user_id: str, course_id: str, x_user_id: str | None = Header(default=None)
+) -> dict:
+    _require_self(user_id, x_user_id)
     course = store.get(course_id)
     if course is None:
         raise HTTPException(status_code=404, detail="course not found")
@@ -279,7 +297,10 @@ async def add_bookmark(user_id: str, course_id: str) -> dict:
 
 
 @api.delete("/users/{user_id}/bookmarks/{course_id}")
-async def remove_bookmark(user_id: str, course_id: str) -> dict:
+async def remove_bookmark(
+    user_id: str, course_id: str, x_user_id: str | None = Header(default=None)
+) -> dict:
+    _require_self(user_id, x_user_id)
     bookmark_store.remove(user_id, course_id)
     return {"ok": True}
 
