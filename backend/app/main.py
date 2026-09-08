@@ -17,7 +17,7 @@ from app.adapters.map_service import get_map_service
 from app.bookmarks import bookmark_store
 from app.chat import ChatMessage, chat_store
 from app.config import settings
-from app.constants import DEFAULT_START_TIME
+from app.constants import DEFAULT_REGION, DEFAULT_START_TIME
 from app.feedback import feedback_store
 from app.middleware import RateLimitMiddleware, RequestLogMiddleware
 from app.pipeline.agent import generate_course
@@ -391,6 +391,7 @@ async def generate(
         relaxed = False
         needs_confirmation = False
         is_edit = False
+        region_guessed = False  # 지역을 못 알아들어 기본 지역으로 만든 경우
         old_ids = [it.place.id for it in course.items]
         try:
             edit_cmd = parse_edit(req.text) if course.items else EditCommand(action="none")
@@ -404,6 +405,7 @@ async def generate(
                 course.items = result.timeline
                 relaxed = result.relaxed
                 needs_confirmation = result.needs_confirmation
+                region_guessed = result.constraints.region is None
                 if result.constraints.region:
                     course.region = result.constraints.region
                 # #17: 생성 시 코스 목적함수 점수 저장(만족도 대조용)
@@ -453,7 +455,7 @@ async def generate(
             dropped = [pid for pid in old_ids if pid not in set(new_ids)]
             popularity_store.bump_many(dropped, weight=-1)
 
-        ai_text = _ai_reply(course, relaxed, needs_confirmation)
+        ai_text = _ai_reply(course, relaxed, needs_confirmation, region_guessed)
         chat_store.append(course_id, "ai", ai_text)
         await broadcast_state(course_id, course.model_dump(mode="json"))
         await broadcast_message(course_id, "ai", ai_text)
@@ -465,13 +467,18 @@ async def generate(
     return await queues.run(course_id, action)
 
 
-def _ai_reply(course: Course, relaxed: bool, needs_confirmation: bool) -> str:
+def _ai_reply(
+    course: Course, relaxed: bool, needs_confirmation: bool, region_guessed: bool = False
+) -> str:
     n = len(course.items)
     if needs_confirmation:
         return "조건에 맞는 장소가 부족합니다. 조건을 완화할까요?"
     base = f"{n}곳으로 코스를 구성했어요."
     if relaxed:
         base += " 일부 조건은 완화했어요."
+    if region_guessed:
+        # 지역을 못 알아들으면 기본 지역으로 만들어지므로, 조용히 넘어가지 않고 알린다.
+        base += f" 지역을 못 알아들어 {course.region or DEFAULT_REGION} 기준으로 만들었어요."
     return base
 
 
