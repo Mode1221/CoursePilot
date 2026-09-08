@@ -91,10 +91,15 @@ def _apply_preferences(constraints: PlanConstraints, prefs: dict) -> None:
         constraints.travel_mode = TravelMode.CAR
 
 
+MAX_QUERY_KEYWORDS = 3  # 지역 + 키워드 3개까지만 검색 질의로 전달
+
+
 async def _attempt(
     constraints: PlanConstraints, map_service: MapService
 ) -> list[TimelineItem]:
     region = constraints.region or DEFAULT_REGION
-    candidates = await map_service.search_places(region, constraints.keywords, limit=10)
+    # 검색어가 길수록 결과가 급감하므로 상위 몇 개만 질의에 쓴다(나머지는 스코어링에서 반영).
+    query_keywords = constraints.keywords[:MAX_QUERY_KEYWORDS]
+    candidates = await map_service.search_places(region, query_keywords, limit=10)
     # 스코어링·카테고리 템플릿·동선·Best-of-N 으로 최적 코스 선택
     return await plan_course(candidates, constraints, map_service)
