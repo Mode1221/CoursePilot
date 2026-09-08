@@ -44,3 +44,8 @@ def test_reply_mentions_indoor_when_rainy():
 
 def test_reply_unchanged_without_constraints():
     assert "출발" not in _ai_reply(_course(), False, False)
+
+
+def test_reply_mentions_end_time():
+    text = _ai_reply(_course(), False, False)
+    assert "20:00쯤 마무리돼요" in text
