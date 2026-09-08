@@ -89,6 +89,7 @@ export const useCourseStore = create<CourseState>((set, get) => ({
     try {
       const updated = await api.addPlace(course.id, placeId);
       set({ course: updated });
+      toast("코스에 추가했어요.", "success");
     } catch {
       toast("장소를 추가하지 못했어요. 잠시 후 다시 시도해주세요.", "error");
     }
