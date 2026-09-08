@@ -28,3 +28,18 @@ async def test_safe_fallback_on_error():
     svc = SafeMapService(_Boom(), MockMapService())
     places = await svc.search_places("성수동", [], 3)
     assert len(places) == 3  # 폴백 동작
+
+
+def test_single_query_when_limit_small():
+    from app.adapters.naver import _build_queries
+
+    assert _build_queries("성수동", ["조용한"], 5) == ["성수동 조용한"]
+
+
+def test_multiple_queries_when_limit_large():
+    from app.adapters.naver import _build_queries
+
+    queries = _build_queries("성수동", [], 24)
+    assert queries[0] == "성수동"
+    assert len(queries) == 5  # 5개씩 24개를 채우려면 총 5회
+    assert all(q.startswith("성수동") for q in queries)

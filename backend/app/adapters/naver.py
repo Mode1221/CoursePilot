@@ -21,6 +21,22 @@ from app.schemas import Place, Route, TravelMode
 _SEARCH_URL = "https://openapi.naver.com/v1/search/local.json"
 _DIRECTIONS_URL = "https://naveropenapi.apigw.ntruss.com/map-direction/v1/driving"
 
+MAX_DISPLAY = 5  # 네이버 지역검색 API 의 한 번 호출 상한
+# 후보를 넓히기 위한 보조 질의어(코스 카테고리와 대응)
+_FALLBACK_TERMS = ("맛집", "카페", "술집", "전시", "산책")
+
+
+def _build_queries(region: str, keywords: list[str], limit: int) -> list[str]:
+    """limit 을 채우기 위해 필요한 만큼의 검색 질의를 만든다."""
+    base = " ".join([region, *keywords]).strip()
+    queries = [base]
+    if limit <= MAX_DISPLAY:
+        return queries
+    needed = -(-limit // MAX_DISPLAY) - 1  # 올림 나눗셈에서 기본 질의 1회를 뺀 나머지
+    for term in _FALLBACK_TERMS[:needed]:
+        queries.append(f"{base} {term}".strip())
+    return queries
+
 
 class NaverMapService(MapService):
     def __init__(self) -> None:
@@ -34,12 +50,24 @@ class NaverMapService(MapService):
     async def search_places(
         self, region: str, keywords: list[str], limit: int = 10
     ) -> list[Place]:
-        query = " ".join([region, *keywords]).strip()
-        # 네이버 지역검색 API 의 display 최대값은 5 (API 하드 제약)
-        params = {"query": query, "display": min(limit, 5)}
-        resp = await self._client.get(_SEARCH_URL, params=params, headers=self._headers)
-        resp.raise_for_status()
-        items = resp.json().get("items", [])
+        # 지역검색 API 는 한 번에 5개까지만 준다(display 상한, start 도 무의미).
+        # limit 이 더 크면 카테고리 보조어를 붙여 여러 번 질의하고 합친다.
+        queries = _build_queries(region, keywords, limit)
+        items: list[dict] = []
+        seen_titles: set[str] = set()
+        for query in queries:
+            params = {"query": query, "display": MAX_DISPLAY}
+            resp = await self._client.get(_SEARCH_URL, params=params, headers=self._headers)
+            resp.raise_for_status()
+            for it in resp.json().get("items", []):
+                title = it.get("title", "")
+                if title in seen_titles:
+                    continue  # 질의가 겹쳐 같은 장소가 여러 번 오는 것을 막는다
+                seen_titles.add(title)
+                items.append(it)
+            if len(items) >= limit:
+                break
+        items = items[:limit]
 
         places: list[Place] = []
         for it in items:
