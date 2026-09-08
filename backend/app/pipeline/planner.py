@@ -92,12 +92,23 @@ def score_place(
     if any(k.lower() in haystack for k in constraints.exclude_keywords):
         score -= 0.5
 
+    # 우천 대체: 야외 성격은 감점, 실내 성격은 가점
+    if constraints.prefer_indoor:
+        if any(k in haystack for k in _OUTDOOR_KEYWORDS):
+            score -= 0.4
+        if any(k in haystack for k in _INDOOR_KEYWORDS):
+            score += 0.15
+
     # 인원수 컨텍스트: 대인원은 단체석, 소수는 조용한 자리 쪽이 실패가 적다
     party_kw = _party_keywords(constraints.party_size)
     if party_kw and any(k in haystack for k in party_kw):
         score += 0.1
     return score
 
+
+# 우천 시 피해야 할/선호할 장소 성격
+_OUTDOOR_KEYWORDS = ("공원", "산책", "야외", "루프탑", "테라스", "시장", "한강", "캠핑", "피크닉")
+_INDOOR_KEYWORDS = ("실내", "전시", "미술관", "박물관", "영화", "카페", "볼링", "공연", "몰")
 
 LARGE_PARTY = 5  # 이 인원부터는 단체석 여부가 중요해진다
 _LARGE_PARTY_KEYWORDS = ("룸", "단체", "홀", "연회", "코스")

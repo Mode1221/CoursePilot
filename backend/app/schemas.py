@@ -73,6 +73,7 @@ class PlanConstraints(BaseModel):
     duration_min: int | None = None
     max_travel_min: int | None = None
     travel_mode: TravelMode = TravelMode.WALK
+    prefer_indoor: bool = False  # 우천 등으로 실내 위주 코스를 원하는 경우
     strict_travel_mode: bool = False  # "도보로만" 처럼 수단 고정을 요청한 경우
     budget_max: int | None = None  # 하드 제약
     party_size: int | None = None  # 인원수

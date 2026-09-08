@@ -52,6 +52,8 @@ _TOTAL_BUDGET_WORDS = ("총", "다 해서", "다해서", "전부", "합쳐서", 
 
 # "도보로만", "걸어서만" 처럼 수단을 고정해달라는 표현
 _STRICT_MODE_RE = re.compile(r"(?:도보|걸어서|차량|대중교통)\s*로?만|만\s*(?:도보|이동)")
+# "비 온대", "우천", "장마" → 실내 위주 대체 코스
+_RAIN_RE = re.compile(r"비\s*(?:와|와서|온다|온대|올|오면|오는|맞기)|우천|장마|폭우|비올")
 _MODE_MAP = {"도보": TravelMode.WALK, "차량": TravelMode.CAR, "대중교통": TravelMode.TRANSIT}
 _SOFT_KEYWORDS = [
     "조용한", "활기찬", "비건", "채식", "분위기", "가성비", "뷰", "데이트",
@@ -219,6 +221,8 @@ def parse_constraints(text: str, today: date | None = None) -> PlanConstraints:
         c.max_travel_min = int(tm.group(2))
     if _STRICT_MODE_RE.search(text):
         c.strict_travel_mode = True
+    if _RAIN_RE.search(text):
+        c.prefer_indoor = True
 
     # 예산 (하드 제약): 범위 → 만원 단위 → 원 단위 순으로 본다
     br = _BUDGET_RANGE_RE.search(text)
@@ -261,4 +265,6 @@ def parse_constraints(text: str, today: date | None = None) -> PlanConstraints:
     c.exclude_keywords = [m.group(1) for m in _EXCLUDE_RE.finditer(text)]
     excluded = set(c.exclude_keywords)
     c.keywords = [k for k in _SOFT_KEYWORDS if k in text and k not in excluded]
+    if c.prefer_indoor and "실내" not in c.keywords:
+        c.keywords.insert(0, "실내")  # 우천이면 실내를 최우선 검색어로
     return c
