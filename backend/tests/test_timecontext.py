@@ -50,3 +50,13 @@ async def test_planner_prefers_context_match(monkeypatch):
     tl = await plan_course(cands, c, MockMapService())
     assert target.id in {it.place.id for it in tl}
     time_context_store._mem.clear()
+
+
+def test_bump_many_가_모든_장소에_누적된다():
+    from app.timecontext import TimeContextStore
+
+    store = TimeContextStore()
+    store.bump_many(["a", "b"], "evening", weight=2.0)
+    scores = store.scores(["a", "b", "c"], "evening")
+    assert scores == {"a": 2.0, "b": 2.0, "c": 0.0}
+    assert store.scores(["a"], "morning") == {"a": 0.0}

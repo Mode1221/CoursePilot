@@ -36,8 +36,25 @@ class TimeContextStore:
         self._mem[(place_id, daypart)] += weight
 
     def bump_many(self, place_ids: list[str], daypart: str, weight: float = 1.0) -> None:
-        for pid in place_ids:
-            self.bump(pid, daypart, weight)
+        """여러 장소를 한 번에 가산. DB 모드에서도 세션·커밋 1회로 처리한다."""
+        if not place_ids:
+            return
+        if not self._db_ready():
+            for pid in place_ids:
+                self._mem[(pid, daypart)] += weight
+            return
+
+        from app.db import SessionLocal
+        from app.models import TimeContextModel
+
+        with SessionLocal() as s:
+            for pid in place_ids:
+                row = s.get(TimeContextModel, (pid, daypart))
+                if row is None:
+                    s.add(TimeContextModel(place_id=pid, daypart=daypart, count=weight))
+                else:
+                    row.count += weight
+            s.commit()
 
     def scores(self, place_ids: list[str], daypart: str) -> dict[str, float]:
         if not place_ids:
