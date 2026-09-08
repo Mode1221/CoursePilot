@@ -82,7 +82,13 @@ async def apply_edit(
         candidates = await map_service.search_places(
             region, [cmd.keyword] if cmd.keyword else [], limit=10
         )
-        replacement = next((p for p in candidates if p.id not in existing_ids), None)
+        fresh = [p for p in candidates if p.id not in existing_ids]
+        # 교체는 그 자리의 성격을 유지해야 한다(카페 자리에 식당이 오면 코스가 망가짐)
+        current_category = items[index].place.category
+        replacement = next(
+            (p for p in fresh if p.category == current_category),
+            fresh[0] if fresh else None,
+        )
         if replacement is None:
             return items
         items[index] = TimelineItem(place=replacement)
