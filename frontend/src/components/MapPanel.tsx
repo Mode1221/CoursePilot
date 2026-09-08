@@ -122,6 +122,8 @@ export default function MapPanel({ readOnly = false }: { readOnly?: boolean }) {
               }}
             >
               {item.place.category && <span>{item.place.category}</span>}
+              {/* 장소별 1인 예상 비용: 어디서 돈이 나가는지 카드에서 바로 보이게 */}
+              {formatCost(item.place.price ?? 0) && <span>{formatCost(item.place.price ?? 0)}</span>}
               {/* 공유받은 사람도 편집 버튼 없이 바로 길을 찾을 수 있게 항상 노출 */}
               <a
                 href={naverMapUrl(item.place)}
