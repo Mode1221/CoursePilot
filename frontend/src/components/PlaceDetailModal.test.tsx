@@ -16,7 +16,8 @@ const revisit = vi.fn().mockResolvedValue({ ok: true });
 
 vi.mock("@/services/api", () => ({
   api: {
-    reviewSummary: () => Promise.resolve({ summary: "요약", count: 0 }),
+    reviewSummary: () =>
+      Promise.resolve({ summary: "요약", count: 2, pros: ["분위기"], cons: ["웨이팅"] }),
     relatedPlaces: (...a: unknown[]) => relatedPlaces(...a),
     ratePlace: (...a: unknown[]) => ratePlace(...a),
     revisit: (...a: unknown[]) => revisit(...a),
@@ -61,5 +62,12 @@ describe("PlaceDetailModal", () => {
     const { getByText } = render(<PlaceDetailModal place={place} onClose={vi.fn()} />);
     fireEvent.click(getByText("또 가고 싶어요"));
     expect(revisit).toHaveBeenCalledWith("p1");
+  });
+
+  it("리뷰 애스펙트를 좋은 점/주의할 점 뱃지로 보여준다", async () => {
+    relatedPlaces.mockResolvedValue([]);
+    const { getByText } = render(<PlaceDetailModal place={place} onClose={vi.fn()} />);
+    await waitFor(() => getByText(/분위기/));
+    expect(getByText(/웨이팅/)).toBeTruthy();
   });
 });

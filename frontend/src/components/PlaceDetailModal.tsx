@@ -20,6 +20,7 @@ export default function PlaceDetailModal({
 }) {
   const addPlace = useCourseStore((s) => s.addPlace);
   const [summary, setSummary] = useState<string>("불러오는 중…");
+  const [aspects, setAspects] = useState<{ pros: string[]; cons: string[] }>({ pros: [], cons: [] });
   const [myStars, setMyStars] = useState<number | null>(null);
   const [revisit, setRevisit] = useState(false);
   const [related, setRelated] = useState<Place[]>([]);
@@ -30,7 +31,10 @@ export default function PlaceDetailModal({
   useEffect(() => {
     api
       .reviewSummary(place.id, place.name)
-      .then((r) => setSummary(r.summary))
+      .then((r) => {
+        setSummary(r.summary);
+        setAspects({ pros: r.pros ?? [], cons: r.cons ?? [] });
+      })
       .catch(() => setSummary("리뷰를 불러오지 못했습니다."));
     api.relatedPlaces(place.id).then(setRelated).catch(() => setRelated([]));
   }, [place.id, place.name]);
@@ -112,7 +116,23 @@ export default function PlaceDetailModal({
             <Skeleton height={12} width="80%" />
           </div>
         ) : (
-          <p style={{ color: "var(--text-muted)", fontSize: "var(--fs-sm)" }}>{summary}</p>
+          <>
+            {(aspects.pros.length > 0 || aspects.cons.length > 0) && (
+              <div style={{ display: "flex", flexWrap: "wrap", gap: "var(--sp-1)", marginBottom: "var(--sp-2)" }}>
+                {aspects.pros.map((t) => (
+                  <Badge key={`p-${t}`} tone="brand">
+                    👍 {t}
+                  </Badge>
+                ))}
+                {aspects.cons.map((t) => (
+                  <Badge key={`c-${t}`} tone="warn">
+                    ⚠ {t}
+                  </Badge>
+                ))}
+              </div>
+            )}
+            <p style={{ color: "var(--text-muted)", fontSize: "var(--fs-sm)" }}>{summary}</p>
+          </>
         )}
 
         <h4>다녀왔다면 별점을 남겨주세요</h4>

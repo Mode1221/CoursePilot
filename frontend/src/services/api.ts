@@ -70,7 +70,7 @@ export const api = {
     request<{ role: "user" | "ai"; text: string }[]>(`/courses/${id}/messages`),
 
   reviewSummary: (placeId: string, placeName: string) =>
-    request<{ summary: string; count: number }>("/reviews/summary", {
+    request<{ summary: string; count: number; pros: string[]; cons: string[] }>("/reviews/summary", {
       method: "POST",
       body: { place_id: placeId, place_name: placeName },
     }),
