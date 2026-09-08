@@ -8,3 +8,6 @@ TRAVEL_SPEED_M_PER_MIN: dict[str, int] = {"walk": 67, "car": 500, "transit": 250
 
 DEFAULT_REGION = "성수동"
 DEFAULT_START_TIME = time(12, 0)
+
+# 대중교통은 대기·환승·정류장 접근에 고정 비용이 든다(직선 근사에 더한다).
+TRANSIT_OVERHEAD_MIN = 7
