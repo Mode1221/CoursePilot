@@ -30,6 +30,8 @@ _RANGE_RE = re.compile(
 _DURATION_WORDS = {"반나절": 240, "하루 종일": 480, "하루종일": 480}
 _TRAVEL_RE = re.compile(r"(도보|차량|대중교통)?\s*(\d{1,3})\s*분")
 # "3만원", "3만 5천원" 은 만원, 그 외 "20000원" 은 원 단위
+# "3~5만원", "3만원에서 5만원" 처럼 범위를 말하면 상한을 예산으로 본다
+_BUDGET_RANGE_RE = re.compile(r"(\d+)\s*(?:만원?)?\s*(?:~|-|–|에서|부터)\s*(\d+)\s*만\s*원")
 _BUDGET_MAN_RE = re.compile(r"(\d+)\s*만\s*(?:(\d)\s*천)?\s*원")
 _BUDGET_WON_RE = re.compile(r"(\d{4,})\s*원")
 # 인원수: "4명", "3인" / 숫자 없이 쓰는 표현도 함께 본다
@@ -199,9 +201,12 @@ def parse_constraints(text: str, today: date | None = None) -> PlanConstraints:
             c.travel_mode = _MODE_MAP[tm.group(1)]
         c.max_travel_min = int(tm.group(2))
 
-    # 예산 (하드 제약): 만원 단위 우선, 없으면 원 단위
+    # 예산 (하드 제약): 범위 → 만원 단위 → 원 단위 순으로 본다
+    br = _BUDGET_RANGE_RE.search(text)
     bm = _BUDGET_MAN_RE.search(text)
-    if bm:
+    if br:
+        c.budget_max = int(br.group(2)) * 10_000  # 범위의 상한을 예산으로
+    elif bm:
         c.budget_max = int(bm.group(1)) * 10_000 + (int(bm.group(2)) * 1_000 if bm.group(2) else 0)
     else:
         wm = _BUDGET_WON_RE.search(text)
