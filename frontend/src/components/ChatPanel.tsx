@@ -245,8 +245,17 @@ export default function ChatPanel({ courseId }: { courseId: string }) {
 
         {confirmRelax && (
           <div style={{ display: "flex", gap: "var(--sp-2)" }}>
-            <Button size="sm" variant="primary" onClick={() => relaxFeedback(true)}>완화 수락</Button>
-            <Button size="sm" onClick={() => relaxFeedback(false)}>직접 수정</Button>
+            <Button
+              size="sm"
+              variant="primary"
+              disabled={sending}
+              onClick={() => relaxFeedback(true)}
+            >
+              {sending ? "다시 찾는 중…" : "완화 수락"}
+            </Button>
+            <Button size="sm" disabled={sending} onClick={() => relaxFeedback(false)}>
+              직접 수정
+            </Button>
           </div>
         )}
 
