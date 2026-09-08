@@ -11,7 +11,14 @@ from app.schemas import PlanConstraints, TravelMode
 
 # "5시간"의 '시'를 시각으로 오인하지 않도록 뒤에 '간'이 오면 제외.
 # 분("1시 30분") / 반("1시반") 도 함께 캡처.
-_HOUR_RE = re.compile(r"(오전|오후)?\s*(\d{1,2})\s*시(?!간)\s*(?:(\d{1,2})\s*분|(반))?")
+_HOUR_RE = re.compile(
+    r"(오전|오후|아침|점심|낮|저녁|밤|새벽)?\s*(\d{1,2})\s*시(?!간)\s*(?:(\d{1,2})\s*분|(반))?"
+)
+# 시각 없이 시간대만 말한 경우("저녁에 홍대")의 기본 시작 시각
+_TIME_OF_DAY = {"새벽": 6, "아침": 9, "점심": 12, "낮": 13, "오후": 14, "저녁": 18, "밤": 20}
+_TIME_OF_DAY_RE = re.compile(r"(새벽|아침|점심|낮|오후|저녁|밤)")
+# 12시간제에서 오후로 해석해야 하는 표현
+_PM_WORDS = {"오후", "저녁", "밤", "낮"}
 _DURATION_RE = re.compile(r"(\d{1,2})\s*시간\s*(반)?")
 _TRAVEL_RE = re.compile(r"(도보|차량|대중교통)?\s*(\d{1,3})\s*분")
 # "3만원", "3만 5천원" 은 만원, 그 외 "20000원" 은 원 단위
@@ -67,11 +74,16 @@ def parse_constraints(text: str) -> PlanConstraints:
         ampm = hm.group(1)
         minute = 30 if hm.group(4) else (int(hm.group(3)) if hm.group(3) else 0)
         minute = min(minute, 59)
-        if ampm == "오후" and hour < 12:
-            hour += 12
-        elif ampm == "오전" and hour == 12:
+        if ampm in _PM_WORDS and hour < 12:
+            hour += 12  # "저녁 7시" → 19시 (기존에는 07시로 잘못 해석)
+        elif ampm in ("오전", "아침") and hour == 12:
             hour = 0  # 오전 12시 = 자정
         c.start_time = time(hour % 24, minute)
+    else:
+        # 숫자 없이 시간대만 말한 경우
+        tod = _TIME_OF_DAY_RE.search(text)
+        if tod:
+            c.start_time = time(_TIME_OF_DAY[tod.group(1)], 0)
 
     # 소요 시간 → 종료 시각 (N시간 / N시간 반)
     dm = _DURATION_RE.search(text)
