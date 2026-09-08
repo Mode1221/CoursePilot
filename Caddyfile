@@ -1,0 +1,14 @@
+# CoursePilot 리버스 프록시 + 자동 HTTPS (Let's Encrypt).
+# {$DOMAIN} 환경변수에서 도메인을 읽는다. 최초 기동 시 인증서 자동 발급.
+
+# 프론트(Next.js)
+{$DOMAIN} {
+	encode gzip
+	reverse_proxy frontend:3000
+}
+
+# 백엔드(FastAPI + Socket.IO). WebSocket 은 Caddy 가 자동 업그레이드 처리.
+api.{$DOMAIN} {
+	encode gzip
+	reverse_proxy backend:8000
+}

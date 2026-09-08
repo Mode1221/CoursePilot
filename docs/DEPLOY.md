@@ -42,11 +42,33 @@ CoursePilot는 키 없이도 Mock/폴백으로 완전히 동작한다. 실서비
 
 > 키는 배포 직전 주입 권장(개발 중엔 폴백으로 충분). 시크릿은 소스에 커밋하지 말 것(`.env`는 gitignore).
 
-## 배포 방법
+## 호스팅 추천 (소규모 베타)
+비용·효율 기준. 단일 VM 1대면 앱+DB가 한 번에 뜬다(별도 관리형 DB 불필요).
+- **Oracle Cloud 프리티어 (ARM Ampere, 춘천)** — 평생 무료(4 vCPU/24GB), 한국 리전. 베타 최적. (1순위)
+- **AWS Lightsail 서울 ($5~12/월)** — 고정가·가장 단순. 무료가 부담되면 이쪽. (대안)
+- 스택은 멀티아치라 ARM/x86 모두 동작.
 
-### Docker Compose (권장)
+## 프로덕션 배포 (단일 VM, 원커맨드) — 권장
+자동 HTTPS(Caddy) + 리버스 프록시 + WebSocket + pgvector 컨테이너 포함.
+
+**사전 준비**
+1. VM 생성(Ubuntu 22.04+), Docker + Compose v2 설치.
+2. 도메인 DNS A 레코드: `example.com` 과 `api.example.com` → VM 공인 IP.
+3. 방화벽/보안그룹에서 **80, 443** 인바운드 오픈.
+
+**배포**
 ```bash
-docker compose up --build -d
+git clone <repo> && cd CoursePilot
+cp .env.prod.example .env      # DOMAIN, POSTGRES_PASSWORD + 보유 키 채우기
+./deploy.sh                    # 빌드·기동·헬스체크까지 한 번에
+```
+- `docker-compose.prod.yml` 가 db/backend/frontend/caddy 를 기동.
+- Caddy 가 최초 접속 시 Let's Encrypt 인증서 자동 발급 → `https://example.com`, `https://api.example.com`.
+- `NEXT_PUBLIC_*` 는 빌드 시 주입되므로 지도 클라이언트 ID·API 주소 변경 시 프론트 재빌드(`./deploy.sh` 재실행).
+
+### 개발용 Docker Compose
+```bash
+docker compose up --build -d   # docker-compose.yml (로컬, HTTPS/프록시 없음)
 ```
 - `db`는 pgvector 이미지, healthcheck 통과 후 `backend` 기동.
 - 키는 `backend` 서비스 `environment` 또는 `.env`로 주입.

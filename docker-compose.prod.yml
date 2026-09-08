@@ -1,0 +1,73 @@
+# 프로덕션(단일 VM) 배포용 compose.
+#   - Caddy: 자동 HTTPS(Let's Encrypt) + 리버스 프록시 + WebSocket
+#   - 도메인: ${DOMAIN} → 프론트, api.${DOMAIN} → 백엔드(Socket.IO 포함)
+#   - db: pgvector 컨테이너(볼륨 영속). 별도 관리형 DB 불필요.
+# 사용: `.env.prod` 를 `.env` 로 복사해 값 채운 뒤 `./deploy.sh`
+services:
+  db:
+    image: pgvector/pgvector:pg16
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-coursepilot}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set in .env}
+      POSTGRES_DB: ${POSTGRES_DB:-coursepilot}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-coursepilot}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  backend:
+    build: ./backend
+    restart: unless-stopped
+    environment:
+      DATABASE_URL: postgresql+psycopg://${POSTGRES_USER:-coursepilot}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB:-coursepilot}
+      CORS_ORIGINS: '["https://${DOMAIN}"]'
+      LLM_PROVIDER: ${LLM_PROVIDER:-anthropic}
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+      ANTHROPIC_MODEL: ${ANTHROPIC_MODEL:-claude-haiku-4-5}
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      NAVER_CLIENT_ID: ${NAVER_CLIENT_ID:-}
+      NAVER_CLIENT_SECRET: ${NAVER_CLIENT_SECRET:-}
+      GOOGLE_MAPS_API_KEY: ${GOOGLE_MAPS_API_KEY:-}
+      NHN_SMS_APP_KEY: ${NHN_SMS_APP_KEY:-}
+      NHN_SMS_SECRET_KEY: ${NHN_SMS_SECRET_KEY:-}
+      NHN_SMS_SENDER: ${NHN_SMS_SENDER:-}
+      PORTONE_API_KEY: ${PORTONE_API_KEY:-}
+      PORTONE_API_SECRET: ${PORTONE_API_SECRET:-}
+    depends_on:
+      db:
+        condition: service_healthy
+
+  frontend:
+    build:
+      context: ./frontend
+      args:
+        NEXT_PUBLIC_API_BASE: https://api.${DOMAIN}
+        NEXT_PUBLIC_NAVER_MAP_CLIENT_ID: ${NEXT_PUBLIC_NAVER_MAP_CLIENT_ID:-}
+    restart: unless-stopped
+    depends_on:
+      - backend
+
+  caddy:
+    image: caddy:2
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    environment:
+      DOMAIN: ${DOMAIN}
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on:
+      - frontend
+      - backend
+
+volumes:
+  pgdata:
+  caddy_data:
+  caddy_config:
