@@ -97,9 +97,42 @@ async def admin_signals() -> dict:
     }
 
 
+class SmsRequestBody(BaseModel):
+    phone: str = Field(min_length=9, max_length=20, pattern=r"^[0-9\-+ ]+$")
+
+
+class SmsVerifyBody(BaseModel):
+    phone: str = Field(min_length=9, max_length=20, pattern=r"^[0-9\-+ ]+$")
+    code: str = Field(min_length=6, max_length=6, pattern=r"^[0-9]{6}$")
+
+
+@api.post("/auth/sms/request")
+async def sms_request(req: SmsRequestBody) -> dict:
+    """인증번호 발송. 실서비스는 발송만, 개발(키 미설정)은 코드를 응답에 노출."""
+    from app.auth import request_code
+
+    dev_code = await request_code(req.phone)
+    return {"sent": True, "dev_code": dev_code}  # dev_code 는 SMS 활성 시 null
+
+
+@api.post("/auth/sms/verify")
+async def sms_verify(req: SmsVerifyBody) -> dict:
+    from app.auth import verification_store
+
+    ok = verification_store.verify(req.phone, req.code)
+    if not ok:
+        raise HTTPException(status_code=400, detail="인증번호가 올바르지 않거나 만료되었습니다")
+    return {"verified": True}
+
+
 @api.post("/signup")
 async def signup(req: SignupRequest) -> dict:
+    from app.auth import require_verified, verification_store
+
+    if not require_verified(req.phone):
+        raise HTTPException(status_code=403, detail="전화번호 인증이 필요합니다")
     user = user_store.create(req.phone)
+    verification_store.consume_verified(req.phone)  # 1회성 소비
     # 신규 가입 시 초대자에게 보너스 크레딧. 자기추천 방지 + 실존 초대자만.
     if (
         req.referrer_id
@@ -128,15 +161,34 @@ async def get_credits(user_id: str) -> dict:
 
 
 class PurchaseRequest(BaseModel):
-    # 구매할 포인트(질문 횟수). 결제 검증은 별도 프로세스 가정
+    # 구매할 포인트(질문 횟수). imp_uid 있으면 포트원으로 실제 결제 검증.
     points: int = Field(gt=0, le=1000)
+    imp_uid: str | None = Field(default=None, max_length=64)
 
 
 @api.post("/users/{user_id}/purchase")
 async def purchase_points(user_id: str, req: PurchaseRequest) -> dict:
-    """포인트 구매/충전 (9-2). 결제 성공 후 호출. 포인트는 이월된다."""
+    """포인트 구매/충전 (9-2). 결제 활성 시 imp_uid 로 결제 검증 후 지급."""
     if req.points <= 0:
         raise HTTPException(status_code=400, detail="포인트는 1 이상이어야 합니다")
+    if user_store.get(user_id) is None:
+        raise HTTPException(status_code=404, detail="user not found")
+
+    from app.adapters.payment import get_payment_service
+
+    pay = get_payment_service()
+    if pay is not None:
+        # 실 결제 검증: 결제 완료 + 금액이 (포인트 수 × 단가) 이상이어야 지급
+        if not req.imp_uid:
+            raise HTTPException(status_code=400, detail="결제 정보(imp_uid)가 필요합니다")
+        try:
+            result = await pay.verify(req.imp_uid)
+        except Exception:
+            raise HTTPException(status_code=502, detail="결제 검증에 실패했습니다") from None
+        expected = req.points * settings.point_price_krw
+        if not result.paid or result.amount < expected:
+            raise HTTPException(status_code=402, detail="결제가 확인되지 않았습니다")
+
     user = user_store.purchase_points(user_id, req.points)
     if user is None:
         raise HTTPException(status_code=404, detail="user not found")
