@@ -22,6 +22,7 @@ export default function MapPanel({ readOnly = false }: { readOnly?: boolean }) {
   const historyLen = useCourseStore((s) => s.history.length);
   const [selected, setSelected] = useState<Place | null>(null);
   const [dragIndex, setDragIndex] = useState<number | null>(null);
+  const [replaceIndex, setReplaceIndex] = useState<number | null>(null);
   const editDisabled = readOnly || locked;
 
   if (!course) return <div style={{ padding: "var(--sp-6)", color: "var(--text-muted)" }}>불러오는 중…</div>;
@@ -119,6 +120,15 @@ export default function MapPanel({ readOnly = false }: { readOnly?: boolean }) {
                 → 다음까지 {item.travel_to_next.duration_min}분 ({MODE_LABEL[item.travel_to_next.mode]})
               </div>
             )}
+            {!readOnly && replaceIndex === i && (
+              <div style={{ marginTop: "var(--sp-2)" }}>
+                <PlaceSearchPanel
+                  disabled={editDisabled}
+                  replaceIndex={i}
+                  onDone={() => setReplaceIndex(null)}
+                />
+              </div>
+            )}
             {!readOnly && (
               <div style={{ marginTop: "var(--sp-2)", display: "flex", gap: "var(--sp-2)" }}>
                 <Button size="sm" aria-label="위로" disabled={editDisabled || i === 0} onClick={() => reorder(i, i - 1)}>
@@ -131,6 +141,13 @@ export default function MapPanel({ readOnly = false }: { readOnly?: boolean }) {
                   onClick={() => reorder(i, i + 1)}
                 >
                   ↓
+                </Button>
+                <Button
+                  size="sm"
+                  disabled={editDisabled}
+                  onClick={() => setReplaceIndex(replaceIndex === i ? null : i)}
+                >
+                  교체
                 </Button>
                 <Button size="sm" variant="danger" disabled={editDisabled} onClick={() => remove(i)}>
                   삭제

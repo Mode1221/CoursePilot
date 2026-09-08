@@ -8,10 +8,21 @@ import { useCourseStore } from "@/store/courseStore";
 import type { Place } from "@/types";
 
 // 장소 직접 검색 → 코스에 추가. AI 질문을 소모하지 않는 무료 수동 편집 경로.
-export default function PlaceSearchPanel({ disabled = false }: { disabled?: boolean }) {
+export default function PlaceSearchPanel({
+  disabled = false,
+  replaceIndex = null,
+  onDone,
+}: {
+  disabled?: boolean;
+  /** 지정되면 추가 대신 해당 순번의 장소를 교체한다. */
+  replaceIndex?: number | null;
+  onDone?: () => void;
+}) {
   const course = useCourseStore((s) => s.course);
   const addPlace = useCourseStore((s) => s.addPlace);
-  const [open, setOpen] = useState(false);
+  const replacePlace = useCourseStore((s) => s.replacePlace);
+  const replacing = replaceIndex != null;
+  const [open, setOpen] = useState(replacing);
   const [q, setQ] = useState("");
   const [region, setRegion] = useState("");
   const [results, setResults] = useState<Place[] | null>(null);
@@ -38,7 +49,7 @@ export default function PlaceSearchPanel({ disabled = false }: { disabled?: bool
     }
   }
 
-  if (!open) {
+  if (!open && !replacing) {
     return (
       <Button size="sm" full disabled={disabled} onClick={() => setOpen(true)}>
         + 장소 직접 추가
@@ -76,7 +87,15 @@ export default function PlaceSearchPanel({ disabled = false }: { disabled?: bool
         <Button size="sm" variant="primary" onClick={search} disabled={loading}>
           검색
         </Button>
-        <Button size="sm" variant="ghost" aria-label="검색 닫기" onClick={() => setOpen(false)}>
+        <Button
+          size="sm"
+          variant="ghost"
+          aria-label="검색 닫기"
+          onClick={() => {
+            setOpen(false);
+            onDone?.();
+          }}
+        >
           ✕
         </Button>
       </div>
@@ -112,9 +131,13 @@ export default function PlaceSearchPanel({ disabled = false }: { disabled?: bool
                 size="sm"
                 variant="primary"
                 disabled={disabled || inCourse.has(p.id)}
-                onClick={() => addPlace(p.id)}
+                onClick={() => {
+                  if (replacing) replacePlace(replaceIndex, p.id);
+                  else addPlace(p.id);
+                  onDone?.();
+                }}
               >
-                {inCourse.has(p.id) ? "추가됨" : "추가"}
+                {inCourse.has(p.id) ? "추가됨" : replacing ? "교체" : "추가"}
               </Button>
             </li>
           ))}

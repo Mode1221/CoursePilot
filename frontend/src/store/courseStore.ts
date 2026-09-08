@@ -30,6 +30,7 @@ interface CourseState {
   reorder: (from: number, to: number) => Promise<void>;
   remove: (index: number) => Promise<void>;
   addPlace: (placeId: string) => Promise<void>;
+  replacePlace: (index: number, placeId: string) => Promise<void>;
   undo: () => Promise<void>;
   canUndo: () => boolean;
 }
@@ -92,6 +93,22 @@ export const useCourseStore = create<CourseState>((set, get) => ({
       toast("코스에 추가했어요.", "success");
     } catch {
       toast("장소를 추가하지 못했어요. 잠시 후 다시 시도해주세요.", "error");
+    }
+  },
+
+  // 특정 순번의 장소만 교체(위치 유지). 실패해도 기존 상태를 지킨다.
+  replacePlace: async (index, placeId) => {
+    const { course, locked } = get();
+    if (!course || locked) return;
+    const ids = course.items.map((it) => it.place.id);
+    if (index < 0 || index >= ids.length || ids.includes(placeId)) return;
+    pushHistory(get, set, course);
+    ids[index] = placeId;
+    try {
+      set({ course: await api.setItems(course.id, ids) });
+      toast("장소를 교체했어요.", "success");
+    } catch {
+      toast("장소를 교체하지 못했어요.", "error");
     }
   },
 
