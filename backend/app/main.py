@@ -79,6 +79,14 @@ async def health() -> dict:
     return {"status": "ok"}
 
 
+@api.get("/admin/metrics")
+async def admin_metrics() -> dict:
+    """엔드포인트별 요청 수·에러·지연(p50/p95). 인메모리, 인스턴스 단위."""
+    from app.metrics import metrics_store
+
+    return metrics_store.snapshot()
+
+
 @api.get("/admin/signals")
 async def admin_signals() -> dict:
     """학습 신호 관측(튜닝용). 축적된 피드백·전략·만족도 지표를 요약.

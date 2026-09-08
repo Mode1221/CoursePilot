@@ -61,6 +61,7 @@
 - ✅ 공유 링크 OG 미리보기(메신저에 코스 제목·동선 요약 노출)
 
 ## 10. 인프라·배포
+- ✅ 관측: 구조적 요청 로깅 + `GET /admin/metrics`(라우트별 요청수·에러·p50/p95), `GET /admin/signals`
 - ✅ DB/pgvector 영속 + 인메모리 폴백, rate limit·요청 로깅
 - ✅ CI(ruff/eslint/tsc/pytest/vitest/Playwright)
 - ✅ Docker Compose(개발/프로덕션) + Caddy 자동 HTTPS + `deploy.sh`
