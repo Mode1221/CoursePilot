@@ -247,6 +247,7 @@ class ReviewSummaryRequest(BaseModel):
 async def review_summary(req: ReviewSummaryRequest) -> dict:
     """장소 상세 모달용 리뷰 요약 (4-2 + 8장 RAG)."""
     from app.db import is_ready
+    from app.reviews.aspects import extract_aspects
     from app.reviews.rag import (
         fetch_filtered,
         ingest_place_reviews,
@@ -265,7 +266,8 @@ async def review_summary(req: ReviewSummaryRequest) -> dict:
         # DB 미사용(개발): 수집+협찬 필터만 적용한 리뷰를 바로 요약
         found = await fetch_filtered(req.place_name)
     summary = await summarize_reviews(found)
-    return {"summary": summary, "count": len(found)}
+    pros, cons = extract_aspects(found)
+    return {"summary": summary, "count": len(found), "pros": pros, "cons": cons}
 
 
 class GenerateResponse(BaseModel):
