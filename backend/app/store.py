@@ -15,8 +15,13 @@ class CourseStore:
     def __init__(self) -> None:
         self._mem: dict[str, Course] = {}
 
+    @staticmethod
+    def new_id() -> str:
+        """공유 URL 로도 쓰이는 URL-safe 코스 id."""
+        return secrets.token_urlsafe(8)
+
     def create(self, title: str = "새 코스", owner_id: str | None = None) -> Course:
-        course = Course(id=secrets.token_urlsafe(8), title=title, owner_id=owner_id)
+        course = Course(id=self.new_id(), title=title, owner_id=owner_id)
         return self.save(course)
 
     def list_by_owner(self, owner_id: str) -> list[Course]:

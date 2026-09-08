@@ -78,6 +78,15 @@ export default function MyPage() {
               toast("이름을 변경하지 못했어요.", "error");
             }
           }}
+          onDuplicate={async (id) => {
+            try {
+              const copy = await api.duplicateCourse(id, userId);
+              setCourses((cs) => [copy, ...cs]);
+              toast("코스를 복제했어요.", "success");
+            } catch {
+              toast("코스를 복제하지 못했어요.", "error");
+            }
+          }}
           onDelete={async (id) => {
             try {
               await api.deleteCourse(id, userId);
@@ -104,12 +113,14 @@ function CourseList({
   empty,
   onDelete,
   onRename,
+  onDuplicate,
 }: {
   items: Course[];
   hrefBase: string;
   empty: string;
   onDelete?: (id: string) => void;
   onRename?: (id: string, title: string) => void;
+  onDuplicate?: (id: string) => void;
 }) {
   if (items.length === 0) return <EmptyState title={empty} />;
   return (
@@ -137,6 +148,15 @@ function CourseList({
               }}
             >
               이름
+            </Button>
+          )}
+          {onDuplicate && (
+            <Button
+              size="sm"
+              aria-label={`${c.title} 복제`}
+              onClick={() => onDuplicate(c.id)}
+            >
+              복제
             </Button>
           )}
           {onDelete && (

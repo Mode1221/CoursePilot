@@ -234,6 +234,26 @@ async def create_course(x_user_id: str | None = Header(default=None)) -> Course:
     return store.create(owner_id=x_user_id)
 
 
+@api.post("/courses/{course_id}/duplicate", response_model=Course)
+async def duplicate_course(
+    course_id: str, x_user_id: str | None = Header(default=None)
+) -> Course:
+    """코스 복제. 지난 코스를 원본을 건드리지 않고 다시 편집하고 싶을 때 쓴다.
+
+    공유받은 코스도 복제할 수 있고, 사본의 생성자는 요청자다.
+    """
+    source = store.get(course_id)
+    if source is None:
+        raise HTTPException(status_code=404, detail="course not found")
+    copy = source.model_copy(deep=True)
+    copy.id = store.new_id()
+    copy.owner_id = x_user_id
+    copy.title = f"{source.title} (사본)"
+    copy.locked = False
+    store.save(copy)
+    return copy
+
+
 @api.get("/users/{user_id}/courses", response_model=list[Course])
 async def my_courses(user_id: str) -> list[Course]:
     """마이페이지: 내가 생성한 코스 히스토리 (9-4)."""

@@ -55,6 +55,9 @@ export const api = {
   renameCourse: (id: string, title: string, userId?: string) =>
     request<Course>(`/courses/${id}`, { method: "PATCH", body: { title }, userId }),
 
+  duplicateCourse: (id: string, userId?: string) =>
+    request<Course>(`/courses/${id}/duplicate`, { method: "POST", userId }),
+
   deleteCourse: (id: string, userId?: string) =>
     request<{ ok: boolean }>(`/courses/${id}`, { method: "DELETE", userId }),
 
