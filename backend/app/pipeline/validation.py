@@ -82,20 +82,16 @@ def is_open_during(place: Place, arrive: time, depart: time) -> bool:
 WALK_SWITCH_MIN = 20
 
 
-async def _best_route(
+async def best_route(
     prev: Place,
     place: Place,
     mode: TravelMode,
-    constraints: PlanConstraints,
     map_service: MapService,
+    strict: bool = False,
 ) -> Route:
     """기본 수단으로 경로를 구하되, 너무 먼 도보 구간은 대중교통으로 대체한다."""
     route = await map_service.get_route(prev, place, mode)
-    if (
-        mode is not TravelMode.WALK
-        or constraints.strict_travel_mode
-        or route.duration_min <= WALK_SWITCH_MIN
-    ):
+    if mode is not TravelMode.WALK or strict or route.duration_min <= WALK_SWITCH_MIN:
         return route
     alt = await map_service.get_route(prev, place, TravelMode.TRANSIT)
     return alt if alt.duration_min < route.duration_min else route
@@ -133,7 +129,9 @@ async def build_timeline(
         route: Route | None = None
         arrive_dt = cursor
         if prev is not None:
-            route = await _best_route(prev, place, mode, constraints, map_service)
+            route = await best_route(
+                prev, place, mode, map_service, constraints.strict_travel_mode
+            )
             if (
                 constraints.max_travel_min is not None
                 and route.duration_min > constraints.max_travel_min
@@ -167,6 +165,7 @@ async def recompute(
     start_time: time,
     mode: TravelMode,
     map_service: MapService,
+    strict_mode: bool = False,
 ) -> list[TimelineItem]:
     """주어진 장소 순서를 그대로 유지하며 도착/출발/이동만 재계산한다(드롭 없음).
 
@@ -177,7 +176,7 @@ async def recompute(
     if len(places) > 1:
         routes = await asyncio.gather(
             *(
-                map_service.get_route(places[i], places[i + 1], mode)
+                best_route(places[i], places[i + 1], mode, map_service, strict_mode)
                 for i in range(len(places) - 1)
             )
         )
