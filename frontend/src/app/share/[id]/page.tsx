@@ -1,58 +1,42 @@
-"use client";
+import type { Metadata } from "next";
 
-import { useEffect, useState } from "react";
+import ShareView from "@/components/ShareView";
+import { summarize } from "@/services/courseSummary";
+import type { Course } from "@/types";
 
-import MapPanel from "@/components/MapPanel";
-import NotFound from "@/components/NotFound";
-import { Button } from "@/components/ui";
-import { api } from "@/services/api";
-import { useCourseStore } from "@/store/courseStore";
-import { useUserStore } from "@/store/userStore";
+// 공유 링크는 메신저에 그대로 붙는다 → 서버에서 코스를 읽어 OG 미리보기를 채운다.
+const API = process.env.NEXT_PUBLIC_API_BASE || "http://localhost:8000";
 
-// 공유 읽기 전용 뷰 (4-5). AI 대화 기록 없이 픽스된 최종 타임라인/지도만 열람.
+async function fetchCourse(id: string): Promise<Course | null> {
+  try {
+    const res = await fetch(`${API}/courses/${id}`, { next: { revalidate: 60 } });
+    if (!res.ok) return null;
+    return (await res.json()) as Course;
+  } catch {
+    return null; // 백엔드 미가동/네트워크 실패 시 기본 메타데이터로 폴백
+  }
+}
+
+export async function generateMetadata({ params }: { params: { id: string } }): Promise<Metadata> {
+  const course = await fetchCourse(params.id);
+  if (!course) {
+    return { title: "공유된 코스 — CoursePilot" };
+  }
+  const title = `${course.title} — CoursePilot`;
+  const description = summarize(course);
+  return {
+    title,
+    description,
+    openGraph: {
+      title,
+      description,
+      type: "article",
+      siteName: "CoursePilot",
+    },
+    twitter: { card: "summary", title, description },
+  };
+}
+
 export default function SharePage({ params }: { params: { id: string } }) {
-  const setCourse = useCourseStore((s) => s.setCourse);
-  const setNotFound = useCourseStore((s) => s.setNotFound);
-  const notFound = useCourseStore((s) => s.notFound);
-  const { userId, load } = useUserStore();
-  const [saved, setSaved] = useState(false);
-
-  useEffect(() => {
-    setNotFound(false);
-    load();
-    api.getCourse(params.id).then(setCourse).catch(() => setNotFound(true));
-    api.view(params.id).catch(() => {}); // 열람 신호(#5)
-  }, [params.id, setCourse, setNotFound, load]);
-
-  if (notFound) {
-    return <NotFound message="공유 링크가 만료되었거나 삭제되었을 수 있어요." />;
-  }
-
-  async function bookmark() {
-    if (!userId) return;
-    await api.addBookmark(userId, params.id).catch(() => {});
-    setSaved(true);
-  }
-
-  return (
-    <div style={{ maxWidth: 640, margin: "0 auto" }}>
-      <header
-        style={{
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "space-between",
-          padding: "var(--sp-3) var(--sp-4)",
-          borderBottom: "1px solid var(--border)",
-        }}
-      >
-        <strong>공유된 코스</strong>
-        {userId && (
-          <Button size="sm" variant={saved ? "secondary" : "primary"} onClick={bookmark} disabled={saved}>
-            {saved ? "북마크됨" : "북마크"}
-          </Button>
-        )}
-      </header>
-      <MapPanel readOnly />
-    </div>
-  );
+  return <ShareView id={params.id} />;
 }
