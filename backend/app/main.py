@@ -670,6 +670,10 @@ def _ai_reply(
         parts.append(f"{constraints.start_place} 출발")
     prefix = f"{' '.join(parts)}, " if parts else ""
     base = f"{prefix}{n}곳으로 코스를 구성했어요."
+    # 언제 끝나는지 미리 알려주면 일정 조정을 바로 할 수 있다
+    last = course.items[-1] if course.items else None
+    if last is not None and last.depart is not None:
+        base += f" {last.depart.strftime('%H:%M')}쯤 마무리돼요."
     if constraints is not None and constraints.prefer_indoor:
         base += " 비 예보라 실내 위주로 골랐어요."
     if relaxed:
