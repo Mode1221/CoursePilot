@@ -33,14 +33,32 @@ export default function PlaceDetailModal({
   const inCourse = new Set((courseItems ?? []).map((it) => it.place.id));
 
   useEffect(() => {
+    // 장소를 빠르게 바꾸면 이전 요청 응답이 늦게 와 다른 장소의 요약이 남을 수 있다
+    let cancelled = false;
+    setSummary("불러오는 중…");
+    setAspects({ pros: [], cons: [] });
+    setRelated([]);
     api
       .reviewSummary(place.id, place.name)
       .then((r) => {
+        if (cancelled) return;
         setSummary(r.summary);
         setAspects({ pros: r.pros ?? [], cons: r.cons ?? [] });
       })
-      .catch(() => setSummary("리뷰를 불러오지 못했습니다."));
-    api.relatedPlaces(place.id).then(setRelated).catch(() => setRelated([]));
+      .catch(() => {
+        if (!cancelled) setSummary("리뷰를 불러오지 못했습니다.");
+      });
+    api
+      .relatedPlaces(place.id)
+      .then((places) => {
+        if (!cancelled) setRelated(places);
+      })
+      .catch(() => {
+        if (!cancelled) setRelated([]);
+      });
+    return () => {
+      cancelled = true;
+    };
   }, [place.id, place.name]);
 
   useEffect(() => {
