@@ -618,6 +618,79 @@ async def add_place(course_id: str, req: AddPlaceRequest) -> Course:
     return await queues.run(course_id, action)
 
 
+class SetItemsRequest(BaseModel):
+    """코스 구성을 place_ids 로 통째로 설정. 추가·삭제·재정렬·되돌리기를 모두 커버한다."""
+
+    place_ids: list[str] = Field(max_length=50)
+
+
+@api.post("/courses/{course_id}/items", response_model=Course)
+async def set_items(course_id: str, req: SetItemsRequest) -> Course:
+    """코스 항목을 지정한 순서로 설정 후 동선 재계산 (수동 편집).
+
+    현재 코스에 없는 id 는 전역 장소 저장소에서 복원하므로, 삭제한 장소를 되살리는
+    되돌리기(undo)도 이 엔드포인트 하나로 처리된다. AI 미호출·무료.
+    """
+    if store.get(course_id) is None:
+        raise HTTPException(status_code=404, detail="course not found")
+
+    async def action() -> Course:
+        course = store.get(course_id)
+        if course is None:
+            raise HTTPException(status_code=404, detail="course not found")
+        if course.locked:
+            raise HTTPException(status_code=409, detail="AI 처리 중에는 편집할 수 없습니다")
+
+        from app.places import place_repo
+
+        current = {it.place.id: it.place for it in course.items}
+        missing = [pid for pid in req.place_ids if pid not in current]
+        restored = place_repo.get_many(missing) if missing else {}
+        places = [current.get(pid) or restored.get(pid) for pid in req.place_ids]
+        unknown = [pid for pid, p in zip(req.place_ids, places, strict=True) if p is None]
+        if unknown:
+            raise HTTPException(status_code=404, detail=f"알 수 없는 장소: {unknown[0]}")
+
+        from app.pipeline.edit import _infer_mode
+        from app.pipeline.validation import recompute
+
+        arrivals = [it.arrive for it in course.items if it.arrive]
+        start = min(arrivals) if arrivals else DEFAULT_START_TIME
+        dropped = [pid for pid in current if pid not in set(req.place_ids)]
+        course.items = (
+            await recompute(
+                [p for p in places if p is not None], start, _infer_mode(course.items), get_map_service()
+            )
+            if places
+            else []
+        )
+        store.save(course)
+        popularity_store.bump_many(dropped, weight=-1)  # 생존율(#3): 빠진 장소 상쇄
+        await broadcast_state(course_id, course.model_dump(mode="json"))
+        return course
+
+    return await queues.run(course_id, action)
+
+
+@api.get("/places/search", response_model=list[Place])
+async def search_places(region: str, q: str = "", limit: int = 8) -> list[Place]:
+    """장소 검색 (직접 추가·교체용). 결과는 전역 저장소에 보관해 이후 id 로 복원 가능.
+
+    인증 불필요(수동 편집 보조). region 은 필수, q 는 추가 키워드.
+    """
+    region = region.strip()
+    if not region:
+        raise HTTPException(status_code=400, detail="지역을 입력해주세요")
+    limit = max(1, min(limit, 20))
+    keywords = [w for w in q.split() if w]
+    places = await get_map_service().search_places(region, keywords, limit)
+
+    from app.places import place_repo
+
+    place_repo.upsert_many(places)  # 검색 결과를 id 로 추가할 수 있게 보관
+    return places
+
+
 @api.get("/courses/{course_id}/messages", response_model=list[ChatMessage])
 async def get_messages(course_id: str) -> list[ChatMessage]:
     """채팅 로그 조회 (append-only). 공유 뷰에서는 노출하지 않음."""

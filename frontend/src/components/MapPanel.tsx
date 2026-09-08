@@ -5,6 +5,7 @@ import { useState } from "react";
 import MapCanvas from "@/components/MapCanvas";
 import { Badge, Button, EmptyState } from "@/components/ui";
 import PlaceDetailModal from "@/components/PlaceDetailModal";
+import PlaceSearchPanel from "@/components/PlaceSearchPanel";
 import { useCourseStore } from "@/store/courseStore";
 import { MODE_LABEL, type Place } from "@/types";
 
@@ -14,6 +15,8 @@ export default function MapPanel({ readOnly = false }: { readOnly?: boolean }) {
   const locked = useCourseStore((s) => s.locked);
   const reorder = useCourseStore((s) => s.reorder);
   const remove = useCourseStore((s) => s.remove);
+  const undo = useCourseStore((s) => s.undo);
+  const historyLen = useCourseStore((s) => s.history.length);
   const [selected, setSelected] = useState<Place | null>(null);
   const [dragIndex, setDragIndex] = useState<number | null>(null);
   const editDisabled = readOnly || locked;
@@ -35,6 +38,17 @@ export default function MapPanel({ readOnly = false }: { readOnly?: boolean }) {
       <div style={{ display: "flex", alignItems: "center", gap: "var(--sp-2)", marginBottom: "var(--sp-3)" }}>
         <h3 style={{ margin: 0 }}>타임라인</h3>
         {locked && <Badge tone="warn">잠금</Badge>}
+        {!readOnly && (
+          <Button
+            size="sm"
+            aria-label="되돌리기"
+            style={{ marginLeft: "auto" }}
+            disabled={editDisabled || historyLen === 0}
+            onClick={() => undo()}
+          >
+            ↩ 되돌리기
+          </Button>
+        )}
       </div>
       {course.items.length === 0 && (
         <EmptyState
@@ -113,6 +127,12 @@ export default function MapPanel({ readOnly = false }: { readOnly?: boolean }) {
           </li>
         ))}
       </ol>
+
+      {!readOnly && (
+        <div style={{ marginTop: "var(--sp-3)" }}>
+          <PlaceSearchPanel disabled={editDisabled} />
+        </div>
+      )}
 
       {selected && (
         <PlaceDetailModal place={selected} onClose={() => setSelected(null)} editable={!editDisabled} />
