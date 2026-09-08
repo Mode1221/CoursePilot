@@ -104,6 +104,19 @@ class UserStore:
             s.commit()
             return self._to_user(row)
 
+    def find_by_phone(self, phone: str) -> User | None:
+        """이미 가입한 번호인지 조회(재가입으로 무료 크레딧을 다시 받지 못하게)."""
+        if is_ready():
+            from sqlalchemy import select
+
+            from app.db import SessionLocal
+            from app.models import UserModel
+
+            with SessionLocal() as s:
+                row = s.execute(select(UserModel).where(UserModel.phone == phone)).scalar_one_or_none()
+                return self._to_user(row) if row is not None else None
+        return next((u for u in self._mem.values() if u.phone == phone), None)
+
     def get(self, user_id: str) -> User | None:
         if is_ready():
             from app.db import SessionLocal

@@ -166,8 +166,12 @@ async def signup(req: SignupRequest) -> dict:
 
     if not require_verified(req.phone):
         raise HTTPException(status_code=403, detail="전화번호 인증이 필요합니다")
-    user = user_store.create(req.phone)
     verification_store.consume_verified(req.phone)  # 1회성 소비
+    existing = user_store.find_by_phone(req.phone)
+    if existing is not None:
+        # 이미 가입한 번호면 그 계정으로 다시 들어온다(재가입 크레딧 어뷰징 차단)
+        return {"user_id": existing.id, "credits_left": existing.credits_left}
+    user = user_store.create(req.phone)
     # 신규 가입 시 초대자에게 보너스 크레딧. 자기추천 방지 + 실존 초대자만.
     if (
         req.referrer_id

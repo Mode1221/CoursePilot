@@ -67,3 +67,12 @@ def test_만료된_코드는_정리된다():
     store._codes["01099997777"] = ("123456", 0.0)  # 만료 상태로 강제
     assert store.verify("01099997777", "123456") is False
     assert "01099997777" not in store._codes
+
+
+def test_재가입은_기존_계정으로_돌아간다():
+    client = TestClient(api)
+    phone = "010-8888-7777"
+    first = client.post("/signup", json={"phone": phone}).json()
+    again = client.post("/signup", json={"phone": phone}).json()
+    assert again["user_id"] == first["user_id"]
+    assert again["credits_left"] == first["credits_left"]
