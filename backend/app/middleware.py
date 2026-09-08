@@ -24,6 +24,7 @@ def reset_rate_limits() -> None:
         mw._hits.clear()
 
 
+SWEEP_EVERY = 500  # 이 횟수마다 만료된 클라이언트 항목을 정리한다
 SLOW_REQUEST_MS = 2000  # 이보다 느리면 경고로 남겨 눈에 띄게 한다
 
 
@@ -65,15 +66,35 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
         self._limit = limit
         self._window = window_sec
         self._hits: dict[str, deque[float]] = {}
+        self._sweeps = 0
         _RATE_LIMITERS.append(self)
+
+    def _client_key(self, request: Request) -> str:
+        """리버스 프록시(Caddy) 뒤에서는 실제 클라이언트 IP 를 써야 한다.
+
+        X-Forwarded-For 의 첫 항목이 원 클라이언트. 헤더가 없으면 소켓 주소.
+        """
+        forwarded = request.headers.get("X-Forwarded-For")
+        if forwarded:
+            return forwarded.split(",")[0].strip()
+        return request.client.host if request.client else "unknown"
+
+    def _sweep(self, now: float) -> None:
+        """오래된 클라이언트 항목 제거(무한 증가 방지)."""
+        stale = [key for key, hits in self._hits.items() if not hits or hits[-1] <= now - self._window]
+        for key in stale:
+            del self._hits[key]
 
     async def dispatch(self, request: Request, call_next):
         # 헬스체크/문서는 제외
         if request.url.path in ("/health", "/docs", "/openapi.json"):
             return await call_next(request)
 
-        client = request.client.host if request.client else "unknown"
+        client = self._client_key(request)
         now = time.time()
+        self._sweeps += 1
+        if self._sweeps % SWEEP_EVERY == 0:
+            self._sweep(now)
         q = self._hits.setdefault(client, deque())
         while q and q[0] <= now - self._window:
             q.popleft()
