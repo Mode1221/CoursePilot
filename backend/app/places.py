@@ -46,6 +46,19 @@ class PlaceRepository:
                 return {r[0]: Place(**r[1]) for r in rows}
         return {pid: self._mem[pid] for pid in ids if pid in self._mem}
 
+    def all(self, limit: int = 500) -> list[Place]:
+        """저장된 장소 스냅샷(최대 limit). 콜드스타트 추천 폴백용."""
+        if self._db_ready():
+            from sqlalchemy import select
+
+            from app.db import SessionLocal
+            from app.models import PlaceModel
+
+            with SessionLocal() as s:
+                rows = s.execute(select(PlaceModel.data).limit(limit)).all()
+                return [Place(**r[0]) for r in rows]
+        return list(self._mem.values())[:limit]
+
     @staticmethod
     def _db_ready() -> bool:
         from app.db import is_ready

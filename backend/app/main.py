@@ -532,7 +532,35 @@ async def related_places(place_id: str, limit: int = 5) -> list[Place]:
     limit = max(1, min(limit, 20))
     partners = cooccurrence_store.top_partners(place_id, limit)
     resolved = place_repo.get_many([pid for pid, _ in partners])
-    return [resolved[pid] for pid, _ in partners if pid in resolved]
+    found = [resolved[pid] for pid, _ in partners if pid in resolved]
+    if found:
+        return found
+    # 콜드스타트: 공동채택 이력이 없으면 근처 인기 장소로 폴백
+    return _nearby_popular(place_id, limit)
+
+
+NEARBY_DEGREES = 0.02  # 위경도 약 2km 이내(정렬용 근사)
+
+
+def _nearby_popular(place_id: str, limit: int) -> list[Place]:
+    """같은 동네의 인기 장소. 기준 장소를 모르면 빈 목록."""
+    from app.places import place_repo
+
+    known = place_repo.get_many([place_id]).get(place_id)
+    if known is None:
+        return []
+    candidates = [
+        p
+        for p in place_repo.all()
+        if p.id != place_id
+        and abs(p.lat - known.lat) <= NEARBY_DEGREES
+        and abs(p.lng - known.lng) <= NEARBY_DEGREES
+    ]
+    if not candidates:
+        return []
+    scores = popularity_store.scores([p.id for p in candidates])
+    candidates.sort(key=lambda p: (-scores.get(p.id, 0.0), -(p.rating or 0.0)))
+    return candidates[:limit]
 
 
 COMPLETION_WEIGHT = 3  # 완주(실제 방문)는 채택/북마크보다 강한 긍정 신호
