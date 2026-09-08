@@ -137,9 +137,13 @@ def _katech_to_wgs84(mapx, mapy) -> tuple[float, float]:
         return 0.0, 0.0
 
 
+# 실제 길은 직선이 아니다(블록·횡단보도 우회). 도시 보행 기준 통용되는 계수.
+DETOUR_FACTOR = 1.3
+
+
 def _straight_line_route(origin: Place, dest: Place, mode: TravelMode) -> Route:
-    """도보/대중교통 근사: 하버사인 직선거리 기반."""
-    distance_m = _haversine_m(origin.lat, origin.lng, dest.lat, dest.lng)
+    """도보/대중교통 근사: 하버사인 직선거리에 우회 계수를 곱해 보정."""
+    distance_m = _haversine_m(origin.lat, origin.lng, dest.lat, dest.lng) * DETOUR_FACTOR
     speed = TRAVEL_SPEED_M_PER_MIN[mode.value]  # m/분
     return Route(
         from_place_id=origin.id,
