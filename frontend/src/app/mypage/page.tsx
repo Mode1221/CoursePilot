@@ -52,6 +52,15 @@ export default function MyPage() {
           items={courses}
           hrefBase="/plan"
           empty="아직 만든 코스가 없어요."
+          onRename={async (id, title) => {
+            try {
+              const updated = await api.renameCourse(id, title, userId);
+              setCourses((cs) => cs.map((c) => (c.id === id ? updated : c)));
+              toast("이름을 변경했어요.", "success");
+            } catch {
+              toast("이름을 변경하지 못했어요.", "error");
+            }
+          }}
           onDelete={async (id) => {
             try {
               await api.deleteCourse(id, userId);
@@ -77,11 +86,13 @@ function CourseList({
   hrefBase,
   empty,
   onDelete,
+  onRename,
 }: {
   items: Course[];
   hrefBase: string;
   empty: string;
   onDelete?: (id: string) => void;
+  onRename?: (id: string, title: string) => void;
 }) {
   if (items.length === 0) return <EmptyState title={empty} />;
   return (
@@ -99,6 +110,18 @@ function CourseList({
               </div>
             </Card>
           </Link>
+          {onRename && (
+            <Button
+              size="sm"
+              aria-label={`${c.title} 이름 변경`}
+              onClick={() => {
+                const next = prompt("새 코스 이름", c.title)?.trim();
+                if (next && next !== c.title) onRename(c.id, next);
+              }}
+            >
+              이름
+            </Button>
+          )}
           {onDelete && (
             <Button
               variant="danger"
