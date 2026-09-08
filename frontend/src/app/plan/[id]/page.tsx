@@ -28,9 +28,23 @@ export default function PlanPage({ params }: { params: { id: string } }) {
   useEffect(() => {
     setNotFound(false); // 다른 코스로 이동 시 이전 404 상태 초기화
     // 캐시 유실/재연결 시 서버에서 현재 상태 refetch (5-4)
+    // 다른 코스로 이동하면 이전 코스의 늦은 응답이 현재 화면을 덮어쓸 수 있다
+    let cancelled = false;
     const refetch = () => {
-      api.getCourse(id).then(setCourse).catch(() => setNotFound(true));
-      api.messages(id).then(setMessages).catch(() => {});
+      api
+        .getCourse(id)
+        .then((course) => {
+          if (!cancelled) setCourse(course);
+        })
+        .catch(() => {
+          if (!cancelled) setNotFound(true);
+        });
+      api
+        .messages(id)
+        .then((messages) => {
+          if (!cancelled) setMessages(messages);
+        })
+        .catch(() => {});
     };
     refetch();
 
@@ -53,6 +67,7 @@ export default function PlanPage({ params }: { params: { id: string } }) {
     socket.on("disconnect", () => setConnected(false));
 
     return () => {
+      cancelled = true;
       socket.off("state");
       socket.off("locked");
       socket.off("unlocked");
