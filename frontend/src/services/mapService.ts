@@ -9,6 +9,8 @@ export interface MapService {
   getRoute(origin: Place, dest: Place, mode: TravelMode): Promise<Route>;
 }
 
+export const TRANSIT_OVERHEAD_MIN = 7; // 정류장 접근·대기·환승 (backend/app/constants.py 와 동일)
+
 class MockMapService implements MapService {
   async searchPlaces(region: string, _keywords: string[], limit = 10): Promise<Place[]> {
     return Array.from({ length: limit }, (_, i) => ({
@@ -21,6 +23,7 @@ class MockMapService implements MapService {
     }));
   }
 
+  // 백엔드와 같은 규칙: 대중교통은 대기·환승 고정 비용을 더한다
   async getRoute(origin: Place, dest: Place, mode: TravelMode): Promise<Route> {
     const distance_m = Math.round(
       (Math.abs(origin.lat - dest.lat) + Math.abs(origin.lng - dest.lng)) * 111_000,
@@ -30,7 +33,8 @@ class MockMapService implements MapService {
       from_place_id: origin.id,
       to_place_id: dest.id,
       mode,
-      duration_min: Math.max(1, Math.round(distance_m / speed)),
+      duration_min:
+        Math.max(1, Math.round(distance_m / speed)) + (mode === "transit" ? TRANSIT_OVERHEAD_MIN : 0),
       distance_m,
     };
   }
