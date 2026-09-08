@@ -14,6 +14,7 @@ const EXAMPLES = [
   { label: "토요일 오후 성수동 데이트", hint: "3시간 · 도보 10분 이내" },
   { label: "금요일 저녁 강남역 회식", hint: "4명 · 1인 3만원" },
   { label: "일요일 연남동 브런치", hint: "오전 11시 시작" },
+  { label: "비 오는 날 홍대", hint: "실내 위주 · 두 군데" },
 ];
 
 export default function Home() {
