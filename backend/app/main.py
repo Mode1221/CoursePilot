@@ -241,12 +241,16 @@ async def purchase_points(
         raise HTTPException(status_code=404, detail="user not found")
 
     from app.adapters.payment import get_payment_service
+    from app.payment_ledger import payment_ledger
 
     pay = get_payment_service()
     if pay is not None:
         # 실 결제 검증: 결제 완료 + 금액이 (포인트 수 × 단가) 이상이어야 지급
         if not req.imp_uid:
             raise HTTPException(status_code=400, detail="결제 정보(imp_uid)가 필요합니다")
+        if payment_ledger.is_used(req.imp_uid):
+            # 같은 결제로 반복 충전(리플레이) 차단
+            raise HTTPException(status_code=409, detail="이미 처리된 결제입니다")
         try:
             result = await pay.verify(req.imp_uid)
         except Exception:
@@ -254,6 +258,7 @@ async def purchase_points(
         expected = req.points * settings.point_price_krw
         if not result.paid or result.amount < expected:
             raise HTTPException(status_code=402, detail="결제가 확인되지 않았습니다")
+        payment_ledger.mark_used(req.imp_uid)
 
     user = user_store.purchase_points(user_id, req.points)
     if user is None:
