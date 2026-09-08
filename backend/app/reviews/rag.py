@@ -47,10 +47,25 @@ async def fetch_filtered(place_name: str, limit: int = 5) -> list[str]:
     return [r.content for r in reviews if _keep(r.content)]
 
 
+def _tag_summary(reviews: list[str]) -> str:
+    """LLM 없이 만드는 요약. 리뷰 원문을 그대로 노출하지 않도록 태그로만 정리한다."""
+    from app.reviews.aspects import extract_aspects
+
+    pros, cons = extract_aspects(reviews)
+    parts: list[str] = []
+    if pros:
+        parts.append(f"좋은 점: {' · '.join(pros)}")
+    if cons:
+        parts.append(f"주의할 점: {' · '.join(cons)}")
+    if not parts:
+        return f"리뷰 {len(reviews)}건을 참고했어요."
+    return f"리뷰 {len(reviews)}건 기준 — " + " / ".join(parts)
+
+
 async def summarize_reviews(reviews: list[str]) -> str:
     """검색된 비협찬 리뷰를 요약. 2차 LLM 필터로 협찬 의심 제외 지시 (8장).
 
-    키 없으면 단순 결합으로 폴백.
+    키가 없거나 호출이 실패하면 원문 대신 애스펙트 태그 요약으로 폴백한다.
     """
     if not reviews:
         return "참고할 리뷰가 없습니다."
@@ -60,7 +75,7 @@ async def summarize_reviews(reviews: list[str]) -> str:
 
     client = get_openai_client()
     if client is None:
-        return " ".join(reviews)[:300]
+        return _tag_summary(reviews)
 
     try:
         joined = "\n".join(f"- {r}" for r in reviews)
@@ -74,9 +89,9 @@ async def summarize_reviews(reviews: list[str]) -> str:
                 {"role": "user", "content": joined},
             ],
         )
-        return resp.choices[0].message.content or ""
+        return resp.choices[0].message.content or _tag_summary(reviews)
     except Exception:
-        return " ".join(reviews)[:300]
+        return _tag_summary(reviews)
 
 
 async def retrieve(place_id: str, query: str, k: int = 3, db_ready: bool = False) -> list[str]:
