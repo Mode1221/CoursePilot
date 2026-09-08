@@ -291,7 +291,7 @@ async def course_calendar(course_id: str) -> Response:
         raise HTTPException(status_code=404, detail="course not found")
     filename = f"coursepilot-{course_id}.ics"
     return Response(
-        content=to_ics(course),
+        content=to_ics(course, day=course.plan_date),
         media_type="text/calendar; charset=utf-8",
         headers={"Content-Disposition": f'attachment; filename="{filename}"'},
     )
@@ -408,6 +408,8 @@ async def generate(
                 region_guessed = result.constraints.region is None
                 if result.constraints.region:
                     course.region = result.constraints.region
+                if result.constraints.plan_date:  # 캘린더 내보내기 기준일
+                    course.plan_date = result.constraints.plan_date
                 # #17: 생성 시 코스 목적함수 점수 저장(만족도 대조용)
                 from app.pipeline.planner import course_score
 
