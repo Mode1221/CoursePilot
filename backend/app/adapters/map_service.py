@@ -10,7 +10,7 @@ from datetime import time
 from functools import lru_cache
 
 from app.config import settings
-from app.constants import TRAVEL_SPEED_M_PER_MIN
+from app.constants import TRANSIT_OVERHEAD_MIN, TRAVEL_SPEED_M_PER_MIN
 from app.schemas import Place, Route, TravelMode
 
 
@@ -74,6 +74,8 @@ class MockMapService(MapService):
         distance_m = int((dlat + dlng) * 111_000)
         speed_m_per_min = TRAVEL_SPEED_M_PER_MIN[mode.value]
         duration_min = max(1, round(distance_m / speed_m_per_min))
+        if mode is TravelMode.TRANSIT:
+            duration_min += TRANSIT_OVERHEAD_MIN
         return Route(
             from_place_id=origin.id,
             to_place_id=dest.id,

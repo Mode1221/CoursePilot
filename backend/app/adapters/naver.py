@@ -15,7 +15,7 @@ import httpx
 
 from app.adapters.map_service import MapService
 from app.config import settings
-from app.constants import TRAVEL_SPEED_M_PER_MIN
+from app.constants import TRANSIT_OVERHEAD_MIN, TRAVEL_SPEED_M_PER_MIN
 from app.schemas import Place, Route, TravelMode
 
 _SEARCH_URL = "https://openapi.naver.com/v1/search/local.json"
@@ -145,11 +145,14 @@ def _straight_line_route(origin: Place, dest: Place, mode: TravelMode) -> Route:
     """도보/대중교통 근사: 하버사인 직선거리에 우회 계수를 곱해 보정."""
     distance_m = _haversine_m(origin.lat, origin.lng, dest.lat, dest.lng) * DETOUR_FACTOR
     speed = TRAVEL_SPEED_M_PER_MIN[mode.value]  # m/분
+    duration_min = max(1, round(distance_m / speed))
+    if mode is TravelMode.TRANSIT:
+        duration_min += TRANSIT_OVERHEAD_MIN  # 대기·환승 고정 비용
     return Route(
         from_place_id=origin.id,
         to_place_id=dest.id,
         mode=mode,
-        duration_min=max(1, round(distance_m / speed)),
+        duration_min=duration_min,
         distance_m=round(distance_m),
     )
 
