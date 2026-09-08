@@ -76,3 +76,23 @@ def test_재가입은_기존_계정으로_돌아간다():
     again = client.post("/signup", json={"phone": phone}).json()
     assert again["user_id"] == first["user_id"]
     assert again["credits_left"] == first["credits_left"]
+
+
+def test_같은_번호_연속_발송은_막는다():
+    from app.auth import VerificationStore
+
+    store = VerificationStore()
+    assert store.can_send("010-1111-2222") is True
+    assert store.can_send("010-1111-2222") is False  # 쿨다운
+
+
+def test_시간당_발송_상한이_있다():
+    from app.auth import MAX_SENDS_PER_HOUR, RESEND_COOLDOWN, VerificationStore
+
+    store = VerificationStore()
+    phone = "010-3333-4444"
+    for _ in range(MAX_SENDS_PER_HOUR):
+        assert store.can_send(phone) is True
+        # 쿨다운을 지난 것처럼 이력을 과거로 밀어 둔다
+        store._sends[phone] = [t - RESEND_COOLDOWN - 1 for t in store._sends[phone]]
+    assert store.can_send(phone) is False

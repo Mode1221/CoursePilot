@@ -14,6 +14,12 @@ from app.config import settings
 _CODE_TTL = 300      # 코드 유효 5분
 _VERIFIED_TTL = 1800  # 인증 상태 유지 30분
 MAX_ATTEMPTS = 5     # 코드 시도 횟수 상한(6자리 무차별 대입 차단)
+RESEND_COOLDOWN = 60   # 같은 번호로 재발송 최소 간격(초)
+MAX_SENDS_PER_HOUR = 5  # 번호당 시간당 발송 상한(문자 폭탄·비용 방지)
+
+
+class TooManyRequests(Exception):
+    """발송 쿨다운/상한 초과."""
 
 
 class VerificationStore:
@@ -21,6 +27,20 @@ class VerificationStore:
         self._codes: dict[str, tuple[str, float]] = {}      # phone -> (code, expiry)
         self._verified: dict[str, float] = {}                # phone -> expiry
         self._attempts: dict[str, int] = {}                  # phone -> 남은 시도 수
+        self._sends: dict[str, list[float]] = {}             # phone -> 최근 발송 시각들
+
+    def can_send(self, phone: str) -> bool:
+        """쿨다운·시간당 상한 확인. 통과하면 발송 이력을 기록한다."""
+        now = _time.time()
+        recent = [t for t in self._sends.get(phone, []) if now - t < 3600]
+        if recent and now - recent[-1] < RESEND_COOLDOWN:
+            return False
+        if len(recent) >= MAX_SENDS_PER_HOUR:
+            self._sends[phone] = recent
+            return False
+        recent.append(now)
+        self._sends[phone] = recent
+        return True
 
     def issue(self, phone: str) -> str:
         self._sweep()
@@ -55,6 +75,8 @@ class VerificationStore:
             self._forget(phone)
         for phone in [p for p, exp in self._verified.items() if exp < now]:
             del self._verified[phone]
+        for phone in [p for p, ts in self._sends.items() if not ts or now - ts[-1] >= 3600]:
+            del self._sends[phone]
 
     def is_verified(self, phone: str) -> bool:
         exp = self._verified.get(phone)
@@ -68,7 +90,12 @@ verification_store = VerificationStore()
 
 
 async def request_code(phone: str) -> str | None:
-    """코드 발급 + 발송. 실서비스면 None(코드 비노출), 개발 폴백이면 코드 반환."""
+    """코드 발급 + 발송. 실서비스면 None(코드 비노출), 개발 폴백이면 코드 반환.
+
+    같은 번호로 짧은 간격·과도한 횟수 요청은 거절한다(TooManyRequests).
+    """
+    if not verification_store.can_send(phone):
+        raise TooManyRequests
     code = verification_store.issue(phone)
     from app.adapters.sms import get_sms_service
 
