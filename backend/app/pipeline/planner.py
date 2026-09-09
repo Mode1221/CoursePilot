@@ -154,6 +154,7 @@ _COMPANION_KEYWORDS: dict[str, tuple[str, ...]] = {
 
 
 SLOT_HOURS = 2  # 한 칸(방문+이동)에 대략 2시간
+MAX_STOPS = 6  # 사용자가 직접 말한 개수의 상한(하루 종일 코스)
 
 
 # ── 카테고리 시퀀스 템플릿 (B) ───────────────────────────────────
@@ -175,7 +176,8 @@ def desired_slots(constraints: PlanConstraints) -> list[str]:
     dur = constraints.duration_min or 180
     n = max(2, min(4, dur // 90))
     if constraints.stop_count:  # "2차", "세 군데" 처럼 개수를 직접 말했으면 그 값을 따른다
-        n = max(1, min(4, constraints.stop_count))
+        # 하루 종일 코스는 5~6곳도 요청한다 — 4곳으로 잘라 요청을 무시하지 않는다
+        n = max(1, min(MAX_STOPS, constraints.stop_count))
         if n == 1:  # "한 곳만" — 요청 키워드 우선, 없으면 식사 시간대 기준
             wanted = keyword_slot(constraints)
             if wanted:
@@ -187,13 +189,21 @@ def desired_slots(constraints: PlanConstraints) -> list[str]:
 
     # 회식: 식사+술 중심 / 데이트: 활동·분위기 포함 / 가족: 술 배제·활동 위주
     if comp == "회식":
-        slots = {2: ["meal", "bar"], 3: ["meal", "cafe", "bar"], 4: ["meal", "cafe", "bar", "bar"]}[n]
+        slots = {
+            2: ["meal", "bar"],
+            3: ["meal", "cafe", "bar"],
+            4: ["meal", "cafe", "bar", "bar"],
+            5: ["meal", "cafe", "bar", "activity", "bar"],
+            6: ["meal", "cafe", "bar", "activity", "meal", "bar"],
+        }[n]
         return _shift_meal_to_mealtime(slots, constraints.start_time)
     if comp == "가족":
         slots = {
             2: ["meal", "cafe"],
             3: ["meal", "activity", "cafe"],
             4: ["meal", "activity", "cafe", "activity"],
+            5: ["meal", "activity", "cafe", "activity", "meal"],
+            6: ["meal", "activity", "cafe", "activity", "meal", "cafe"],
         }[n]
         return _shift_meal_to_mealtime(slots, constraints.start_time)
 
@@ -202,6 +212,8 @@ def desired_slots(constraints: PlanConstraints) -> list[str]:
         2: ["meal", "cafe" if comp == "데이트" else ("bar" if evening else "cafe")],
         3: ["meal", "cafe", last],
         4: ["meal", "activity", "cafe", last],
+        5: ["meal", "activity", "cafe", "meal", last],
+        6: ["meal", "activity", "cafe", "meal", "activity", last],
     }[n]
     return _shift_meal_to_mealtime(base, constraints.start_time)
 
