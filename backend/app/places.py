@@ -52,6 +52,25 @@ class PlaceRepository:
                 return {r[0]: Place(**r[1]) for r in rows}
         return {pid: self._mem[pid] for pid in ids if pid in self._mem}
 
+    def delete_many(self, ids: list[str]) -> int:
+        """폐업 등으로 더 이상 추천하면 안 되는 장소를 스냅샷에서 지운다."""
+        if not ids:
+            return 0
+        if self._db_ready():
+            from app.db import SessionLocal
+            from app.models import PlaceModel
+
+            removed = 0
+            with SessionLocal() as s:
+                for pid in ids:
+                    row = s.get(PlaceModel, pid)
+                    if row is not None:
+                        s.delete(row)
+                        removed += 1
+                s.commit()
+            return removed
+        return sum(1 for pid in ids if self._mem.pop(pid, None) is not None)
+
     def all(self, limit: int = 500) -> list[Place]:
         """저장된 장소 스냅샷(최대 limit). 콜드스타트 추천 폴백용."""
         if self._db_ready():

@@ -32,6 +32,7 @@ class Place(BaseModel):
     google_place_id: str | None = None
     business_status: str | None = None  # OPERATIONAL | CLOSED_TEMPORARILY | CLOSED_PERMANENTLY
     # Google 콘텐츠는 캐시 기한이 있다(영업시간 30일 / 평점 90일).
+    last_recommended_at: datetime | None = None  # 갱신 대상(활성 집합) 판정용
     hours_checked_at: datetime | None = None
     rating_checked_at: datetime | None = None
     hours_unverified: bool = False  # 영업시간을 확인하지 못함 → 사용자에게 "확인 필요" 표시

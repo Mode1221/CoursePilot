@@ -7,6 +7,7 @@ from __future__ import annotations
 import asyncio
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
+from datetime import UTC, datetime
 
 from app.adapters.map_service import MapService
 from app.constants import DEFAULT_REGION
@@ -144,6 +145,9 @@ async def _verify_hours(timeline: list[TimelineItem]) -> None:
     코스에 남은 3~5곳만, 그것도 30일 지난 것만 갱신한다. 실패해도 코스는 그대로다.
     """
     places = [item.place for item in timeline]
+    now = datetime.now(UTC)
+    for place in places:
+        place.last_recommended_at = now  # 활성 집합(최근 90일) 판정 근거
     try:
         from app.adapters.google import refresh_final_hours
 
