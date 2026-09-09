@@ -439,6 +439,18 @@ def parse_constraints(text: str, today: date | None = None) -> PlanConstraints:
     ]
     if c.prefer_indoor and "실내" not in c.keywords:
         c.keywords.insert(0, "실내")  # 우천이면 실내를 최우선 검색어로
+
+    # "성수동 말고 다른 동네" — 빼달라고 한 지역을 그대로 검색 지역으로 쓰면
+    # 요청과 정반대가 된다. 다른 지명이 있으면 그쪽을, 없으면 지역 미지정으로 둔다.
+    if c.region and any(ex in c.region or c.region in ex for ex in c.exclude_keywords):
+        c.region = next(
+            (
+                r
+                for r in _KNOWN_REGIONS
+                if r in text and not any(ex in r or r in ex for ex in c.exclude_keywords)
+            ),
+            None,
+        )
     return c
 
 
