@@ -118,3 +118,17 @@ def test_응대_위생_표현도_조사를_흡수한다():
 
     _, cons = extract_aspects(["위생은 별로였어요", "응대가 별로"])
     assert "청결" in cons and "친절" in cons
+
+
+def test_해시태그는_축으로_읽지_않는다():
+    from app.reviews.aspects import extract_aspects
+
+    pros, _ = extract_aspects(["#맛집 #성수동맛집 #카페추천 분위기 좋아요"])
+    assert "분위기" in pros and "맛" not in pros
+
+
+def test_본문의_같은_말은_그대로_읽는다():
+    from app.reviews.aspects import extract_aspects
+
+    pros, _ = extract_aspects(["맛있고 분위기 좋아요"])
+    assert "맛" in pros and "분위기" in pros

@@ -56,12 +56,20 @@ def _threshold(review_count: int) -> int:
     return max(MIN_HITS, int(review_count * MENTION_RATIO))
 
 
+# 해시태그는 후기가 아니라 노출용 꼬리표다("#맛집 #카페추천"). 축 추출에서 뺀다.
+_HASHTAG_RE = re.compile(r"#\S+")
+
+
+def _without_hashtags(text: str) -> str:
+    return _HASHTAG_RE.sub(" ", text or "")
+
+
 def extract_aspects(reviews: list[str]) -> tuple[list[str], list[str]]:
     """(좋은 점, 주의할 점) 태그 목록. 언급 빈도 내림차순, 각 최대 4개.
 
     한 태그가 양쪽 모두 걸리면 더 많이 언급된 쪽만 남긴다(모순 방지).
     """
-    text = "\n".join(reviews)
+    text = "\n".join(_without_hashtags(r) for r in reviews)
     need = _threshold(len(reviews))
     pros: dict[str, int] = {}
     cons: dict[str, int] = {}
