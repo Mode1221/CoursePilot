@@ -31,3 +31,20 @@ def test_사전에_있는_말은_건드리지_않는다():
 
 def test_치환표는_서로_다른_표기만_담는다():
     assert all(word != standard for word, standard in SYNONYMS.items())
+
+
+@pytest.mark.parametrize("text", ["전부 좀 더 저렴하게", "싸게 먹을 만한 곳", "가성비 좋은 데"])
+def test_저렴_표현을_가성비로_읽는다(text):
+    assert "가성비" in parse_constraints(text).keywords
+
+
+@pytest.mark.parametrize(
+    "text,excluded",
+    [
+        ("비싼 곳 말고", "비싼"),
+        ("시끄러운 데 말고", "시끄러운"),
+        ("술집 빼고", "술집"),
+    ],
+)
+def test_곳_데가_끼어도_제외어를_제대로_잡는다(text, excluded):
+    assert excluded in parse_constraints(text).exclude_keywords
