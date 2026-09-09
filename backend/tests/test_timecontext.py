@@ -42,7 +42,8 @@ async def test_planner_prefers_context_match(monkeypatch):
     cooccurrence_store._mem.clear()
     popularity_store._mem.clear()
     cands = await MockMapService().search_places("성수동", [], limit=6)
-    target = cands[-1]
+    # 저녁 코스에 들어갈 수 있는(그 시간대에 영업하는) 후보로 지정
+    target = next(p for p in cands if p.category == "bar")
     # 저녁 시간대에 강하게 채택된 장소
     time_context_store.bump(target.id, "evening", weight=100)
 
