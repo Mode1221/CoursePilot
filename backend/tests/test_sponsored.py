@@ -19,3 +19,19 @@ def test_score_never_negative():
     from app.reviews.sponsored import sponsored_score
 
     assert sponsored_score("내돈내산 조용하고 좋았어요") == 0.0
+
+
+def test_본문_뒤쪽_표기도_걸러낸다():
+    from app.reviews.rag import SPONSORED_THRESHOLD
+    from app.reviews.sponsored import sponsored_score
+
+    text = "여기 커피 맛있고 자리도 넓어요. " * 20 + "본 후기는 업체로부터 협찬을 받아 작성했습니다."
+    assert sponsored_score(text) >= SPONSORED_THRESHOLD
+
+
+def test_내돈내산_이면_표기_문구가_있어도_남긴다():
+    from app.reviews.rag import SPONSORED_THRESHOLD
+    from app.reviews.sponsored import sponsored_score
+
+    text = "내돈내산 후기예요. " * 5 + "요즘 협찬 글이 많던데 저는 제 돈으로 갔습니다."
+    assert sponsored_score(text) < SPONSORED_THRESHOLD

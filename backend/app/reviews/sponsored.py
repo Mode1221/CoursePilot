@@ -72,7 +72,8 @@ def sponsored_score(text: str, account_repeat: bool = False) -> float:
     if any(p.search(head) for p in _COMPILED):
         score += 0.7
     elif any(p.search(text) for p in _COMPILED):
-        score += 0.4
+        # 본문 어디든 표기 문구가 있으면 그 자체로 제외 대상(임계 0.5)
+        score += 0.5
 
     # 구조 신호(누적, 상한)
     struct_hits = sum(1 for p in _STRUCTURE_COMPILED if p.search(text))
