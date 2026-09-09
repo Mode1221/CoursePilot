@@ -7,6 +7,7 @@ import NotFound from "@/components/NotFound";
 import { Button } from "@/components/ui";
 import { api } from "@/services/api";
 import { saveCalendar } from "@/services/calendar";
+import { formatPlanDate } from "@/services/courseDate";
 import { useCourseStore } from "@/store/courseStore";
 import { toast } from "@/store/toastStore";
 import { useUserStore } from "@/store/userStore";
@@ -17,6 +18,7 @@ export default function ShareView({ id }: { id: string }) {
   const setCourse = useCourseStore((s) => s.setCourse);
   const setNotFound = useCourseStore((s) => s.setNotFound);
   const notFound = useCourseStore((s) => s.notFound);
+  const course = useCourseStore((s) => s.course);
   const { userId, load } = useUserStore();
   const [saved, setSaved] = useState(false);
 
@@ -38,6 +40,15 @@ export default function ShareView({ id }: { id: string }) {
       cancelled = true;
     };
   }, [id, setCourse, setNotFound, load]);
+
+  // 제목 아래 한 줄: 날짜 · 인원 · 지역 (있는 것만)
+  const subtitle = [
+    formatPlanDate(course?.plan_date),
+    course?.party_size ? `${course.party_size}명` : null,
+    course?.region,
+  ]
+    .filter(Boolean)
+    .join(" · ");
 
   if (notFound) {
     return <NotFound message="공유 링크가 만료되었거나 삭제되었을 수 있어요." />;
@@ -65,7 +76,16 @@ export default function ShareView({ id }: { id: string }) {
           borderBottom: "1px solid var(--border)",
         }}
       >
-        <strong>공유된 코스</strong>
+        <span style={{ display: "flex", flexDirection: "column", gap: 2, minWidth: 0 }}>
+          <strong
+            style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}
+          >
+            {course?.title || "공유된 코스"}
+          </strong>
+          {subtitle && (
+            <span style={{ fontSize: 12, color: "var(--muted)" }}>{subtitle}</span>
+          )}
+        </span>
         <span style={{ display: "flex", gap: "var(--sp-2)" }}>
           <Button size="sm" onClick={() => saveCalendar(id)}>
             캘린더
