@@ -57,6 +57,7 @@ class PlanResult:
     timeline: list[TimelineItem]
     relaxed: bool  # 조건 완화가 적용됐는지
     needs_confirmation: bool  # 완화로도 부족 → 사용자 확인 필요
+    closed_dropped: int = 0  # 폐업·휴무로 최종 단계에서 뺀 장소 수
 
 
 async def generate_course(
@@ -89,14 +90,18 @@ async def generate_course(
     enough = _min_valid(constraints)
     if len(timeline) >= enough and not force_relax:
         await progress("done")
+        before = len(timeline)
         timeline = await _verify_hours(timeline, constraints, map_service)
         # 개수를 직접 말한 요청("5곳")에 못 미치면, 완화 없이 끝내더라도
         # 그 사실을 알리고 완화 여부를 물어본다(조용히 4곳만 주지 않는다).
+        # 폐업·휴무로 빠진 뒤의 개수로 판단해야 한다 — 빼기 전 개수로 재면
+        # 2곳짜리 코스를 "충분하다"고 넘긴다.
         return PlanResult(
             constraints,
             timeline,
             relaxed=False,
             needs_confirmation=len(timeline) < _min_usable(constraints),
+            closed_dropped=before - len(timeline),
         )
 
     # 7-4 조건 완화: 소프트 제약(이동시간 여유폭)부터 단계적 완화. 하드 제약(예산)은 유지.
@@ -127,8 +132,8 @@ async def generate_course(
     # 완화 결과를 실제로 쓴 경우에만 완화했다고 알린다 — 바뀐 게 없는데
     # "일부 조건은 완화했어요"라고 하면 사용자는 무엇이 깎였는지 알 수 없다.
     relaxed = len(timeline) > base_len
-    needs_confirmation = len(timeline) < _min_usable(constraints)
     await progress("done")
+    before = len(timeline)
     timeline = await _verify_hours(
         timeline, relaxed_c if relaxed else constraints, map_service
     )
@@ -136,7 +141,8 @@ async def generate_course(
         relaxed_c if relaxed else constraints,
         timeline,
         relaxed=relaxed,
-        needs_confirmation=needs_confirmation,
+        needs_confirmation=len(timeline) < _min_usable(constraints),
+        closed_dropped=before - len(timeline),
     )
 
 
