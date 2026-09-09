@@ -30,6 +30,9 @@ _QUALITY_WORDS: dict[str, str] = {
 _REMOVE_RE = re.compile(r"(빼|삭제|제거|없애|지워|지우|치워)")
 # "카페 하나 추가해줘", "술집 넣어줘" → 전체 재생성 대신 한 칸만 덧붙인다
 _ADD_RE = re.compile(r"(추가|넣어|붙여|더\s*가|하나\s*더)")
+# "맨 앞에 카페 넣어줘", "3번째 앞에" → 삽입 위치 지정
+_ADD_FRONT_RE = re.compile(r"맨\s*앞|처음\s*에|제일\s*앞|시작\s*(?:에|으로)")
+_ADD_BEFORE_RE = re.compile(r"앞\s*에")
 # "첫번째만 남기고" 처럼 남길 대상을 말하는 표현(전체 삭제로 오해하면 안 된다)
 _KEEP_RE = re.compile(r"남기고|빼고\s*(?:다|전부)|제외하고\s*(?:다|전부)")
 # "다 지워", "전부 삭제", "초기화" → 코스를 비운다(새로 만들라는 뜻이 아니다)
@@ -103,7 +106,13 @@ def parse_edit(text: str) -> EditCommand:
     if _ADD_RE.search(text) and not _REPLACE_RE.search(text) and not _REMOVE_RE.search(text):
         keyword, cat = _find_category(text)
         if keyword:
-            return EditCommand(action="add", keyword=keyword, match=cat)
+            # 위치를 말했으면 그 자리에 끼워 넣는다(기본은 맨 뒤)
+            at = -1
+            if _ADD_FRONT_RE.search(text):
+                at = 0
+            elif idx >= 0 and _ADD_BEFORE_RE.search(text):
+                at = idx
+            return EditCommand(action="add", index=at, keyword=keyword, match=cat)
     if idx < 0 and idx != LAST_INDEX:
         # 순서를 못 찾았으면 "카페 빼줘"처럼 카테고리로 지목했는지 본다
         _, match = _find_category(text)
@@ -279,7 +288,7 @@ async def _apply_add(
     cmd: EditCommand,
     map_service: MapService,
 ) -> list[TimelineItem]:
-    """요청한 성격의 장소를 코스 맨 뒤에 한 칸 덧붙인다."""
+    """요청한 성격의 장소를 한 칸 끼워 넣는다(cmd.index 가 위치, -1 이면 맨 뒤)."""
     existing_ids = {it.place.id for it in items}
     region = course.region or DEFAULT_REGION
     candidates = await map_service.search_places(region, [cmd.keyword], limit=10)
@@ -287,7 +296,11 @@ async def _apply_add(
     if not fresh:
         return items
     pick = next((p for p in fresh if p.category == cmd.match), fresh[0])
-    items = [*items, TimelineItem(place=pick)]
+    new_item = TimelineItem(place=pick)
+    if 0 <= cmd.index <= len(items):
+        items = [*items[: cmd.index], new_item, *items[cmd.index :]]
+    else:
+        items = [*items, new_item]
     start = items[0].arrive if items[0].arrive else DEFAULT_START_TIME
     return await recompute([it.place for it in items], start, _infer_mode(items), map_service)
 
