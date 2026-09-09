@@ -48,8 +48,16 @@ class QuotaStore:
         return MONTHLY_FREE_LIMITS.get(name)
 
     def used(self, name: str, now: datetime | None = None) -> int:
+        month = _month_key(now)
+        if self._db_ready():
+            from app.db import SessionLocal
+            from app.models import QuotaModel
+
+            with SessionLocal() as s:
+                row = s.get(QuotaModel, f"{name}:{month}")
+                return int(row.used) if row else 0
         counter = self._counters.get(name)
-        if counter is None or counter.month != _month_key(now):
+        if counter is None or counter.month != month:
             return 0
         return counter.used
 
@@ -66,6 +74,20 @@ class QuotaStore:
 
     def record(self, name: str, count: int = 1, now: datetime | None = None) -> None:
         month = _month_key(now)
+        if self._db_ready():
+            from app.db import SessionLocal
+            from app.models import QuotaModel
+
+            key = f"{name}:{month}"
+            with SessionLocal() as s:
+                row = s.get(QuotaModel, key)
+                if row is None:
+                    s.add(QuotaModel(key=key, used=count))
+                else:
+                    row.used += count
+                s.commit()
+            self._maybe_notify(name, now)
+            return
         counter = self._counters.get(name)
         if counter is None or counter.month != month:
             counter = _Counter(month=month)
@@ -123,6 +145,16 @@ class QuotaStore:
     def clear(self) -> None:
         self._counters.clear()
         self._notified.clear()
+
+    @staticmethod
+    def _db_ready() -> bool:
+        """DB 가 있으면 사용량을 영속화한다 — 재시작으로 한도가 되살아나면 과금된다."""
+        try:
+            from app.db import is_ready
+
+            return is_ready()
+        except Exception:
+            return False
 
 
 def _notify(kind: str, target: str, text: str) -> None:
