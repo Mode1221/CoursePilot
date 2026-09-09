@@ -485,6 +485,20 @@ async def review_summary(req: ReviewSummaryRequest) -> dict:
     return result
 
 
+@api.get("/courses/{course_id}/reasons")
+async def course_reasons_endpoint(course_id: str) -> dict:
+    """각 장소가 왜 들어갔는지 짧은 근거. 저장하지 않고 그때그때 계산한다."""
+    course = store.get(course_id)
+    if course is None:
+        raise HTTPException(status_code=404, detail="course not found")
+    last_text = next(
+        (m.text for m in reversed(chat_store.list(course_id)) if m.role == "user"), ""
+    )
+    from app.reasons import course_reasons
+
+    return {"reasons": course_reasons(course, last_text)}
+
+
 class GenerateResponse(BaseModel):
     course: Course
     relaxed: bool  # 조건이 완화되었는지

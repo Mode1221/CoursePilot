@@ -1,11 +1,12 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
 import MapCanvas from "@/components/MapCanvas";
 import { Badge, Button, EmptyState } from "@/components/ui";
 import PlaceDetailModal from "@/components/PlaceDetailModal";
 import PlaceSearchPanel from "@/components/PlaceSearchPanel";
+import { api } from "@/services/api";
 import { courseStats, formatCost, formatDuration } from "@/services/courseStats";
 import { naverMapUrl } from "@/services/mapLink";
 import { courseToText } from "@/services/courseText";
@@ -24,7 +25,28 @@ export default function MapPanel({ readOnly = false }: { readOnly?: boolean }) {
   const [selected, setSelected] = useState<Place | null>(null);
   const [dragIndex, setDragIndex] = useState<number | null>(null);
   const [replaceIndex, setReplaceIndex] = useState<number | null>(null);
+  const [reasons, setReasons] = useState<Record<string, string[]>>({});
   const editDisabled = readOnly || locked;
+  const courseId = course?.id;
+  const itemKey = course?.items.map((it) => it.place.id).join(",") ?? "";
+
+  // 왜 이 장소가 들어갔는지: 코스가 바뀔 때마다 다시 계산해 받아온다
+  useEffect(() => {
+    if (!courseId || !itemKey) {
+      setReasons({});
+      return;
+    }
+    let cancelled = false;
+    api
+      .courseReasons(courseId)
+      .then((r) => {
+        if (!cancelled) setReasons(r.reasons);
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, [courseId, itemKey]);
 
   if (!course) return <div style={{ padding: "var(--sp-6)", color: "var(--text-muted)" }}>불러오는 중…</div>;
 
@@ -135,6 +157,17 @@ export default function MapPanel({ readOnly = false }: { readOnly?: boolean }) {
                 지도
               </a>
             </div>
+            {(reasons[item.place.id]?.length ?? 0) > 0 && (
+              <div
+                style={{
+                  color: "var(--text-muted)",
+                  fontSize: "var(--fs-xs)",
+                  marginTop: "var(--sp-1)",
+                }}
+              >
+                {reasons[item.place.id].join(" · ")}
+              </div>
+            )}
             {item.travel_to_next && (
               <div style={{ color: "var(--brand-strong)", fontSize: "var(--fs-sm)", marginTop: "var(--sp-1)" }}>
                 → 다음까지 {item.travel_to_next.duration_min}분 ({MODE_LABEL[item.travel_to_next.mode]})

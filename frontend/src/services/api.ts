@@ -106,6 +106,9 @@ export const api = {
       body: { place_id: placeId, place_name: placeName },
     }),
 
+  courseReasons: (id: string) =>
+    request<{ reasons: Record<string, string[]> }>(`/courses/${id}/reasons`),
+
   getPreferences: (userId: string) =>
     request<{
       mood: string | null;
