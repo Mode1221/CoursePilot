@@ -25,6 +25,9 @@ interface RequestOptions {
   userId?: string; // 있으면 X-User-Id 헤더
 }
 
+// detail 이 없거나 사람이 읽을 수 없는 형태일 때 쓰는 기본 문구
+const DEFAULT_ERROR = "요청을 처리하지 못했어요. 잠시 후 다시 시도해주세요.";
+
 // 모든 API 호출 공통 처리: BASE, JSON 헤더, X-User-Id, 에러→ApiError, 파싱.
 async function request<T>(path: string, opts: RequestOptions = {}): Promise<T> {
   const headers: Record<string, string> = {};
@@ -39,7 +42,10 @@ async function request<T>(path: string, opts: RequestOptions = {}): Promise<T> {
   if (!res.ok) {
     const detail = await res.json().then((b) => b?.detail).catch(() => null);
     const requestId = res.headers.get("X-Request-Id") ?? undefined;
-    throw new ApiError(res.status, detail || `${path} failed`, requestId);
+    // detail 은 화면에 그대로 노출된다. 서버 검증 오류(422)는 배열/객체로 오고,
+    // detail 이 없으면 내부 경로가 보이므로 사람이 읽을 수 있는 문구만 쓴다.
+    const message = typeof detail === "string" && detail.trim() ? detail : DEFAULT_ERROR;
+    throw new ApiError(res.status, message, requestId);
   }
   // 204/빈 응답 대비
   const text = await res.text();
