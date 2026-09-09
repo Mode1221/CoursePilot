@@ -1,8 +1,8 @@
 from app.cooccurrence import cooccurrence_store
-from app.main import _nearby_popular
 from app.places import place_repo
 from app.popularity import popularity_store
 from app.schemas import Place
+from app.signals_api import _nearby_popular
 
 
 def _place(pid: str, lat: float, lng: float, rating: float | None = None) -> Place:
