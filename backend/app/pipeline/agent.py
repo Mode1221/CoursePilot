@@ -14,6 +14,7 @@ from app.pipeline.planner import desired_slots, plan_course
 from app.schemas import Place, PlanConstraints, TimelineItem
 
 MIN_VALID = 3  # 유효 후보가 이 개수 미만이면 조건 완화
+MIN_USABLE = 2  # 이 정도면 "코스"로 쓸 만하다 — 더 물어보지 않는다
 
 
 def _min_valid(constraints: PlanConstraints) -> int:
@@ -24,6 +25,18 @@ def _min_valid(constraints: PlanConstraints) -> int:
     if constraints.stop_count:
         return max(1, min(MIN_VALID, constraints.stop_count))
     return MIN_VALID
+
+
+def _min_usable(constraints: PlanConstraints) -> int:
+    """되묻지 않아도 되는 최소 장소 수.
+
+    개수를 직접 말했으면 그 수가 기준이고, 아니면 2곳이면 코스로 쓸 만하다.
+    3곳(MIN_VALID)에 못 미쳤다는 이유로 매번 "완화할까요?"를 띄우면
+    정상 요청에도 확인 프롬프트가 뜬다.
+    """
+    if constraints.stop_count:
+        return max(1, constraints.stop_count)
+    return MIN_USABLE
 
 # 완화해도 유지할 하드성 키워드(식이 제한 등 타협 불가)
 _HARD_KEYWORDS = {"비건", "채식", "할랄", "글루텐프리", "노키즈", "실내"}
@@ -98,7 +111,7 @@ async def generate_course(
             best = timeline
 
     timeline = best
-    needs_confirmation = len(timeline) < enough
+    needs_confirmation = len(timeline) < _min_usable(constraints)
     await progress("done")
     return PlanResult(relaxed_c, timeline, relaxed=True, needs_confirmation=needs_confirmation)
 
