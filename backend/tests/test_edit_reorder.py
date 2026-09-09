@@ -54,3 +54,21 @@ def test_이미_최적이면_찾지_못했다고_하지_않는다():
     )
     text = client.get(f"/courses/{cid}/messages").json()[-1]["text"]
     assert "찾지 못했어요" not in text
+
+
+async def test_두_자리를_지목하면_그_둘만_맞바꾼다():
+    cmd = parse_edit("첫번째랑 두번째 순서 바꿔")
+    assert cmd.action == "swap"
+    items = await apply_edit(_course(), cmd, MockMapService())
+    assert [it.place.id for it in items] == ["b", "a", "c"]
+
+
+async def test_마지막_지목_스왑도_동작한다():
+    items = await apply_edit(_course(), parse_edit("마지막이랑 1번 순서 바꿔"), MockMapService())
+    assert [it.place.id for it in items] == ["c", "b", "a"]
+
+
+async def test_없는_순번_스왑은_그대로_둔다():
+    course = _course()
+    items = await apply_edit(course, parse_edit("8번이랑 9번 순서 바꿔"), MockMapService())
+    assert [it.place.id for it in items] == ["a", "b", "c"]
