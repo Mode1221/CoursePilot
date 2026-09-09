@@ -163,3 +163,19 @@ async def test_상시_조건은_요청에_자동으로_들어간다():
         "성수동 저녁", MockMapService(), preferences={"must_haves": ["주차"]}
     )
     assert "주차" in result.constraints.keywords
+
+
+async def test_mock_후보에도_새_신호가_들어_있다():
+    """실제 데이터에는 늘 붙는 값이라, mock 이 비면 그 경로가 테스트에서 안 돈다."""
+    places = await MockMapService().search_places("성수", [], 4)
+    assert all(p.rating_count and p.opened_on for p in places)
+    assert any(p.fact_tags for p in places) and any(p.caution_tags for p in places)
+
+
+async def test_사실_태그가_조건_매칭에_실제로_쓰인다():
+    from app.answers import course_answer
+    from app.schemas import Course
+
+    result = await generate_course("성수동 주차 되는 곳", MockMapService())
+    answer = course_answer(Course(id="c", items=result.timeline), "주차 되나요?")
+    assert "주차" in answer
