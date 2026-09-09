@@ -33,8 +33,12 @@ def stay_minutes(place: Place, party_size: int | None = None) -> int:
         base = 90
     elif any(k in cat for k in ("bar", "술집", "펍", "포차", "주점", "호프", "이자카야", "포장마차")):
         base = 120
+    elif any(k in cat for k in ("영화", "cinema", "공연", "뮤지컬", "콘서트")):
+        base = 150  # 상영·공연 시간 자체가 길다
+    elif any(k in cat for k in ("전시", "갤러리", "미술", "박물", "체험", "방탈출", "볼링")):
+        base = 90  # 관람·체험은 카페보다 오래 머문다
     else:
-        base = 60  # 카페·전시·기타
+        base = 60  # 카페·기타
     if party_size is not None and party_size >= LARGE_PARTY:
         base += LARGE_PARTY_EXTRA_MIN
     return base
