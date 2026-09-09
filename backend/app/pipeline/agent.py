@@ -197,14 +197,25 @@ async def _drop_closed(
     constraints: PlanConstraints | None,
     map_service: MapService | None,
 ) -> list[TimelineItem]:
-    """영업하지 않는 장소(영구 폐업·일시 휴업)를 코스에서 뺀다.
+    """그날 갈 수 없는 자리를 코스에서 뺀다.
 
-    영업 상태는 확정 후 Google 조회에서야 드러나므로, 여기서 한 번 더 거른다.
+    두 가지를 본다.
+      1) 영업 상태 — 영구 폐업·일시 휴업·정기휴무
+      2) 새로 받은 영업시간 — 도착·체류 시각이 그 시간 밖이면 못 간다
+         (후보 단계에서는 영업시간을 몰라 통과시켰던 자리다)
     자리가 비면 뒤 일정이 당겨지도록 시간을 다시 계산한다.
     """
     from app.adapters.google import is_closed_now
+    from app.pipeline.validation import is_open_during
 
-    kept = [item for item in timeline if not is_closed_now(item.place)]
+    def usable(item: TimelineItem) -> bool:
+        if is_closed_now(item.place):
+            return False
+        if item.arrive is None or item.depart is None:
+            return True  # 시각을 모르면 판단하지 않는다
+        return is_open_during(item.place, item.arrive, item.depart)
+
+    kept = [item for item in timeline if usable(item)]
     if len(kept) == len(timeline):
         return timeline
     if not kept or constraints is None or map_service is None:
@@ -212,6 +223,8 @@ async def _drop_closed(
     from app.pipeline.validation import recompute
 
     start = constraints.start_time or time(12, 0)
+    # 시간을 다시 계산하면 뒤 자리 시각이 당겨진다. 당겨진 시각이 개점 전일 수도
+    # 있지만, 여기서 또 빼기 시작하면 코스가 계속 줄어든다 — 한 번만 거른다.
     try:
         return await recompute(
             [item.place for item in kept], start, constraints.travel_mode, map_service
