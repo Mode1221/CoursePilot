@@ -46,3 +46,26 @@ async def test_재계산도_먼_구간은_대중교통으로_바꾼다():
     places = [_place("a", 37.50), _place("b", 37.55)]
     timeline = await recompute(places, time(12, 0), TravelMode.WALK, MockMapService())
     assert timeline[0].travel_to_next.mode is TravelMode.TRANSIT
+
+
+def test_수단만_말해도_이동수단을_잡는다():
+    from app.pipeline.decomposition import parse_constraints
+    from app.schemas import TravelMode
+
+    assert parse_constraints("지하철로 이동").travel_mode == TravelMode.TRANSIT
+    assert parse_constraints("성수동 차 없이 다닐 거야").travel_mode == TravelMode.TRANSIT
+    assert parse_constraints("택시 타고 갈게").travel_mode == TravelMode.CAR
+    assert parse_constraints("자차로 가려고").travel_mode == TravelMode.CAR
+    assert parse_constraints("걸어서 갈 수 있는 곳").travel_mode == TravelMode.WALK
+    # 수단 표현이 없으면 기존 기본값(도보)
+    assert parse_constraints("성수동 저녁").travel_mode == TravelMode.WALK
+
+
+def test_분_표기가_있으면_그_수단이_우선():
+    from app.pipeline.decomposition import parse_constraints
+    from app.schemas import TravelMode
+
+    c = parse_constraints("버스로 30분 이내")
+    assert c.travel_mode == TravelMode.TRANSIT
+    assert c.max_travel_min == 30
+    assert parse_constraints("차량 20분 이내").travel_mode == TravelMode.CAR
