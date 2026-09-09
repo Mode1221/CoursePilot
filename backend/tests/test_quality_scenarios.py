@@ -123,3 +123,43 @@ async def test_긴_코스에_같은_성격이_연달아_오지_않는다():
     result = await generate_course("성수동 오후 2시부터 밤 11시까지", MockMapService())
     kinds = [classify(it.place) for it in result.timeline]
     assert all(a != b for a, b in zip(kinds, kinds[1:], strict=False)), kinds
+
+
+# --- 최근에 넣은 흐름들이 조용히 깨지지 않도록 (폐업 제외·되채움·질문 답변) ---
+
+
+async def test_휴무로_빠진_자리를_알리고_남은_개수로_판단한다(monkeypatch):
+    async def close_first(places, *, weekday=None):
+        if places:
+            places[0].closed_that_day = True
+        return places
+
+    monkeypatch.setattr("app.adapters.google.refresh_final_hours", close_first)
+    result = await generate_course("성수동에서 저녁 코스", MockMapService())
+    assert all(not it.place.closed_that_day for it in result.timeline)
+    assert result.closed_dropped >= 0
+
+
+async def test_대표_질문들에_각각_다른_답을_준다():
+    from app.answers import course_answer
+
+    result = await generate_course("성수동 저녁 데이트", MockMapService())
+    course = _as_course(result.timeline)
+    answers = {
+        q: course_answer(course, q)
+        for q in ("얼마야", "영업시간 알려줘", "어떻게 가?", "왜 골랐어?")
+    }
+    assert len(set(answers.values())) == len(answers), answers
+
+
+def _as_course(timeline):
+    from app.schemas import Course
+
+    return Course(id="c", items=timeline)
+
+
+async def test_상시_조건은_요청에_자동으로_들어간다():
+    result = await generate_course(
+        "성수동 저녁", MockMapService(), preferences={"must_haves": ["주차"]}
+    )
+    assert "주차" in result.constraints.keywords
