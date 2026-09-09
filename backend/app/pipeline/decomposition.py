@@ -18,7 +18,10 @@ _HOUR_RE = re.compile(
 )
 # 시각 없이 시간대만 말한 경우("저녁에 홍대")의 기본 시작 시각
 _TIME_OF_DAY = {"새벽": 6, "아침": 9, "점심": 12, "낮": 13, "오후": 14, "저녁": 18, "밤": 20}
-_TIME_OF_DAY_RE = re.compile(r"(새벽|아침|점심|낮|오후|저녁|밤)")
+# "새벽까지 하는 술집"의 새벽은 시작이 아니라 마감이다 — 뒤에 '까지'가 붙으면 제외.
+_TIME_OF_DAY_RE = re.compile(r"(새벽|아침|점심|낮|오후|저녁|밤)(?!\s*까지)")
+# 심야까지 여는 곳을 찾는 요청("새벽까지", "늦게까지")
+_LATE_NIGHT_RE = re.compile(r"(?:새벽|늦게|늦은\s*시간|밤늦게)\s*까지")
 # 12시간제에서 오후로 해석해야 하는 표현
 _PM_WORDS = {"오후", "저녁", "밤", "낮"}
 _DURATION_RE = re.compile(r"(\d{1,2})\s*시간\s*(반)?")
@@ -54,6 +57,7 @@ _EXCLUDE_RE = re.compile(
     r"([가-힣]{1,6}?)\s*(?:은|는|을|를|이|가|거|건)?\s*(?:빼고|제외하고|제외|말고|없이)"
 )
 # "웨이팅 긴 데는 싫어", "시끄러운 곳은 별로" — 싫다고 말한 성격도 제외 조건이다
+_NO_NEED_RE = re.compile(r"([가-힣]{2,6}?)\s*(?:이|가)?\s*없는")
 _DISLIKE_RE = re.compile(
     r"([가-힣]{2,8})\s*(?:[가-힣]{1,3})?\s*(?:데|곳|집|장소)\s*(?:는|은|이|가)?\s*"
     r"(?:싫어|싫고|싫다|별로|피하고|안\s*갔으면|안\s*좋아)"
@@ -505,6 +509,11 @@ def parse_constraints(text: str, today: date | None = None) -> PlanConstraints:
         word = _strip_particle(m.group(1))
         if word and word not in seen:
             seen.append(word)
+    # "웨이팅 없는 데로" — '없는'도 제외 표현이다("없이"만 보고 있었다)
+    for m in _NO_NEED_RE.finditer(text):
+        word = _strip_particle(m.group(1))
+        if word and word not in seen:
+            seen.append(word)
     for m in _DISLIKE_RE.finditer(text):
         # 조사를 떼지 않는다 — "좁은"의 '은'은 조사가 아니라 어미다("좁"으로 남으면
         # 엉뚱한 장소까지 걸린다).
@@ -524,6 +533,8 @@ def parse_constraints(text: str, today: date | None = None) -> PlanConstraints:
         matched.append(k)
     c.exclude_keywords = seen
     # "산책"이 잡혔으면 그 안에 든 "책"은 별도 키워드가 아니다
+    if _LATE_NIGHT_RE.search(text) and "심야" not in matched:
+        matched.append("심야")  # 늦게까지 여는 곳을 찾는 요청
     c.keywords = [
         k for k in matched if not any(k != other and k in other for other in matched)
     ]
