@@ -661,6 +661,13 @@ async def generate(
         gen_constraints: PlanConstraints | None = None  # 편집 명령이면 None
         old_ids = [it.place.id for it in course.items]
         edit_cmd = parse_edit(req.text) if course.items else EditCommand(action="none")
+        # "다시 해줘" — 직전 조건을 그대로 다시 쓴다(조건이 없다고 되묻지 않게)
+        request_text = req.text
+        if _REGENERATE_RE.search(req.text):
+            previous = _last_condition_text(course_id)
+            if previous:
+                request_text = previous
+
         # 질문("여기 주차 되나요?")에 코스를 갈아엎지 않는다. 편집 명령이 아닌
         # 물음이면 지금 코스로 답하고 크레딧도 돌려준다.
         if edit_cmd.action == "none" and course.items and _is_question(req.text):
@@ -683,7 +690,7 @@ async def generate(
         # 편집도 아니고 조건·의도도 없는 입력("ㅋㅋㅋ")으로 엉뚱한 코스를 만들고
         # 크레딧까지 태우지 않는다 — 무엇을 원하는지 되묻는다.
         if edit_cmd.action == "none" and not is_actionable(
-            req.text, parse_constraints(req.text)
+            request_text, parse_constraints(request_text)
         ):
             user_store.refund_credit(x_user_id)
             course.locked = False
@@ -699,7 +706,9 @@ async def generate(
                 await on_progress("editing")
                 course.items = await apply_edit(course, edit_cmd, get_map_service())
             else:
-                result = await generate_course(req.text, get_map_service(), prefs, on_progress)
+                result = await generate_course(
+                    request_text, get_map_service(), prefs, on_progress
+                )
                 course.items = result.timeline
                 relaxed = result.relaxed
                 needs_confirmation = result.needs_confirmation
@@ -708,7 +717,7 @@ async def generate(
                 # 문장에 지역이 없어 저장된 선호로 채웠다면 그 사실을 알린다
                 if (
                     result.constraints.region
-                    and parse_constraints(req.text).region is None
+                    and parse_constraints(request_text).region is None
                     and prefs.get("region") == result.constraints.region
                 ):
                     pref_region = result.constraints.region
@@ -802,6 +811,30 @@ async def generate(
         )
 
     return await queues.run(course_id, action)
+
+
+# "다시 해줘", "새로 만들어줘" — 직전 조건 그대로 다시 만들라는 뜻
+_REGENERATE_RE = re.compile(
+    r"(?:다시|새로|새롭게|리롤|다른\s*걸?로)\s*(?:한번|한\s*번)?\s*"
+    r"(?:해|만들|찾|추천|짜|구성)|처음부터\s*다시"
+)
+
+
+def _last_condition_text(course_id: str) -> str | None:
+    """직전에 조건을 말한 문장(편집·질문·재생성 요청은 건너뛴다)."""
+    from app.pipeline.edit import parse_edit
+
+    for msg in reversed(chat_store.list(course_id)):
+        if msg.role != "user":
+            continue
+        text = msg.text
+        if _REGENERATE_RE.search(text) or _is_question(text):
+            continue
+        if parse_edit(text).action != "none":
+            continue
+        if is_actionable(text, parse_constraints(text)):
+            return text
+    return None
 
 
 _QUESTION_RE = re.compile(r"[?？]\s*$|나요|까요|어때|얼마나|있나|없나|맞나|되나|뭐야|어디야")
