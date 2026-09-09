@@ -153,9 +153,15 @@ def _end_hour(hour: int, marker: str | None, start_marker: str | None, start_h: 
 
 
 _WEEKDAYS = {"월": 0, "화": 1, "수": 2, "목": 3, "금": 4, "토": 5, "일": 6}
+# "다음달 5일", "담달 20일"
+_NEXT_MONTH_RE = re.compile(r"(?:다음\s*달|담\s*달|내달)\s*(\d{1,2})\s*일")
 _WEEKDAY_RE = re.compile(r"(다음\s*주|담주|이번\s*주)?\s*([월화수목금토일])요일")
 _MD_RE = re.compile(r"(\d{1,2})\s*월\s*(\d{1,2})\s*일")
 _RELATIVE_DAYS = {"오늘": 0, "내일": 1, "낼": 1, "모레": 2, "글피": 3}
+# "11시까지"처럼 시작만 따로 말하고 종료만 "까지"로 붙이는 표현
+_END_ONLY_RE = re.compile(
+    r"(오전|오후|아침|점심|낮|저녁|밤|새벽)?\s*(\d{1,2})\s*시(?!간)(?:\s*(\d{1,2})\s*분)?\s*까지"
+)
 # "이번 주말", "주말에" → 다가오는 토요일 (다음 주말이면 한 주 더)
 _WEEKEND_RE = re.compile(r"(다음|담|이번)?\s*(?:주\s*)?주말")
 
@@ -173,6 +179,15 @@ def _parse_date(text: str, today: date) -> date | None:
             if cand >= today:  # 이미 지난 날짜면 내년으로 본다
                 return cand
         return None
+
+    nm = _NEXT_MONTH_RE.search(text)
+    if nm:
+        day = int(nm.group(1))
+        year, month = (today.year + 1, 1) if today.month == 12 else (today.year, today.month + 1)
+        try:
+            return date(year, month, day)
+        except ValueError:
+            return None
 
     wm = _WEEKDAY_RE.search(text)
     if wm:
@@ -261,9 +276,23 @@ def parse_constraints(text: str, today: date | None = None) -> PlanConstraints:
         span = (end_h * 60 + end_min) - (start_h * 60)
         c.duration_min = span if span > 0 else span + 24 * 60
 
+    # 범위 표현이 없어도 "…11시까지"만 붙는 경우가 흔하다("6시에 만나서 11시까지")
+    if not rm and c.start_time is not None and c.end_time is None:
+        em = _END_ONLY_RE.search(text)
+        if em:
+            start_h = c.start_time.hour
+            end_h = _to_24h(int(em.group(2)), em.group(1))
+            end_min = int(em.group(3)) if em.group(3) else 0
+            # 마커가 없으면 시작 이후로 해석한다("6시에 만나서 11시까지" = 23시)
+            if not em.group(1) and end_h < 12 and end_h + 12 > start_h:
+                end_h += 12
+            c.end_time = time(end_h % 24, min(end_min, 59))
+            span = (end_h * 60 + end_min) - (start_h * 60 + c.start_time.minute)
+            c.duration_min = span if span > 0 else span + 24 * 60
+
     # 소요 시간 → 종료 시각 (N시간 / N시간 반)
     dm = _DURATION_RE.search(text)
-    if dm and not rm:
+    if dm and not rm and c.duration_min is None:
         c.duration_min = int(dm.group(1)) * 60 + (30 if dm.group(2) else 0)
         if c.start_time:
             total = c.start_time.hour * 60 + c.start_time.minute + c.duration_min

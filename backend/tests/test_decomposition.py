@@ -76,3 +76,27 @@ def test_다른_키워드에_포함된_조각은_키워드로_보지_않는다()
     # "산책"의 "책"이 별도 키워드로 잡히면 검색어가 오염된다
     assert parse_constraints("광화문에서 산책").keywords == ["산책"]
     assert "책" in parse_constraints("책 읽을 곳").keywords
+
+
+def test_시작만_말하고_종료를_까지로_붙이는_표현():
+    from datetime import time
+
+    from app.pipeline.decomposition import parse_constraints
+
+    c = parse_constraints("저녁 6시에 만나서 11시까지 성수동")
+    assert c.start_time == time(18, 0)
+    assert c.end_time == time(23, 0)
+    assert c.duration_min == 300
+    # 자정을 넘겨도 이어진다
+    late = parse_constraints("밤 10시에 만나서 1시까지")
+    assert late.end_time == time(1, 0)
+    assert late.duration_min == 180
+
+
+def test_다음달_날짜를_인식한다():
+    from datetime import date
+
+    from app.pipeline.decomposition import _parse_date
+
+    assert _parse_date("다음달 5일 저녁", date(2026, 9, 9)) == date(2026, 10, 5)
+    assert _parse_date("담달 20일", date(2026, 12, 1)) == date(2027, 1, 20)
