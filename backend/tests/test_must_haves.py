@@ -32,3 +32,17 @@ def test_저장하고_돌려받는다():
     client.put(f"/users/{uid}/preferences", headers={"X-User-Id": uid}, json=prefs)
     got = client.get(f"/users/{uid}/preferences", headers={"X-User-Id": uid}).json()
     assert got["must_haves"] == ["반려동물"]
+
+
+def test_관측에_상시_조건_분포가_나온다():
+    uid = client.post("/signup", json={"phone": "010-8282-0002"}).json()["user_id"]
+    client.put(
+        f"/users/{uid}/preferences",
+        headers={"X-User-Id": uid},
+        json={"must_haves": ["주차", "반려동물"]},
+    )
+    body = client.get("/admin/signals").json()
+    survey = body["preferences"]
+    dist = survey.get("must_have_distribution", {})
+    assert dist.get("주차", 0) >= 1
+    assert survey["filled_by_question"]["must_haves"] >= 1
