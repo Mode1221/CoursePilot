@@ -37,10 +37,18 @@ def test_rating_endpoint_validates():
 
 @pytest.mark.asyncio
 async def test_planner_uses_self_rating():
+    # 다른 테스트가 남긴 인기·공동채택 신호가 순위를 흔들지 않게 초기화한다
+    from app.cooccurrence import cooccurrence_store
+    from app.popularity import popularity_store
+    from app.timecontext import time_context_store
+
     rating_store._mem.clear()
+    popularity_store._mem.clear()
+    cooccurrence_store._mem.clear()
+    time_context_store._mem.clear()
     cands = await MockMapService().search_places("성수동", [], limit=6)
-    # 낮 시간대에 영업하는 후보로 지정(심야 술집은 기본 시작 시각에 영업 전)
-    target = next(p for p in cands if p.category != "bar")
+    # 기본 시작 시각(정오)에 영업하고 코스 첫 칸(식사)에 들어갈 후보로 지정
+    target = next(p for p in cands if p.category == "restaurant")
     for _ in range(5):
         rating_store.submit(target.id, 5)
     c = PlanConstraints(region="성수동", duration_min=180)

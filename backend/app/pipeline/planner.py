@@ -368,7 +368,9 @@ def _pick_by_template(
     brands: set[str] = set()
     picked: list[Place] = []
 
-    def _fresh(slot: str | None, avoid_brand: bool) -> Place | None:
+    def _fresh(
+        slot: str | None, avoid_brand: bool, avoid_cat: str | None = None
+    ) -> Place | None:
         return next(
             (
                 p
@@ -376,16 +378,20 @@ def _pick_by_template(
                 if p.id not in used
                 and (slot is None or classify(p) == slot)
                 and (not avoid_brand or brand_key(p) not in brands)
+                and (avoid_cat is None or classify(p) != avoid_cat)
             ),
             None,
         )
 
     for slot in slots:
-        # 같은 체인이 연달아 들어가면 코스가 단조로워진다 → 우선 다른 브랜드로 채운다
+        # 슬롯을 못 채워 아무거나 넣을 때도 직전과 같은 성격은 피한다
+        # (카페 세 곳이 연달아 붙는 코스가 나오던 문제)
+        last_cat = classify(picked[-1]) if picked else None
         cand = (
             _fresh(slot, True)
             or _fresh(slot, False)
-            or _fresh(None, True)
+            or _fresh(None, True, last_cat)
+            or _fresh(None, False, last_cat)
             or _fresh(None, False)
         )
         if cand is not None:
