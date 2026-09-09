@@ -23,7 +23,12 @@ const FIELD: React.CSSProperties = {
 // 휴대폰 번호(하이픈 유무 모두 허용)
 const PHONE_RE = /^01[016789]-?\d{3,4}-?\d{4}$/;
 
-// 온보딩 선호 사전조사 (9-6). 모든 문항 건너뛰기 가능.
+// 예산 문항 값은 백엔드 BUDGET_CHOICES 와 1:1 로 맞춘다(문자열이 그대로 저장된다).
+const BUDGET_OPTIONS = ["2만원 이하", "2~4만원", "4~6만원", "6만원 이상"];
+// 검색 키워드로 그대로 전달되는 제약(식이·동반 조건)
+const DIET_OPTIONS = ["비건", "채식", "노키즈", "반려동물"];
+
+// 온보딩 선호 사전조사 (9-6). 5문항, 모두 건너뛰기 가능.
 export default function Onboarding() {
   const router = useRouter();
   const { userId, load, setUser } = useUserStore();
@@ -31,6 +36,8 @@ export default function Onboarding() {
   const [mood, setMood] = useState("");
   const [region, setRegion] = useState("");
   const [transport, setTransport] = useState("");
+  const [budget, setBudget] = useState("");
+  const [diet, setDiet] = useState<string[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [code, setCode] = useState("");
@@ -82,6 +89,10 @@ export default function Onboarding() {
     }
   }
 
+  function toggleDiet(value: string) {
+    setDiet((prev) => (prev.includes(value) ? prev.filter((d) => d !== value) : [...prev, value]));
+  }
+
   async function submit() {
     if (saving) return; // 중복 제출 방지
     setError(null);
@@ -107,7 +118,8 @@ export default function Onboarding() {
         mood: mood || null,
         region: region || null,
         transport: transport || null,
-        diet: [],
+        budget: budget || null,
+        diet,
       });
       toast("설정을 저장했어요.", "success");
       router.push("/");
@@ -199,6 +211,39 @@ export default function Onboarding() {
             <option value="차량">차량</option>
           </select>
         </label>
+
+        <label style={{ fontSize: "var(--fs-sm)", color: "var(--text-muted)" }}>
+          1인 예산대
+          <select value={budget} onChange={(e) => setBudget(e.target.value)} style={FIELD}>
+            <option value="">선택 안 함</option>
+            {BUDGET_OPTIONS.map((b) => (
+              <option key={b} value={b}>
+                {b}
+              </option>
+            ))}
+          </select>
+        </label>
+
+        <fieldset
+          style={{ border: "none", padding: 0, margin: 0, fontSize: "var(--fs-sm)", color: "var(--text-muted)" }}
+        >
+          <legend style={{ padding: 0 }}>빼고 싶은 것 (복수 선택)</legend>
+          <div style={{ display: "flex", flexWrap: "wrap", gap: "var(--sp-2)", marginTop: "var(--sp-2)" }}>
+            {DIET_OPTIONS.map((d) => (
+              <label
+                key={d}
+                style={{ display: "flex", alignItems: "center", gap: 4, color: "var(--text)" }}
+              >
+                <input
+                  type="checkbox"
+                  checked={diet.includes(d)}
+                  onChange={() => toggleDiet(d)}
+                />
+                {d}
+              </label>
+            ))}
+          </div>
+        </fieldset>
       </div>
 
       {error && (
