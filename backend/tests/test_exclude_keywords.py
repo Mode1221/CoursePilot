@@ -24,3 +24,23 @@ def test_excluded_place_is_penalized():
     bar = Place(id="b", name="성수 술집", category="bar", lat=37.5, lng=127.0)
     cafe = Place(id="c", name="성수 카페", category="cafe", lat=37.5, lng=127.0)
     assert score_place(bar, c, None) < score_place(cafe, c, None)
+
+
+def test_제외어에_붙은_조사를_떼어낸다():
+    c = parse_constraints("7시에 회식, 술은 빼고")
+    assert c.exclude_keywords == ["술"]
+
+
+def test_한_글자_제외어도_인식한다():
+    assert parse_constraints("술 빼고 성수동").exclude_keywords == ["술"]
+
+
+def test_제외어와_겹치는_키워드는_검색어에서_뺀다():
+    c = parse_constraints("성수동에서 술집 빼고 카페 위주로")
+    assert "술집" not in c.keywords
+    assert "카페" in c.keywords
+
+
+def test_장소_성격_표현을_검색어로_넘긴다():
+    assert "한정식" in parse_constraints("부모님이랑 점심 한정식").keywords
+    assert "노포" in parse_constraints("을지로 노포 투어").keywords
