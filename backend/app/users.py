@@ -25,6 +25,8 @@ class Preferences(BaseModel):
     region: str | None = None        # 자주 가는 지역
     diet: list[str] = []             # 비건/알러지
     transport: str | None = None     # 도보/차량
+    # 매번 말하기 번거로운 상시 조건(반려동물 동반·주차 필요 등). 요청마다 자동 반영.
+    must_haves: list[str] = []
 
 
 class User(BaseModel):

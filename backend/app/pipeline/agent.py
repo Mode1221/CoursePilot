@@ -326,6 +326,10 @@ def _apply_preferences(constraints: PlanConstraints, prefs: dict) -> None:
     for diet in prefs.get("diet") or []:
         if diet not in constraints.keywords:
             constraints.keywords.append(diet)
+    # 상시 조건은 매 요청에 넣어 준다 — 반려동물 동반은 취향이 아니라 가부다.
+    for must in prefs.get("must_haves") or []:
+        if must not in constraints.keywords:
+            constraints.keywords.append(must)
     if prefs.get("transport") == "차량":
         from app.schemas import TravelMode
 
