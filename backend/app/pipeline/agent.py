@@ -75,6 +75,7 @@ async def generate_course(
     constraints = await decompose(text)
     if preferences:
         _apply_preferences(constraints, preferences)
+    _apply_large_party(constraints)
 
     await progress("search")  # 후보 수집
     # 출발지 좌표는 재시도마다 바뀌지 않으므로 한 번만 조회한다(외부 호출 절약)
@@ -139,6 +140,21 @@ BUDGET_CHOICES: dict[str, int] = {
     "4~6만원": 60000,
     "6만원 이상": 100000,
 }
+
+
+# 이 인원부터는 자리 자체가 제약이라 검색어에 반영한다(planner.LARGE_PARTY 와 동일 기준)
+LARGE_PARTY_QUERY = "단체석"
+
+
+def _apply_large_party(constraints: PlanConstraints) -> None:
+    """대인원이면 단체석을 검색어 뒤에 덧붙인다(사용자가 이미 말했으면 그대로)."""
+    from app.pipeline.planner import LARGE_PARTY
+
+    if not constraints.party_size or constraints.party_size < LARGE_PARTY:
+        return
+    if any(k in ("룸", "단체", "단체석") for k in constraints.keywords):
+        return
+    constraints.keywords.append(LARGE_PARTY_QUERY)
 
 
 def _apply_preferences(constraints: PlanConstraints, prefs: dict) -> None:
