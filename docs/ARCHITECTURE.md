@@ -84,6 +84,7 @@
 - `places_build.py` — 상권 전수 수집(카카오) → 폐업 제거(LOCALDATA) → Google 영업시간·평점 페이싱 → upsert.
   실행: `python scripts/build_places.py` (하루 1회, 영업시간 160건/일·평점 11건/일·인지도 500건/회).
 
+- `lock.py` — 배치 중복 실행 방지(DB `batch_lock`, 3시간 지난 락은 무시). 스크립트가 이미 실행 중이면 종료 코드 1.
 - `localdata_fetch.py` — LOCALDATA CSV 내려받기(`scripts/fetch_localdata.py`, 주 1회). 부분 실패 허용, 성공 시 캐시 무효화.
 - `refresh.py` — 주기 갱신: 폐업 주 1회(전체) / 영업시간 30일 TTL(최근 90일 내 추천된 활성 집합) / 평점 90일(인기 상위).
   실행: `python scripts/refresh_places.py` (하루 1회). 활성 집합 밖 장소는 재등장 시 즉석 갱신.

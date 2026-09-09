@@ -84,6 +84,16 @@ class QuotaModel(Base):
     used: Mapped[int] = mapped_column(Integer, default=0)
 
 
+class BatchLockModel(Base):
+    """배치 중복 실행 방지 락(크론 겹침 시 유료 콜이 두 배로 나간다)."""
+
+    __tablename__ = "batch_lock"
+
+    name: Mapped[str] = mapped_column(String, primary_key=True)
+    holder: Mapped[str] = mapped_column(String, default="")
+    acquired_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+
+
 class SequenceModel(Base):
     """재정렬 패턴(선호 순서) — 카테고리 인접 전이 누적 (data #7)."""
 
