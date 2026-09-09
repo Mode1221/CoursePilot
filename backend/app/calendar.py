@@ -79,15 +79,6 @@ def to_ics(course: Course, day: date | None = None, now: datetime | None = None)
             f"DTEND:{_stamp(end)}",
             _fold(f"SUMMARY:{_escape(item.place.name)}"),
         ]
-        if i == 0:
-            # 첫 장소만 알림(모든 칸에 알림이 울리면 성가시다)
-            lines += [
-                "BEGIN:VALARM",
-                "ACTION:DISPLAY",
-                f"TRIGGER:-PT{ALARM_MINUTES_BEFORE}M",
-                _fold(f"DESCRIPTION:{_escape(course.title)} 곧 시작해요"),
-                "END:VALARM",
-            ]
         if item.place.address:
             lines.append(_fold(f"LOCATION:{_escape(item.place.address)}"))
         # 캘린더 앱에서 바로 지도를 열 수 있도록 좌표를 넣는다
@@ -99,6 +90,17 @@ def to_ics(course: Course, day: date | None = None, now: datetime | None = None)
                     f"DESCRIPTION:다음 장소까지 {mode} {item.travel_to_next.duration_min}분"
                 )
             )
+        if i == 0:
+            # 첫 장소만 알림(모든 칸에 알림이 울리면 성가시다).
+            # VALARM 은 VEVENT 의 하위 컴포넌트이므로 속성들을 모두 쓴 뒤 마지막에 넣는다
+            # (속성 사이에 끼면 무시하거나 파싱에 실패하는 캘린더 앱이 있다).
+            lines += [
+                "BEGIN:VALARM",
+                "ACTION:DISPLAY",
+                f"TRIGGER:-PT{ALARM_MINUTES_BEFORE}M",
+                _fold(f"DESCRIPTION:{_escape(course.title)} 곧 시작해요"),
+                "END:VALARM",
+            ]
         lines.append("END:VEVENT")
 
     lines.append("END:VCALENDAR")
