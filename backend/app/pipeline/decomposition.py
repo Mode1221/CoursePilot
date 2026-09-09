@@ -128,7 +128,11 @@ _MORNING_WORDS = ("브런치", "조식", "아침", "모닝", "해돋이", "일�
 
 
 def _to_24h(hour: int, marker: str | None) -> int:
-    """12시간제 표현을 24시간제로. 마커가 없으면 입력을 그대로 존중한다."""
+    """12시간제 표현을 24시간제로. 마커가 없으면 입력을 그대로 존중한다.
+
+    "24시", "25시" 같은 표현(자정 넘김)도 들어오므로 항상 0~23 으로 접는다.
+    """
+    hour %= 24
     if marker in _PM_WORDS and hour < 12:
         return hour + 12
     if marker in ("오전", "아침") and hour == 12:
@@ -252,7 +256,7 @@ def parse_constraints(text: str, today: date | None = None) -> PlanConstraints:
         start_h = _to_24h(int(rm.group(2)), rm.group(1))
         end_h = _end_hour(int(rm.group(4)), rm.group(3), rm.group(1), start_h)
         end_min = int(rm.group(5)) if rm.group(5) else 0
-        c.start_time = time(start_h, c.start_time.minute if c.start_time else 0)
+        c.start_time = time(start_h % 24, c.start_time.minute if c.start_time else 0)
         c.end_time = time(end_h % 24, min(end_min, 59))
         span = (end_h * 60 + end_min) - (start_h * 60)
         c.duration_min = span if span > 0 else span + 24 * 60
