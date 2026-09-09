@@ -1,4 +1,9 @@
-"""임베딩 유틸. OpenAI 임베딩 사용, 키 없으면 결정론적 해시 기반 폴백(개발용)."""
+"""임베딩 유틸. OpenAI 임베딩 사용, 키 없으면 결정론적 해시 기반 폴백(개발용).
+
+Anthropic 은 임베딩 API 가 없어 이 경로만 OpenAI 를 쓴다 —
+LLM_PROVIDER 가 anthropic 이어도 OPENAI_API_KEY 가 없으면 의미 검색 품질이 사라진다
+(폴백률은 llm.embedding 메트릭으로 드러난다).
+"""
 from __future__ import annotations
 
 import hashlib
