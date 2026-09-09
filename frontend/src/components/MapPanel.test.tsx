@@ -85,4 +85,30 @@ describe("MapPanel", () => {
     );
   });
 
+  it("영업시간 미확인 장소는 타임라인에서 바로 표시한다", () => {
+    setCourse({
+      items: [
+        {
+          place: {
+            id: "p1",
+            name: "카페 A",
+            category: "cafe",
+            lat: 37.5,
+            lng: 127,
+            hours_unverified: true,
+          },
+          arrive: "13:00:00",
+          depart: "14:00:00",
+          travel_to_next: null,
+        },
+      ],
+    });
+    const { getByText } = render(<MapPanel />);
+    getByText(/시간 확인 필요/);
+  });
+
+  it("확인된 장소에는 표시하지 않는다", () => {
+    const { queryByText } = render(<MapPanel />);
+    expect(queryByText(/시간 확인 필요/)).toBeNull();
+  });
 });
