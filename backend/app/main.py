@@ -690,7 +690,7 @@ async def generate(
             previous = _last_condition_text(course_id)
             if previous:
                 request_text = previous
-        elif _CONDITION_CHANGE_RE.search(req.text):
+        elif _CONDITION_CHANGE_RE.search(req.text) or _ALL_QUALITY_RE.search(req.text):
             # 새 값이 앞에 오도록 이어 붙여 파서가 새 값을 우선 잡게 한다
             previous = _last_condition_text(course_id)
             if previous:
@@ -867,6 +867,7 @@ def _last_condition_text(course_id: str) -> str | None:
             _REGENERATE_RE.search(text)
             or _CONDITION_CHANGE_RE.search(text)
             or _REPLACE_ALL_RE.search(text)
+            or _ALL_QUALITY_RE.search(text)
             or _is_question(text)
         ):
             continue
@@ -886,6 +887,12 @@ _CONDITION_CHANGE_RE = re.compile(
 
 
 # "전부 다른 곳으로", "여기 말고 다른 데로" — 조건은 그대로 두고 장소만 갈아 끼운다
+# "전부 좀 더 저렴하게", "다 조용한 데로" — 코스 전체의 성격을 바꾸라는 요청.
+# 자리를 집지 않았으므로 편집이 아니라 조건 변경으로 다뤄야 한다.
+_ALL_QUALITY_RE = re.compile(
+    r"(?:전부|모두|전체|싹|다)\s*(?:좀\s*)?(?:더\s*)?"
+    r"(?:저렴|싸게|비싸|조용|활기|가까|분위기|실내|야외|고급|캐주얼)"
+)
 _REPLACE_ALL_RE = re.compile(
     r"(?:전부|다|모두|싹)\s*다른\s*(?:곳|데|장소)|여기\s*말고\s*다른|비슷한데\s*다른"
 )
