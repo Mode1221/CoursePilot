@@ -277,6 +277,23 @@ class UserStore:
             s.commit()
             return self._to_user(row)
 
+    def delete(self, user_id: str) -> bool:
+        """계정 삭제(회원 탈퇴). 지워졌으면 True.
+
+        전화번호까지 함께 지워, 같은 번호로 다시 가입하면 새 계정이 된다.
+        """
+        if is_ready():
+            from sqlalchemy import delete as sql_delete
+
+            from app.db import SessionLocal
+            from app.models import UserModel
+
+            with SessionLocal() as s:
+                result = s.execute(sql_delete(UserModel).where(UserModel.id == user_id))
+                s.commit()
+            return bool(result.rowcount)
+        return self._mem.pop(user_id, None) is not None
+
     def _save(self, user: User) -> User:
         if is_ready():
             from app.db import SessionLocal

@@ -367,6 +367,27 @@ async def add_bookmark(
     return {"ok": True, "added": added}
 
 
+@api.delete("/users/{user_id}")
+async def delete_account(
+    user_id: str, x_user_id: str | None = Header(default=None)
+) -> dict:
+    """회원 탈퇴. 계정·전화번호·내 코스·북마크를 지운다(본인만).
+
+    개인정보 삭제 요청을 코드로 처리할 수 있게 한다. 남는 것은 개인을 식별할 수
+    없는 집계 신호(장소 인기 등)뿐이다.
+    """
+    _require_self(user_id, x_user_id)
+    if user_store.get(user_id) is None:
+        raise HTTPException(status_code=404, detail="계정을 찾을 수 없어요")
+    my_courses = store.list_by_owner(user_id, limit=1000)
+    for course in my_courses:
+        store.delete(course.id)
+        chat_store.clear(course.id)
+    bookmark_store.remove_all(user_id)
+    user_store.delete(user_id)
+    return {"ok": True, "deleted_courses": len(my_courses)}
+
+
 @api.delete("/users/{user_id}/bookmarks/{course_id}")
 async def remove_bookmark(
     user_id: str, course_id: str, x_user_id: str | None = Header(default=None)

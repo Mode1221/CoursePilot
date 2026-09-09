@@ -58,6 +58,21 @@ class BookmarkStore:
         self._mem.discard((user_id, course_id))
         return True
 
+    def remove_all(self, user_id: str) -> None:
+        """계정 삭제 시 그 사용자의 북마크를 모두 지운다."""
+        if is_ready():
+            from sqlalchemy import delete
+
+            from app.db import SessionLocal
+            from app.models import BookmarkModel
+
+            with SessionLocal() as s:
+                s.execute(delete(BookmarkModel).where(BookmarkModel.user_id == user_id))
+                s.commit()
+            return
+        for key in [k for k in self._mem if k[0] == user_id]:
+            self._mem.discard(key)
+
     def list_course_ids(self, user_id: str, limit: int = 50) -> list[str]:
         """북마크한 코스 id 최근 순. 응답이 계속 커지지 않도록 상한을 둔다."""
         if is_ready():

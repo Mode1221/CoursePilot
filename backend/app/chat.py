@@ -37,6 +37,22 @@ class ChatStore:
             del history[: len(history) - MAX_MEM_MESSAGES]  # 오래된 것부터 버린다
         return msg
 
+    def clear(self, course_id: str) -> None:
+        """코스 삭제·회원 탈퇴 시 대화 기록을 함께 지운다(개인정보 최소 보관)."""
+        if is_ready():
+            from sqlalchemy import delete
+
+            from app.db import SessionLocal
+            from app.models import ChatMessageModel
+
+            with SessionLocal() as s:
+                s.execute(
+                    delete(ChatMessageModel).where(ChatMessageModel.course_id == course_id)
+                )
+                s.commit()
+            return
+        self._mem.pop(course_id, None)
+
     def list(self, course_id: str) -> list[ChatMessage]:
         if is_ready():
             from sqlalchemy import select

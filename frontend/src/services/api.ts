@@ -115,6 +115,12 @@ export const api = {
   courseReasons: (id: string) =>
     request<{ reasons: Record<string, string[]> }>(`/courses/${id}/reasons`),
 
+  deleteAccount: (userId: string) =>
+    request<{ ok: boolean; deleted_courses: number }>(`/users/${userId}`, {
+      method: "DELETE",
+      userId,
+    }),
+
   getPreferences: (userId: string) =>
     request<{
       mood: string | null;
