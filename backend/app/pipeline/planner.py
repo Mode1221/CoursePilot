@@ -250,20 +250,42 @@ def seq_order(places: list[Place]) -> list[Place]:
 
 
 # ── 후보 선택: 슬롯별 최고 점수 + 다양성 ─────────────────────────
+def brand_key(place: Place) -> str:
+    """같은 브랜드(체인) 판별용 키. 이름 첫 낱말이면 충분하다("스타벅스 성수점")."""
+    return (place.name or "").split()[0] if place.name.strip() else place.id
+
+
 def _pick_by_template(
     ranked: list[Place], slots: list[str]
 ) -> list[Place]:
     used: set[str] = set()
+    brands: set[str] = set()
     picked: list[Place] = []
-    for slot in slots:
-        cand = next(
-            (p for p in ranked if p.id not in used and classify(p) == slot), None
+
+    def _fresh(slot: str | None, avoid_brand: bool) -> Place | None:
+        return next(
+            (
+                p
+                for p in ranked
+                if p.id not in used
+                and (slot is None or classify(p) == slot)
+                and (not avoid_brand or brand_key(p) not in brands)
+            ),
+            None,
         )
-        if cand is None:  # 해당 카테고리 없으면 미사용 최고 점수로 대체
-            cand = next((p for p in ranked if p.id not in used), None)
+
+    for slot in slots:
+        # 같은 체인이 연달아 들어가면 코스가 단조로워진다 → 우선 다른 브랜드로 채운다
+        cand = (
+            _fresh(slot, True)
+            or _fresh(slot, False)
+            or _fresh(None, True)
+            or _fresh(None, False)
+        )
         if cand is not None:
             picked.append(cand)
             used.add(cand.id)
+            brands.add(brand_key(cand))
     return picked
 
 
