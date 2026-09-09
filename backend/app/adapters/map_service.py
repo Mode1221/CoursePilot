@@ -140,16 +140,18 @@ class EnrichedMapService(MapService):
 
 
 class CachedSearchMapService(MapService):
-    """동일 조건 장소 검색을 짧게 캐시하는 데코레이터(외부 호출·지연 절감).
+    """동일 조건 장소 검색·경로를 짧게 캐시하는 데코레이터(외부 호출·지연 절감).
 
     검색 결과는 몇 분 단위로 바뀌지 않으므로 TTL 안에서는 재사용한다.
-    경로 계산은 캐시하지 않고 그대로 위임한다.
+    경로도 캐시한다 — Best-of-N 은 같은 장소 쌍의 경로를 시드마다 다시 묻기
+    때문에, 캐시가 없으면 한 번의 코스 생성에서 같은 구간을 여러 번 조회한다.
     """
 
     def __init__(self, inner: MapService, ttl_sec: int = SEARCH_CACHE_TTL_SEC) -> None:
         self._inner = inner
         self._ttl = ttl_sec
         self._cache: dict[tuple[str, tuple[str, ...], int], tuple[float, list[Place]]] = {}
+        self._routes: dict[tuple[str, str, str], tuple[float, Route]] = {}
 
     async def search_places(self, region, keywords, limit=10):
         key = (region, tuple(keywords), limit)
@@ -166,9 +168,19 @@ class CachedSearchMapService(MapService):
     def _sweep(self, now: float) -> None:
         for key in [k for k, (ts, _) in self._cache.items() if now - ts >= self._ttl]:
             del self._cache[key]
+        for key in [k for k, (ts, _) in self._routes.items() if now - ts >= self._ttl]:
+            del self._routes[key]
 
     async def get_route(self, origin, dest, mode):
-        return await self._inner.get_route(origin, dest, mode)
+        key = (origin.id, dest.id, mode.value if hasattr(mode, "value") else str(mode))
+        now = monotonic()
+        hit = self._routes.get(key)
+        if hit and now - hit[0] < self._ttl:
+            return hit[1]
+        route = await self._inner.get_route(origin, dest, mode)
+        self._sweep(now)
+        self._routes[key] = (now, route)
+        return route
 
 
 @lru_cache(maxsize=1)
