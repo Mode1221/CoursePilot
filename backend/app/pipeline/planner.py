@@ -43,8 +43,10 @@ def classify(place: Place) -> str:
     if slot:
         return slot
     cat = (place.category or "").lower()
-    for slot, kws in _SLOT_KEYWORDS.items():
-        if any(k in cat for k in kws):
+    # 구체적인 슬롯을 먼저 본다. "음식점 > 술집 > 와인바"는 '음식'이 먼저 걸려
+    # 식사 자리로 들어가 버렸다 — 술집·카페가 밥 자리를 차지하면 코스가 어긋난다.
+    for slot in ("bar", "cafe", "activity", "meal"):
+        if any(k in cat for k in _SLOT_KEYWORDS[slot]):
             return slot
     return "activity"  # 미분류는 활동으로
 
