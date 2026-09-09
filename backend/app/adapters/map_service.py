@@ -6,7 +6,7 @@
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
-from datetime import time
+from datetime import date, time, timedelta
 from functools import lru_cache
 from time import monotonic
 
@@ -67,6 +67,14 @@ class MockMapService(MapService):
                     # 브레이크는 낮 영업 식당에만 (술집은 해당 없음)
                     break_start=time(15, 0) if category == "restaurant" and i % 3 == 0 else None,
                     break_end=time(17, 0) if category == "restaurant" and i % 3 == 0 else None,
+                    # 실제 데이터에는 표본 수·업력·사실 태그가 함께 오므로 mock 도 채운다.
+                    # 이게 비어 있으면 그 신호를 쓰는 코드가 테스트에서 한 번도 안 돈다.
+                    # 표본·업력은 모든 장소에 같은 값을 준다 — mock 순위를 바꾸지 않으면서
+                    # 그 신호를 쓰는 코드가 테스트에서 실제로 돌게 하기 위함이다.
+                    rating_count=200,
+                    opened_on=date.today() - timedelta(days=365 * 5),
+                    fact_tags=["주차"] if i % 2 == 0 else ["단체석"],
+                    caution_tags=["웨이팅"] if i % 4 == 0 else [],
                 )
             )
         return places
