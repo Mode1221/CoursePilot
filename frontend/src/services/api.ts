@@ -68,6 +68,18 @@ export const api = {
   relax: (id: string, userId?: string) =>
     request<GenerateResponse>(`/courses/${id}/relax`, { method: "POST", userId }),
 
+  requestSmsCode: (phone: string) =>
+    request<{ sent: boolean; dev_code: string | null }>("/auth/sms/request", {
+      method: "POST",
+      body: { phone },
+    }),
+
+  verifySmsCode: (phone: string, code: string) =>
+    request<{ verified: boolean }>("/auth/sms/verify", {
+      method: "POST",
+      body: { phone, code },
+    }),
+
   signup: (phone: string) =>
     request<{ user_id: string; credits_left: number }>("/signup", { method: "POST", body: { phone } }),
 
