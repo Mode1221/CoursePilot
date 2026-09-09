@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 
 import { Badge, Button, Skeleton } from "@/components/ui";
+import { yearsOpen as placeYearsOpen } from "@/services/placeFacts";
 import { naverMapUrl } from "@/services/mapLink";
 import { api } from "@/services/api";
 import { useCourseStore } from "@/store/courseStore";
@@ -32,6 +33,7 @@ export default function PlaceDetailModal({
   const closeRef = useRef<HTMLButtonElement>(null);
   const dialogRef = useRef<HTMLDivElement>(null);
   const titleId = `place-${place.id}`;
+  const yearsOpen = placeYearsOpen(place);
   const inCourse = new Set((courseItems ?? []).map((it) => it.place.id));
 
   useEffect(() => {
@@ -126,7 +128,22 @@ export default function PlaceDetailModal({
         <h3 id={titleId} style={{ marginTop: 0 }}>{place.name}</h3>
         {place.category && <Badge>{place.category}</Badge>}
         {place.address && <div style={{ color: "var(--text-muted)", fontSize: "var(--fs-sm)", marginTop: "var(--sp-2)" }}>{place.address}</div>}
-        {place.rating != null && <div>⭐ {place.rating.toFixed(1)}</div>}
+        {place.rating != null && (
+          <div>
+            ⭐ {place.rating.toFixed(1)}
+            {place.rating_count != null && (
+              <span style={{ color: "var(--text-muted)", fontSize: "var(--fs-sm)" }}>
+                {" "}
+                ({place.rating_count.toLocaleString()}명)
+              </span>
+            )}
+          </div>
+        )}
+        {yearsOpen != null && (
+          <div style={{ fontSize: "var(--fs-sm)", color: "var(--text-muted)" }}>
+            영업 {yearsOpen}년차
+          </div>
+        )}
         {place.price != null && <div style={{ fontSize: "var(--fs-sm)", color: "var(--text-muted)" }}>1인 약 {place.price.toLocaleString()}원</div>}
         {(place.open_time || place.close_time) && (
           <div style={{ fontSize: "var(--fs-sm)", color: "var(--text-muted)" }}>
@@ -136,6 +153,20 @@ export default function PlaceDetailModal({
         {place.hours_unverified && (
           <div style={{ fontSize: "var(--fs-sm)", color: "var(--text-muted)" }}>
             영업시간 확인 필요 — 방문 전 확인해 주세요
+          </div>
+        )}
+        {(place.fact_tags?.length || place.caution_tags?.length) && (
+          <div style={{ display: "flex", flexWrap: "wrap", gap: "var(--sp-1)", marginTop: "var(--sp-2)" }}>
+            {place.fact_tags?.map((t) => (
+              <Badge key={`f-${t}`} tone="brand">
+                {t} 가능
+              </Badge>
+            ))}
+            {place.caution_tags?.map((t) => (
+              <Badge key={`fc-${t}`} tone="warn">
+                {t} 주의
+              </Badge>
+            ))}
           </div>
         )}
         <h4>리뷰 요약</h4>

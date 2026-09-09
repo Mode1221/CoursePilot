@@ -22,6 +22,10 @@ export interface Place {
   break_start?: string | null;
   break_end?: string | null;
   hours_unverified?: boolean | null; // 영업시간을 외부에서 확인하지 못함
+  fact_tags?: string[] | null; // 주차·단체석 등 '가능' 사실 태그
+  caution_tags?: string[] | null; // '주의' 사실 태그
+  rating_count?: number | null; // 집계 평점의 표본 수
+  opened_on?: string | null; // 인허가일자(업력 표시용)
 }
 
 export interface Route {
