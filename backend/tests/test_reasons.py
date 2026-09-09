@@ -2,7 +2,7 @@
 from __future__ import annotations
 
 import itertools
-from datetime import time
+from datetime import date, time, timedelta
 
 from fastapi.testclient import TestClient
 
@@ -71,3 +71,46 @@ def test_엔드포인트가_코스별_근거를_돌려준다():
 
 def test_없는_코스는_404():
     assert client.get("/courses/nope/reasons").status_code == 404
+
+
+def _course_with(place: Place) -> Course:
+    return Course(id="c", items=[TimelineItem(place=place, arrive=time(12, 0), depart=time(13, 0))])
+
+
+def _p(**kw) -> Place:
+    return Place(**{"id": "p", "name": "가게", "lat": 37.5, "lng": 127.0, **kw})
+
+
+def test_평점_근거에_표본을_붙인다():
+    reasons = course_reasons(_course_with(_p(rating=4.6, rating_count=812)), "성수동")
+    assert "평점 4.6 (812명)" in reasons["p"]
+
+
+def test_표본이_적으면_숫자만_말한다():
+    reasons = course_reasons(_course_with(_p(rating=4.6, rating_count=12)), "성수동")
+    assert "평점 4.6" in reasons["p"]
+    assert all("명)" not in r for r in reasons["p"])
+
+
+def test_오래_버틴_가게는_업력을_말한다():
+    old = _p(opened_on=date.today() - timedelta(days=365 * 9))
+    assert any("년째 영업 중" in r for r in course_reasons(_course_with(old), "성수동")["p"])
+
+
+def test_최근_개업은_업력을_말하지_않는다():
+    new = _p(opened_on=date.today() - timedelta(days=100))
+    assert all("영업 중" not in r for r in course_reasons(_course_with(new), "성수동")["p"])
+
+
+def test_요청한_사실_태그를_근거로_든다():
+    place = _p(fact_tags=["주차"])
+    assert "주차 가능" in course_reasons(_course_with(place), "성수동 주차 되는 곳")["p"]
+
+
+def test_요청과_무관한_사실_태그는_말하지_않는다():
+    place = _p(fact_tags=["주차"])
+    assert all("주차" not in r for r in course_reasons(_course_with(place), "성수동 카페")["p"])
+
+
+def test_공식_등재도_근거가_된다():
+    assert "관광·문화 공식 정보에 등재된 곳" in course_reasons(_course_with(_p(tour_listed=True)), "성수동")["p"]
