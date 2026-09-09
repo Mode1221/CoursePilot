@@ -63,6 +63,7 @@ async def generate_course(
     preferences: dict | None = None,
     on_progress: ProgressFn | None = None,
     force_relax: bool = False,
+    exclude_place_ids: set[str] | None = None,
 ) -> PlanResult:
     """자연어 요청 → 코스.
 
@@ -80,7 +81,7 @@ async def generate_course(
     await progress("search")  # 후보 수집
     # 출발지 좌표는 재시도마다 바뀌지 않으므로 한 번만 조회한다(외부 호출 절약)
     origin = await _resolve_origin(constraints, map_service)
-    timeline = await _attempt(constraints, map_service, origin)
+    timeline = await _attempt(constraints, map_service, origin, exclude_place_ids)
     await progress("validation")  # 물리 제약 검증
 
     enough = _min_valid(constraints)
@@ -108,14 +109,14 @@ async def generate_course(
     relaxed_c = constraints.model_copy(deep=True)
     if relaxed_c.max_travel_min is not None:
         relaxed_c.max_travel_min = int(relaxed_c.max_travel_min * factor)
-    timeline = await _attempt(relaxed_c, map_service, origin)
+    timeline = await _attempt(relaxed_c, map_service, origin, exclude_place_ids)
     if len(timeline) > len(best):
         best = timeline
 
     # 그래도 부족하면 소프트 키워드 제약을 완화(다이어트 등 하드성 키워드는 유지)
     if (len(best) < enough or force_relax) and relaxed_c.keywords:
         relaxed_c.keywords = [k for k in relaxed_c.keywords if k in _HARD_KEYWORDS]
-        timeline = await _attempt(relaxed_c, map_service, origin)
+        timeline = await _attempt(relaxed_c, map_service, origin, exclude_place_ids)
         if len(timeline) > len(best):
             best = timeline
 
@@ -184,6 +185,7 @@ async def _attempt(
     constraints: PlanConstraints,
     map_service: MapService,
     origin: Place | None = None,
+    exclude_place_ids: set[str] | None = None,
 ) -> list[TimelineItem]:
     region = constraints.region or DEFAULT_REGION
     # 검색어가 길수록 결과가 급감하므로 상위 몇 개만 질의에 쓴다(나머지는 스코어링에서 반영).
@@ -191,6 +193,11 @@ async def _attempt(
     # 칸 수가 많을수록 후보가 더 필요하다(영업시간·카테고리 필터로 상당수가 탈락)
     limit = min(MAX_CANDIDATES, max(10, len(desired_slots(constraints)) * CANDIDATES_PER_SLOT))
     candidates = await map_service.search_places(region, query_keywords, limit=limit)
+    if exclude_place_ids:
+        # "전부 다른 곳으로" — 지금 코스에 있는 장소는 후보에서 뺀다
+        filtered = [p for p in candidates if p.id not in exclude_place_ids]
+        if filtered:  # 전부 걸러지면 기존 후보라도 쓴다(빈 코스보다 낫다)
+            candidates = filtered
     # 스코어링·카테고리 템플릿·동선·Best-of-N 으로 최적 코스 선택
     return await plan_course(candidates, constraints, map_service, origin=origin)
 
