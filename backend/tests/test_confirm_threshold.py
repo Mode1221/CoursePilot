@@ -21,3 +21,15 @@ async def test_두곳짜리_코스는_확인을_요구하지_않는다():
     result = await generate_course("성수동에서 술 빼고 저녁 데이트", get_map_service())
     assert len(result.timeline) >= 2
     assert result.needs_confirmation is False
+
+
+async def test_요청_개수에_못_미치면_확인을_요구한다():
+    result = await generate_course("성수동 5곳 오전 10시부터 하루종일", get_map_service())
+    assert len(result.timeline) < 5
+    assert result.needs_confirmation is True
+
+
+async def test_요청_개수를_채우면_확인하지_않는다():
+    result = await generate_course("성수동 2차까지 저녁 7시", get_map_service())
+    assert len(result.timeline) >= 2
+    assert result.needs_confirmation is False
