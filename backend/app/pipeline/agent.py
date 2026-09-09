@@ -167,6 +167,13 @@ async def _verify_hours(timeline: list[TimelineItem]) -> None:
                 )
     except Exception:
         pass
+    # 그래도 없으면 마지막 폴백: LLM 웹검색(느리고 비싸다 → 코스당 2건 상한).
+    try:
+        from app.adapters.hours_fallback import fill_missing_hours
+
+        await fill_missing_hours(places)
+    except Exception:
+        pass
 
 
 # 온보딩 예산 문항 → 1인 예산 상한(원). 문항 값과 1:1 대응.
