@@ -10,6 +10,19 @@ export interface MapService {
 }
 
 export const TRANSIT_OVERHEAD_MIN = 7; // 정류장 접근·대기·환승 (backend/app/constants.py 와 동일)
+export const WALK_SWITCH_MIN = 20; // 이보다 먼 도보 구간은 대중교통으로 (backend/app/pipeline/validation.py)
+
+/** 서버와 같은 규칙: 너무 먼 도보 구간은 대중교통으로 대체한다. */
+export async function bestRoute(
+  origin: Place,
+  dest: Place,
+  mode: TravelMode,
+): Promise<Route> {
+  const route = await mapService.getRoute(origin, dest, mode);
+  if (mode !== "walk" || route.duration_min <= WALK_SWITCH_MIN) return route;
+  const alt = await mapService.getRoute(origin, dest, "transit");
+  return alt.duration_min < route.duration_min ? alt : route;
+}
 
 class MockMapService implements MapService {
   async searchPlaces(region: string, _keywords: string[], limit = 10): Promise<Place[]> {
