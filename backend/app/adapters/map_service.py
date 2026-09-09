@@ -205,11 +205,22 @@ class CachedSearchMapService(MapService):
 
 @lru_cache(maxsize=1)
 def get_map_service() -> MapService:
-    """설정에 따라 구현체 선택(싱글턴). 키 없으면 Mock, 있으면 Naver(+Mock 폴백)."""
-    if settings.map_provider == "naver" and settings.naver_client_id:
+    """설정에 따라 구현체 선택(싱글턴). 키 없으면 Mock.
+
+    장소 발견은 카카오(무료·정확한 카테고리 코드)를 우선하고, 경로는 네이버가 맡는다.
+    """
+    naver: MapService | None = None
+    if settings.naver_client_id:
         from app.adapters.naver import NaverMapService
 
-        base: MapService = SafeMapService(NaverMapService(), MockMapService())
+        naver = NaverMapService()
+    if settings.kakao_rest_api_key:
+        from app.adapters.kakao import KakaoLocalService
+
+        primary: MapService = KakaoLocalService(route_service=naver or MockMapService())
+        base: MapService = SafeMapService(primary, naver or MockMapService())
+    elif naver is not None:
+        base = SafeMapService(naver, MockMapService())
     else:
         base = MockMapService()
     # Google 평점은 후보 검색 때 부르지 않는다 — 평점 콜은 Enterprise 티어(월 1,000)
