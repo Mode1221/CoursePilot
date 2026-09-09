@@ -70,9 +70,15 @@ class MetricsStore:
         if rate >= FALLBACK_RATE_ALERT and name not in self._alerting:
             self._alerting.add(name)
             logger.warning("외부 연동 폴백률 %.0f%% — %s (표본 %d)", rate * 100, name, samples)
+            _notify(
+                "fallback_rate",
+                name,
+                f"외부 연동 폴백률 {rate * 100:.0f}% — {name} (표본 {samples})",
+            )
         elif rate < FALLBACK_RATE_ALERT and name in self._alerting:
             self._alerting.discard(name)
             logger.info("외부 연동 폴백률 회복 — %s (%.0f%%)", name, rate * 100)
+            _notify("fallback_recovered", name, f"외부 연동 폴백률 회복 — {name}")
 
     def record(self, key: str, status: int, elapsed_ms: float) -> None:
         stat = self._routes[key]
@@ -141,6 +147,16 @@ def _alerts(total: int, error_rate: float, externals: list[dict]) -> list[dict]:
                 {"kind": "fallback_rate", "target": ext["name"], "value": ext["fallback_rate"]}
             )
     return alerts
+
+
+def _notify(kind: str, target: str, text: str) -> None:
+    """알림 발송은 실패해도 메트릭 기록을 막지 않는다."""
+    from app.alerting import alert_notifier
+
+    try:
+        alert_notifier.notify(kind, target, text)
+    except Exception:  # pragma: no cover - 방어적
+        logger.warning("알림 발송 중 예외: %s", text)
 
 
 metrics_store = MetricsStore()

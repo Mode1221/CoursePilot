@@ -31,6 +31,7 @@
 - `agent.py` — 오케스트레이터(분해→검색→검증→완화).
 - `decomposition.py` — 규칙 기반 자연어 파서(시각/분·반, 예산, 동행, 키워드, 출발지, 우천, 수단 고정).
 - `llm.py` — LLM 도구호출 분해(anthropic/openai), 실패 시 규칙 폴백.
+- (backend) `alerting.py` — 임계 알림 웹훅 발송(미설정 시 로그, 재알림 억제).
 - `weights.py` — 스코어 계수(`PLACE_WEIGHTS`/`COURSE_WEIGHTS`) 단일 출처.
 - `simulation.py` — 합성 사용 신호 생성·리플레이(`simulate_sessions`/`replay`/`rank_quality`), CLI `backend/scripts/replay_signals.py`.
 - `calibration.py` — 라벨(JSONL) 기반 오프라인 계수 탐색: `evaluate`(top1/top3/MRR), `calibrate`(좌표 상승), CLI `backend/scripts/calibrate.py`.
