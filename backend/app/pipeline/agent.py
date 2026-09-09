@@ -57,7 +57,9 @@ class PlanResult:
     timeline: list[TimelineItem]
     relaxed: bool  # 조건 완화가 적용됐는지
     needs_confirmation: bool  # 완화로도 부족 → 사용자 확인 필요
-    closed_dropped: int = 0  # 폐업·휴무로 최종 단계에서 뺀 장소 수
+    # 폐업·휴무로 최종 단계에서 뺀 장소 수. 되채우기가 성공하면 0 으로 돌아온다
+    # (되채운 코스가 원래보다 길어질 수도 있어 음수가 되지 않게 막는다).
+    closed_dropped: int = 0
 
 
 async def generate_course(
@@ -105,7 +107,7 @@ async def generate_course(
             timeline,
             relaxed=False,
             needs_confirmation=len(timeline) < _min_usable(constraints),
-            closed_dropped=before - len(timeline),
+            closed_dropped=max(0, before - len(timeline)),
         )
 
     # 7-4 조건 완화: 소프트 제약(이동시간 여유폭)부터 단계적 완화. 하드 제약(예산)은 유지.
@@ -149,7 +151,7 @@ async def generate_course(
         timeline,
         relaxed=relaxed,
         needs_confirmation=len(timeline) < _min_usable(constraints),
-        closed_dropped=before - len(timeline),
+        closed_dropped=max(0, before - len(timeline)),
     )
 
 

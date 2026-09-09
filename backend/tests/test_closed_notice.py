@@ -75,3 +75,20 @@ async def test_남은_개수로_확인_필요를_판단한다(close_one, monkeyp
 
 def test_계획_제약은_그대로_돌려준다():
     assert PlanResult(PlanConstraints(), [], relaxed=False, needs_confirmation=False).closed_dropped == 0
+
+
+async def test_되채우기로_더_길어져도_음수가_되지_않는다(monkeypatch):
+    """빠진 자리를 채우면서 오히려 코스가 길어지면 '뺀 수'는 0 이어야 한다."""
+    from app.pipeline import agent
+
+    async def noop(places, *, weekday=None):
+        return places
+
+    monkeypatch.setattr("app.adapters.google.refresh_final_hours", noop)
+
+    async def longer(timeline, before_ids, constraints, map_service, origin, exclude):
+        return timeline + timeline[:1]  # 원래보다 한 곳 더 긴 코스
+
+    monkeypatch.setattr(agent, "_refill", longer)
+    result = await generate_course("성수동에서 저녁 코스", _ClosingMap())
+    assert result.closed_dropped == 0
