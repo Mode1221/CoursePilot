@@ -225,7 +225,7 @@ async def set_preferences(
     _require_self(user_id, x_user_id)
     user = user_store.set_preferences(user_id, prefs)
     if user is None:
-        raise HTTPException(status_code=404, detail="user not found")
+        raise HTTPException(status_code=404, detail="계정을 찾을 수 없어요")
     return {"ok": True}
 
 
@@ -238,7 +238,7 @@ async def get_preferences(
     _require_self(user_id, x_user_id)
     user = user_store.get(user_id)
     if user is None:
-        raise HTTPException(status_code=404, detail="user not found")
+        raise HTTPException(status_code=404, detail="계정을 찾을 수 없어요")
     return user.preferences
 
 
@@ -247,7 +247,7 @@ async def get_credits(user_id: str, x_user_id: str | None = Header(default=None)
     _require_self(user_id, x_user_id)
     user = user_store.get(user_id)
     if user is None:
-        raise HTTPException(status_code=404, detail="user not found")
+        raise HTTPException(status_code=404, detail="계정을 찾을 수 없어요")
     # 사용자에겐 "질문 N회 남음"으로만 노출 (토큰 비노출, 9-5)
     return {"questions_left": user.credits_left}
 
@@ -267,7 +267,7 @@ async def purchase_points(
     if req.points <= 0:
         raise HTTPException(status_code=400, detail="포인트는 1 이상이어야 합니다")
     if user_store.get(user_id) is None:
-        raise HTTPException(status_code=404, detail="user not found")
+        raise HTTPException(status_code=404, detail="계정을 찾을 수 없어요")
 
     from app.adapters.payment import get_payment_service
     from app.payment_ledger import payment_ledger
@@ -301,7 +301,7 @@ async def purchase_points(
 
     user = user_store.purchase_points(user_id, req.points)
     if user is None:
-        raise HTTPException(status_code=404, detail="user not found")
+        raise HTTPException(status_code=404, detail="계정을 찾을 수 없어요")
     return {"questions_left": user.credits_left}
 
 
@@ -320,7 +320,7 @@ async def duplicate_course(
     """
     source = store.get(course_id)
     if source is None:
-        raise HTTPException(status_code=404, detail="course not found")
+        raise HTTPException(status_code=404, detail="코스를 찾을 수 없어요")
     copy = source.model_copy(deep=True)
     copy.id = store.new_id()
     copy.owner_id = x_user_id
@@ -355,7 +355,7 @@ async def add_bookmark(
     _require_self(user_id, x_user_id)
     course = store.get(course_id)
     if course is None:
-        raise HTTPException(status_code=404, detail="course not found")
+        raise HTTPException(status_code=404, detail="코스를 찾을 수 없어요")
     bookmark_store.add(user_id, course_id)
     # 북마크된 코스의 장소에 인기 가중(암묵적 정량 신호)
     popularity_store.bump_many([it.place.id for it in course.items], weight=2)
@@ -398,7 +398,7 @@ async def delete_course(course_id: str, x_user_id: str | None = Header(default=N
 def _owned_course(course_id: str, user_id: str | None) -> Course:
     course = store.get(course_id)
     if course is None:
-        raise HTTPException(status_code=404, detail="course not found")
+        raise HTTPException(status_code=404, detail="코스를 찾을 수 없어요")
     if course.owner_id is not None and course.owner_id != user_id:
         raise HTTPException(status_code=403, detail="코스 생성자만 변경할 수 있어요")
     return course
@@ -411,7 +411,7 @@ async def course_calendar(course_id: str) -> Response:
 
     course = store.get(course_id)
     if course is None:
-        raise HTTPException(status_code=404, detail="course not found")
+        raise HTTPException(status_code=404, detail="코스를 찾을 수 없어요")
     filename = f"coursepilot-{course_id}.ics"
     return Response(
         content=to_ics(course, day=course.plan_date),
@@ -424,7 +424,7 @@ async def course_calendar(course_id: str) -> Response:
 async def get_course(course_id: str) -> Course:
     course = store.get(course_id)
     if course is None:
-        raise HTTPException(status_code=404, detail="course not found")
+        raise HTTPException(status_code=404, detail="코스를 찾을 수 없어요")
     return course
 
 
@@ -496,7 +496,7 @@ async def course_reasons_endpoint(course_id: str) -> dict:
     """각 장소가 왜 들어갔는지 짧은 근거. 저장하지 않고 그때그때 계산한다."""
     course = store.get(course_id)
     if course is None:
-        raise HTTPException(status_code=404, detail="course not found")
+        raise HTTPException(status_code=404, detail="코스를 찾을 수 없어요")
     last_text = next(
         (m.text for m in reversed(chat_store.list(course_id)) if m.role == "user"), ""
     )
@@ -530,7 +530,7 @@ async def relax(course_id: str, x_user_id: str | None = Header(default=None)) ->
     async def action() -> GenerateResponse:
         course = store.get(course_id)
         if course is None:
-            raise HTTPException(status_code=404, detail="course not found")
+            raise HTTPException(status_code=404, detail="코스를 찾을 수 없어요")
         course.locked = True
         await broadcast_lock(course_id, True)
         # 완화 재시도에서도 온보딩 선호(지역·예산·식이)와 행동 선호를 그대로 쓴다 —
@@ -588,7 +588,7 @@ async def generate(
         # 최신 상태를 lock 안에서 재조회 → 동시 요청 간 lost update 방지
         course = store.get(course_id)
         if course is None:
-            raise HTTPException(status_code=404, detail="course not found")
+            raise HTTPException(status_code=404, detail="코스를 찾을 수 없어요")
 
         # 크레딧 소비도 lock 안에서: 원자적 차감 + 실패 시 환불
         try:
@@ -832,7 +832,7 @@ class FeedbackRequest(BaseModel):
 async def post_feedback(course_id: str, req: FeedbackRequest) -> dict:
     """사용자 피드백 기록(#15/#16). 예: 완화 수락/거부."""
     if store.get(course_id) is None:
-        raise HTTPException(status_code=404, detail="course not found")
+        raise HTTPException(status_code=404, detail="코스를 찾을 수 없어요")
     feedback_store.log(course_id, req.kind, req.detail)
     return {"ok": True}
 
@@ -848,7 +848,7 @@ async def view_course(course_id: str) -> dict:
     """
     course = store.get(course_id)
     if course is None:
-        raise HTTPException(status_code=404, detail="course not found")
+        raise HTTPException(status_code=404, detail="코스를 찾을 수 없어요")
     popularity_store.bump_many([it.place.id for it in course.items], weight=VIEW_WEIGHT)
     return {"ok": True}
 
@@ -907,7 +907,7 @@ async def complete_course(course_id: str) -> dict:
     """
     course = store.get(course_id)
     if course is None:
-        raise HTTPException(status_code=404, detail="course not found")
+        raise HTTPException(status_code=404, detail="코스를 찾을 수 없어요")
     place_ids = [it.place.id for it in course.items]
     popularity_store.bump_many(place_ids, weight=COMPLETION_WEIGHT)
     feedback_store.log(course_id, "completed", detail=f"{len(place_ids)}곳")
@@ -929,7 +929,7 @@ async def rate_satisfaction(course_id: str, req: SatisfactionRequest) -> dict:
     """
     course = store.get(course_id)
     if course is None:
-        raise HTTPException(status_code=404, detail="course not found")
+        raise HTTPException(status_code=404, detail="코스를 찾을 수 없어요")
     weight = SATISFACTION_WEIGHT if req.liked else -SATISFACTION_WEIGHT
     popularity_store.bump_many([it.place.id for it in course.items], weight=weight)
     feedback_store.log(course_id, "liked" if req.liked else "disliked")
@@ -960,12 +960,12 @@ async def manual_reorder(course_id: str, req: ReorderRequest) -> Course:
     """
     _reject_duplicates(req.place_ids)
     if store.get(course_id) is None:
-        raise HTTPException(status_code=404, detail="course not found")
+        raise HTTPException(status_code=404, detail="코스를 찾을 수 없어요")
 
     async def action() -> Course:
         course = store.get(course_id)
         if course is None:
-            raise HTTPException(status_code=404, detail="course not found")
+            raise HTTPException(status_code=404, detail="코스를 찾을 수 없어요")
         if course.locked:
             raise HTTPException(status_code=409, detail="AI 처리 중에는 편집할 수 없습니다")
 
@@ -1011,12 +1011,12 @@ async def add_place(course_id: str, req: AddPlaceRequest) -> Course:
     장소는 전역 저장소에서 복원. AI 미호출·무료. 참여자도 가능하므로 인증 불필요.
     """
     if store.get(course_id) is None:
-        raise HTTPException(status_code=404, detail="course not found")
+        raise HTTPException(status_code=404, detail="코스를 찾을 수 없어요")
 
     async def action() -> Course:
         course = store.get(course_id)
         if course is None:
-            raise HTTPException(status_code=404, detail="course not found")
+            raise HTTPException(status_code=404, detail="코스를 찾을 수 없어요")
         if course.locked:
             raise HTTPException(status_code=409, detail="AI 처리 중에는 편집할 수 없습니다")
         if any(it.place.id == req.place_id for it in course.items):
@@ -1031,7 +1031,7 @@ async def add_place(course_id: str, req: AddPlaceRequest) -> Course:
         resolved = place_repo.get_many([req.place_id])
         place = resolved.get(req.place_id)
         if place is None:
-            raise HTTPException(status_code=404, detail="place not found")
+            raise HTTPException(status_code=404, detail="장소를 찾을 수 없어요")
 
         from app.pipeline.edit import _infer_mode
         from app.pipeline.validation import recompute
@@ -1065,12 +1065,12 @@ async def set_items(course_id: str, req: SetItemsRequest) -> Course:
     """
     _reject_duplicates(req.place_ids)
     if store.get(course_id) is None:
-        raise HTTPException(status_code=404, detail="course not found")
+        raise HTTPException(status_code=404, detail="코스를 찾을 수 없어요")
 
     async def action() -> Course:
         course = store.get(course_id)
         if course is None:
-            raise HTTPException(status_code=404, detail="course not found")
+            raise HTTPException(status_code=404, detail="코스를 찾을 수 없어요")
         if course.locked:
             raise HTTPException(status_code=409, detail="AI 처리 중에는 편집할 수 없습니다")
 
