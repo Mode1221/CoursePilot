@@ -158,6 +158,38 @@ LONGEVITY_CAP_YEARS = 20
 AWARENESS_CAP = 3000
 
 
+# 요청에 이 표현이 있으면, 그 축이 "불가"로 확인된 곳은 후보에서 뺀다.
+HARD_FACT_TAGS: dict[str, tuple[str, ...]] = {
+    "반려동물": ("반려동물", "애견", "강아지", "펫"),
+    "단체석": ("단체", "룸", "연회"),
+    "주차": ("주차", "차 가지고", "자차"),
+    "예약": ("예약",),
+}
+
+
+def required_fact_tags(constraints: PlanConstraints) -> list[str]:
+    """요청 문장·키워드에서 '되어야만 하는' 사실 축을 뽑는다."""
+    haystack = " ".join([*constraints.keywords, constraints.companion or ""])
+    return [
+        tag
+        for tag, words in HARD_FACT_TAGS.items()
+        if any(w in haystack for w in words)
+    ]
+
+
+def _drop_impossible(
+    candidates: list[Place], constraints: PlanConstraints
+) -> list[Place]:
+    """필수 축이 '불가'로 확인된 장소를 뺀다. 전부 걸러지면 원래 후보를 지킨다."""
+    required = required_fact_tags(constraints)
+    if not required:
+        return candidates
+    kept = [
+        p for p in candidates if not any(tag in p.caution_tags for tag in required)
+    ]
+    return kept or candidates
+
+
 def _fact_tag_match(place: Place, constraints: PlanConstraints) -> float:
     """요청 키워드와 겹치는 사실 태그: 가능하면 +1, 주의면 -1, 없으면 0."""
     if not (place.fact_tags or place.caution_tags):
@@ -565,6 +597,10 @@ async def plan_course(
         kept = [p for p in candidates if classify(p) not in dropped]
         if kept:  # 전부 걸러지면 아무 코스도 못 만드므로 원래 후보를 쓴다
             candidates = kept
+
+    # 동반 조건은 취향이 아니라 가부다 — 반려동물 동반인데 "반려동물 불가"로
+    # 확인된 곳은 감점이 아니라 제외해야 한다(감점만으로는 다른 시드가 되살린다).
+    candidates = _drop_impossible(candidates, constraints)
 
     # 자체 인기 신호 조회 후 0~1 로 정규화(최댓값 대비 상대값)
     from app.popularity import popularity_store
