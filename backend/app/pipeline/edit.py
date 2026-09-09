@@ -127,6 +127,13 @@ def parse_edit(text: str) -> EditCommand:
             elif idx >= 0 and _ADD_BEFORE_RE.search(text):
                 at = idx
             return EditCommand(action="add", index=at, keyword=keyword, match=cat)
+    # "2번 지우고 카페 추가해줘" = 그 자리를 카페로 바꾸라는 뜻이다.
+    # 삭제만 하고 추가를 흘리면 사용자는 시킨 일의 절반만 받는다.
+    if _REMOVE_RE.search(text) and _ADD_RE.search(text) and idx != -1:
+        keyword, cat = _find_category(text)
+        if keyword:
+            return EditCommand(action="replace", index=idx, keyword=keyword, match=cat)
+
     other_kind = _other_kind(text)
     if idx < 0 and idx != LAST_INDEX:
         # 순서를 못 찾았으면 "카페 빼줘"처럼 카테고리로 지목했는지 본다
