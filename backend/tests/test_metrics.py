@@ -73,3 +73,28 @@ def test_5xx_비율이_높으면_알림에_뜬다():
     metrics_store.record("GET /courses", 500, 10.0)
     alerts = metrics_store.snapshot()["alerts"]
     assert alerts[0]["kind"] == "error_rate"
+
+
+def test_임계를_넘을_때만_경고를_남긴다(caplog):
+    from app.metrics import MIN_ALERT_SAMPLES, MetricsStore
+
+    store = MetricsStore()
+    with caplog.at_level("WARNING", logger="coursepilot"):
+        for _ in range(MIN_ALERT_SAMPLES):
+            store.record_external("map.search_places", ok=False)
+        store.record_external("map.search_places", ok=False)  # 이미 경고 상태 → 추가 로그 없음
+    warnings = [r for r in caplog.records if r.levelname == "WARNING"]
+    assert len(warnings) == 1
+    assert "map.search_places" in warnings[0].getMessage()
+
+
+def test_회복되면_경고_상태가_풀린다():
+    from app.metrics import MIN_ALERT_SAMPLES, MetricsStore
+
+    store = MetricsStore()
+    for _ in range(MIN_ALERT_SAMPLES):
+        store.record_external("llm.embedding", ok=False)
+    assert "llm.embedding" in store._alerting
+    for _ in range(MIN_ALERT_SAMPLES * 3):
+        store.record_external("llm.embedding", ok=True)
+    assert "llm.embedding" not in store._alerting
