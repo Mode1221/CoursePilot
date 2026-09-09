@@ -4,7 +4,7 @@ import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 
 import { Button, Input } from "@/components/ui";
-import { api } from "@/services/api";
+import { ApiError, api } from "@/services/api";
 import { toast } from "@/store/toastStore";
 import { useUserStore } from "@/store/userStore";
 
@@ -33,10 +33,54 @@ export default function Onboarding() {
   const [transport, setTransport] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
+  const [code, setCode] = useState("");
+  const [codeSent, setCodeSent] = useState(false);
+  const [verified, setVerified] = useState(false);
+  const [sending, setSending] = useState(false);
 
   useEffect(() => {
     load();
   }, [load]);
+
+  async function sendCode() {
+    if (sending) return;
+    setError(null);
+    if (!PHONE_RE.test(phone.trim())) {
+      setError("휴대폰 번호를 010-0000-0000 형식으로 입력해 주세요.");
+      return;
+    }
+    setSending(true);
+    try {
+      const res = await api.requestSmsCode(phone.trim());
+      setCodeSent(true);
+      // 개발 환경(SMS 키 미설정)에서는 코드가 응답으로 오므로 바로 채워 준다
+      if (res.dev_code) setCode(res.dev_code);
+      toast("인증번호를 보냈어요.", "success");
+    } catch (e) {
+      setError(
+        e instanceof ApiError && e.status === 429
+          ? "잠시 후 다시 요청해 주세요."
+          : "인증번호를 보내지 못했어요. 잠시 후 다시 시도해 주세요.",
+      );
+    } finally {
+      setSending(false);
+    }
+  }
+
+  async function verifyCode() {
+    if (sending) return;
+    setError(null);
+    setSending(true);
+    try {
+      await api.verifySmsCode(phone.trim(), code.trim());
+      setVerified(true);
+      toast("인증됐어요.", "success");
+    } catch {
+      setError("인증번호가 올바르지 않거나 만료됐어요. 다시 받아 주세요.");
+    } finally {
+      setSending(false);
+    }
+  }
 
   async function submit() {
     if (saving) return; // 중복 제출 방지
@@ -45,6 +89,10 @@ export default function Onboarding() {
     if (!id) {
       if (!PHONE_RE.test(phone.trim())) {
         setError("휴대폰 번호를 010-0000-0000 형식으로 입력해 주세요.");
+        return;
+      }
+      if (!verified) {
+        setError("휴대폰 인증을 먼저 완료해 주세요.");
         return;
       }
     }
@@ -78,16 +126,50 @@ export default function Onboarding() {
 
       <div style={{ display: "grid", gap: "var(--sp-4)", marginTop: "var(--sp-6)" }}>
         {!userId && (
-          <label style={{ fontSize: "var(--fs-sm)", color: "var(--text-muted)" }}>
-            전화번호
-            <Input
-              value={phone}
-              onChange={(e) => setPhone(e.target.value)}
-              placeholder="010-0000-0000"
-              inputMode="tel"
-              style={{ display: "block", width: "100%", marginTop: "var(--sp-1)" }}
-            />
-          </label>
+          <>
+            <label style={{ fontSize: "var(--fs-sm)", color: "var(--text-muted)" }}>
+              전화번호
+              <div style={{ display: "flex", gap: "var(--sp-2)", marginTop: "var(--sp-1)" }}>
+                <Input
+                  value={phone}
+                  onChange={(e) => setPhone(e.target.value)}
+                  placeholder="010-0000-0000"
+                  inputMode="tel"
+                  disabled={verified}
+                  style={{ flex: 1 }}
+                />
+                <Button onClick={sendCode} disabled={sending || verified}>
+                  {codeSent ? "다시 받기" : "인증번호 받기"}
+                </Button>
+              </div>
+            </label>
+
+            {codeSent && !verified && (
+              <label style={{ fontSize: "var(--fs-sm)", color: "var(--text-muted)" }}>
+                인증번호
+                <div style={{ display: "flex", gap: "var(--sp-2)", marginTop: "var(--sp-1)" }}>
+                  <Input
+                    value={code}
+                    onChange={(e) => setCode(e.target.value)}
+                    placeholder="6자리"
+                    inputMode="numeric"
+                    maxLength={6}
+                    aria-label="인증번호"
+                    style={{ flex: 1 }}
+                  />
+                  <Button onClick={verifyCode} disabled={sending || code.trim().length !== 6}>
+                    확인
+                  </Button>
+                </div>
+              </label>
+            )}
+
+            {verified && (
+              <p style={{ color: "var(--brand-strong)", fontSize: "var(--fs-sm)", margin: 0 }}>
+                휴대폰 인증 완료
+              </p>
+            )}
+          </>
         )}
 
         <label style={{ fontSize: "var(--fs-sm)", color: "var(--text-muted)" }}>
