@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 
 import { Badge, Button, Skeleton } from "@/components/ui";
-import { yearsOpen as placeYearsOpen } from "@/services/placeFacts";
+import { hoursFreshnessLabel, yearsOpen as placeYearsOpen } from "@/services/placeFacts";
 import { naverMapUrl } from "@/services/mapLink";
 import { api } from "@/services/api";
 import { useCourseStore } from "@/store/courseStore";
@@ -34,6 +34,7 @@ export default function PlaceDetailModal({
   const dialogRef = useRef<HTMLDivElement>(null);
   const titleId = `place-${place.id}`;
   const yearsOpen = placeYearsOpen(place);
+  const hoursFreshness = hoursFreshnessLabel(place);
   const inCourse = new Set((courseItems ?? []).map((it) => it.place.id));
 
   useEffect(() => {
@@ -152,6 +153,8 @@ export default function PlaceDetailModal({
             {place.break_start && place.break_end && (
               <> · 브레이크 {place.break_start.slice(0, 5)}~{place.break_end.slice(0, 5)}</>
             )}
+            {/* 언제 확인한 정보인지 밝혀야 사용자가 스스로 판단할 수 있다 */}
+            {hoursFreshness && <> · {hoursFreshness}</>}
           </div>
         )}
         {place.hours_unverified && (
