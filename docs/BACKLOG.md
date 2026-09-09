@@ -36,6 +36,7 @@
 - 데이터 원천: LOCALDATA 폐업 필터 + 인허가일자 업력(`adapters/localdata.py`, `ClosedFilterMapService`)
 - 데이터 원천: 영업시간 LLM 웹검색 폴백(최후 수단·확인 필요 표시), 공연·전시 일정(KOPIS) 기간 필터
 - 운영: 주기 갱신 배치(`scripts/refresh_places.py`) — 폐업 주1회·영업시간 30일·평점 90일, 활성 집합 기준
+- 장소: 카카오 검색에 지역 좌표·반경(3km) 적용 — 타지역 결과 혼입 제거
 - 운영: LOCALDATA CSV 자동 내려받기(`scripts/fetch_localdata.py`)
 - 대화: 추천 근거에 표본 수·업력·공식 등재·요청한 사실 태그 반영
 - 장소: 확정 후 새로 받은 영업시간으로 도착·체류 시각 재검증(시간 밖이면 제외)
