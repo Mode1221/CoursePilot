@@ -31,6 +31,8 @@
 - `agent.py` — 오케스트레이터(분해→검색→검증→완화).
 - `decomposition.py` — 규칙 기반 자연어 파서(시각/분·반, 예산, 동행, 키워드, 출발지, 우천, 수단 고정).
 - `llm.py` — LLM 도구호출 분해(anthropic/openai), 실패 시 규칙 폴백.
+- `weights.py` — 스코어 계수(`PLACE_WEIGHTS`/`COURSE_WEIGHTS`) 단일 출처.
+- `calibration.py` — 라벨(JSONL) 기반 오프라인 계수 탐색: `evaluate`(top1/top3/MRR), `calibrate`(좌표 상승), CLI `backend/scripts/calibrate.py`.
 - `planner.py` — `score_place`(우천·인원·제외 보정 포함), `desired_slots`, `route_order`/`route_order_from`(출발지 기준), `seq_order`, `_cf_pick`, `course_score`, `plan_course`.
 - `validation.py` — `is_open_during`, `best_route`(도보 20분 초과 구간은 대중교통으로 전환), `build_timeline`, `recompute`(병렬).
 - `edit.py` — 편집 명령 파싱/적용(교체·삭제·추가), `_infer_mode`.
