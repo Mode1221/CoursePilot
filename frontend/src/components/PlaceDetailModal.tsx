@@ -168,7 +168,7 @@ export default function PlaceDetailModal({
               onClick={() => {
                 const prev = myStars;
                 setMyStars(n);
-                api.ratePlace(place.id, n).catch(() => {
+                api.ratePlace(place.id, n, userId ?? undefined).catch(() => {
                   setMyStars(prev); // 저장 실패는 UI 도 되돌린다
                   toast("별점을 저장하지 못했어요.", "error");
                 });
