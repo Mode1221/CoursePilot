@@ -18,6 +18,8 @@ _FACT_QUESTIONS: tuple[tuple[str, tuple[str, ...]], ...] = (
 )
 _COST_WORDS = ("얼마", "비용", "가격", "예산")
 _HOURS_WORDS = ("영업시간", "몇 시까지", "몇시까지", "문 닫", "문닫", "언제까지 해", "브레이크")
+# 이동 질문. "이동 시간 얼마나 돼"의 '얼마'가 비용으로 새지 않도록 먼저 본다.
+_TRAVEL_WORDS = ("이동", "어떻게 가", "걸어서", "도보로", "지하철", "버스", "택시", "거리")
 _WHY_WORDS = ("왜", "이유", "어떻게 골", "근거")
 _TIME_WORDS = ("몇 시", "언제", "얼마나 걸", "소요", "끝나")
 
@@ -80,6 +82,28 @@ def hours_answer(course: Course) -> str:
     return ". ".join(parts) + "." if parts else "영업시간 정보가 없어요."
 
 
+_MODE_NAMES = {"walk": "도보", "car": "차", "transit": "대중교통"}
+
+
+def travel_answer(course: Course) -> str:
+    """구간별 이동 수단·시간으로 답한다."""
+    legs = []
+    for i, item in enumerate(course.items[:-1]):
+        route = item.travel_to_next
+        if route is None:
+            continue
+        mode = _MODE_NAMES.get(getattr(route.mode, "value", str(route.mode)), "이동")
+        legs.append(
+            f"{item.place.name}→{course.items[i + 1].place.name} {mode} {route.duration_min}분"
+        )
+    if not legs:
+        return "이동 정보가 아직 없어요."
+    total = sum(
+        it.travel_to_next.duration_min for it in course.items if it.travel_to_next
+    )
+    return ". ".join([", ".join(legs), f"이동은 모두 {total}분이에요."])
+
+
 def why_answer(course: Course, text: str) -> str:
     """"왜 골랐어?" — 이미 계산해 둔 근거를 장소별로 한 줄씩 답한다."""
     from app.reasons import course_reasons
@@ -112,6 +136,8 @@ def course_answer(course: Course, text: str = "") -> str:
     fact = fact_answer(course, text)
     if fact:
         return fact
+    if any(w in text for w in _TRAVEL_WORDS):
+        return travel_answer(course)
     if any(w in text for w in _WHY_WORDS):
         return why_answer(course, text)
     if any(w in text for w in _HOURS_WORDS):
