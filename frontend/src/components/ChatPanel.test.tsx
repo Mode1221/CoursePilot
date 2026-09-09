@@ -88,4 +88,12 @@ describe("ChatPanel", () => {
     expect(screen.getByText("👍 만족")).toBeTruthy();
   });
 
+  it("AI 작업 중 상태를 스크린리더에 알린다", () => {
+    useCourseStore.setState({ locked: true, stage: "search" });
+    render(<ChatPanel courseId="c1" />);
+    const status = screen.getAllByRole("status");
+    expect(status.some((el) => el.textContent?.includes("후보 수집"))).toBe(true);
+    useCourseStore.setState({ locked: false, stage: null });
+  });
+
 });
