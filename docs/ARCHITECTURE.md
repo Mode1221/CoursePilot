@@ -40,7 +40,7 @@
 - `edit.py` — 편집 명령 파싱/적용(교체·삭제·추가), `_infer_mode`.
 
 ### 어댑터 (`app/adapters/`) — 벤더 직접호출 금지, 반드시 경유
-- `map_service.py` — `MapService` 추상 + `MockMapService` + `SafeMapService`(폴백 래퍼) + `EnrichedMapService`(Google 평점) + `CachedSearchMapService`(검색 결과 5분 TTL 캐시) + `get_map_service()`.
+- `map_service.py` — `MapService` 추상 + `MockMapService` + `SafeMapService`(폴백 래퍼) + `EnrichedMapService`(Google 평점) + `CachedSearchMapService(검색 5분 TTL + 경로 캐시)`(검색 결과 5분 TTL 캐시) + `get_map_service()`.
 - `naver.py` — 네이버 지역검색/길찾기.
 - `google.py` — Google Places 평점 enrich.
 - `sms.py` — NHN Cloud SMS. `payment.py` — 포트원 v1 결제 검증.
