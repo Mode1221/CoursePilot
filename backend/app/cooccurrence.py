@@ -9,7 +9,6 @@ from __future__ import annotations
 from collections import defaultdict
 from itertools import combinations
 
-
 # 쌍은 장소 수의 제곱으로 늘어난다 — DB 미사용 모드에서 유일하게 O(n^2) 로 커지는
 # 신호라 상한을 둔다. 넘으면 신호가 약한(적게 함께 담긴) 쌍부터 버린다.
 MAX_PAIRS = 50_000
