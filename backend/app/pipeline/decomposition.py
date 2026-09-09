@@ -89,6 +89,13 @@ _KNOWN_REGIONS = sorted(
 )
 
 
+# 마커 없는 1~7시는 저녁으로 보는 게 한국어 관용("7시에 보자" = 19시).
+# 오전을 뜻할 때는 보통 "아침 7시"처럼 마커를 붙인다.
+EVENING_DEFAULT_MAX_HOUR = 7
+# 다만 이 표현들이 함께 있으면 오전으로 둔다
+_MORNING_WORDS = ("브런치", "조식", "아침", "모닝", "해돋이", "일출")
+
+
 def _to_24h(hour: int, marker: str | None) -> int:
     """12시간제 표현을 24시간제로. 마커가 없으면 입력을 그대로 존중한다."""
     if marker in _PM_WORDS and hour < 12:
@@ -176,6 +183,9 @@ def parse_constraints(text: str, today: date | None = None) -> PlanConstraints:
             hour += 12  # "저녁 7시" → 19시 (기존에는 07시로 잘못 해석)
         elif ampm in ("오전", "아침") and hour == 12:
             hour = 0  # 오전 12시 = 자정
+        elif ampm is None and 1 <= hour <= EVENING_DEFAULT_MAX_HOUR:
+            if not any(w in text for w in _MORNING_WORDS):
+                hour += 12  # "금요일 7시 회식" → 19시
         c.start_time = time(hour % 24, minute)
     else:
         # 숫자 없이 시간대만 말한 경우
