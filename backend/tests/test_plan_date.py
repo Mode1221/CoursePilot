@@ -28,3 +28,16 @@ def test_past_month_day_rolls_to_next_year():
 
 def test_no_date_when_absent():
     assert parse_constraints("성수동 저녁 7시", today=TUESDAY).plan_date is None
+
+
+def test_주말_표현을_토요일로_잡는다():
+    from datetime import date
+
+    from app.pipeline.decomposition import parse_constraints
+
+    monday = date(2026, 9, 7)
+    assert parse_constraints("이번 주말에 뭐 할까", today=monday).plan_date == date(2026, 9, 12)
+    assert parse_constraints("주말에 데이트", today=monday).plan_date == date(2026, 9, 12)
+    assert parse_constraints("다음 주말 성수동", today=monday).plan_date == date(2026, 9, 19)
+    # 토요일에 "주말"이라고 하면 다음 토요일
+    assert parse_constraints("주말에 보자", today=date(2026, 9, 12)).plan_date == date(2026, 9, 19)
