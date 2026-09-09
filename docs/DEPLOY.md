@@ -18,7 +18,7 @@ CoursePilot는 키 없이도 Mock/폴백으로 완전히 동작한다. 실서비
 | `LLM_PROVIDER` | 선택 | `anthropic` | `anthropic`\|`openai` |
 | `ANTHROPIC_API_KEY` | 선택 | `""` | 규칙 기반 파서로 폴백 |
 | `ANTHROPIC_MODEL` | 선택 | `claude-haiku-4-5` | 조건 분해 모델 |
-| `OPENAI_API_KEY` / `OPENAI_MODEL` | 선택 | `""` / `gpt-4o-mini` | `LLM_PROVIDER=openai`일 때만 |
+| `OPENAI_API_KEY` / `OPENAI_MODEL` | 선택 | `""` / `gpt-4o-mini` | `LLM_PROVIDER=openai`일 때, 그리고 리뷰 임베딩(pgvector 의미 검색)에 필요. 없으면 해시 폴백이라 의미 검색 품질이 없음 |
 | `MAP_PROVIDER` | 선택 | `naver` | 지도/장소 어댑터 벤더 |
 | `NAVER_CLIENT_ID` / `NAVER_CLIENT_SECRET` | 선택 | `""` | Mock 장소로 폴백 |
 | `GOOGLE_MAPS_API_KEY` | 선택 | `""` | 장소 평점 보강 생략(평점 None) |
