@@ -593,6 +593,7 @@ async def generate(
         needs_confirmation = False
         is_edit = False
         region_guessed = False  # 지역을 못 알아들어 기본 지역으로 만든 경우
+        pref_region: str | None = None  # 선호 프로필로 지역을 채운 경우
         gen_constraints: PlanConstraints | None = None  # 편집 명령이면 None
         old_ids = [it.place.id for it in course.items]
         edit_cmd = parse_edit(req.text) if course.items else EditCommand(action="none")
@@ -621,6 +622,13 @@ async def generate(
                 needs_confirmation = result.needs_confirmation
                 gen_constraints = result.constraints
                 region_guessed = result.constraints.region is None
+                # 문장에 지역이 없어 저장된 선호로 채웠다면 그 사실을 알린다
+                if (
+                    result.constraints.region
+                    and parse_constraints(req.text).region is None
+                    and prefs.get("region") == result.constraints.region
+                ):
+                    pref_region = result.constraints.region
                 if result.constraints.region:
                     course.region = result.constraints.region
                 if result.constraints.plan_date:  # 캘린더 내보내기 기준일
@@ -686,7 +694,12 @@ async def generate(
             ai_text = "요청하신 자리를 찾지 못했어요. 순번(예: 2번째)이나 장소 종류로 다시 말씀해 주세요."
         else:
             ai_text = _ai_reply(
-                course, relaxed, needs_confirmation, region_guessed, gen_constraints
+                course,
+                relaxed,
+                needs_confirmation,
+                region_guessed,
+                gen_constraints,
+                pref_region,
             )
         chat_store.append(course_id, "ai", ai_text)
         await broadcast_state(course_id, course.model_dump(mode="json"))
@@ -705,6 +718,7 @@ def _ai_reply(
     needs_confirmation: bool,
     region_guessed: bool = False,
     constraints: PlanConstraints | None = None,
+    pref_region: str | None = None,
 ) -> str:
     n = len(course.items)
     if needs_confirmation:
@@ -728,6 +742,9 @@ def _ai_reply(
         base += " 비 예보라 실내 위주로 골랐어요."
     if relaxed:
         base += " 일부 조건은 완화했어요."
+    if pref_region:
+        # 사용자가 지역을 말하지 않아 선호 설정 값을 썼다는 것을 드러낸다
+        base += f" 설정하신 {pref_region} 기준으로 만들었어요."
     if region_guessed:
         # 지역을 못 알아들으면 기본 지역으로 만들어지므로, 조용히 넘어가지 않고 알린다.
         base += f" 지역을 못 알아들어 {course.region or DEFAULT_REGION} 기준으로 만들었어요."
