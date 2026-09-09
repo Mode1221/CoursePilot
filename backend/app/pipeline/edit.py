@@ -11,7 +11,7 @@ from dataclasses import dataclass
 from app.adapters.map_service import MapService
 from app.constants import DEFAULT_REGION, DEFAULT_START_TIME
 from app.pipeline.validation import recompute
-from app.schemas import Course, TimelineItem, TravelMode
+from app.schemas import Course, Place, TimelineItem, TravelMode
 
 _ORDINALS = {
     "첫": 1, "두": 2, "세": 3, "네": 4, "다섯": 5,
@@ -191,10 +191,12 @@ async def apply_edit(
         fresh = [p for p in candidates if p.id not in existing_ids]
         # 교체는 그 자리의 성격을 유지해야 한다(카페 자리에 식당이 오면 코스가 망가짐)
         current_category = items[index].place.category
-        replacement = next(
-            (p for p in fresh if p.category == current_category),
-            fresh[0] if fresh else None,
-        )
+        same_kind = [p for p in fresh if p.category == current_category]
+        pool = same_kind or fresh
+        # "더 저렴한 데로" 처럼 기준을 말했으면 그 기준으로 고른다
+        # (검색어로만 넘기면 실제로 더 싸거나 가까운 곳이 온다는 보장이 없다)
+        pool = _sort_by_quality(pool, cmd.keyword, items[index])
+        replacement = pool[0] if pool else None
         if replacement is None:
             return items
         items[index] = TimelineItem(place=replacement)
@@ -202,6 +204,21 @@ async def apply_edit(
     start = items[0].arrive if items and items[0].arrive else DEFAULT_START_TIME
     mode = _infer_mode(items)
     return await recompute([it.place for it in items], start, mode, map_service)
+
+
+def _sort_by_quality(places: list[Place], keyword: str, current: TimelineItem):
+    """성격 표현에 맞는 정렬. 해당 없으면 원래 순서(검색 랭킹)를 유지한다."""
+    if keyword == "저렴한":
+        return sorted(places, key=lambda p: (p.price is None, p.price or 0))
+    if keyword == "평점 높은":
+        return sorted(places, key=lambda p: -(p.rating or 0))
+    if keyword == "가까운":
+        base = current.place
+        return sorted(
+            places,
+            key=lambda p: abs(p.lat - base.lat) + abs(p.lng - base.lng),
+        )
+    return places
 
 
 async def _apply_swap(

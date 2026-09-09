@@ -56,3 +56,48 @@ def test_되물을_때는_코스도_크레딧도_그대로():
         ]
         == credits
     )
+
+
+async def test_저렴한_데로_바꾸면_실제로_더_싼_곳이_온다():
+    from app.adapters.map_service import MockMapService
+    from app.pipeline.edit import apply_edit
+    from app.schemas import Course, Place, TimelineItem
+
+    def _place(pid: str, price: int) -> TimelineItem:
+        return TimelineItem(
+            place=Place(
+                id=pid, name=pid, category="restaurant",
+                lat=37.5, lng=127.0, price=price, rating=3.0,
+            )
+        )
+
+    course = Course(id="c1", region="성수동", items=[_place("a", 50000), _place("b", 50000)])
+    items = await apply_edit(course, parse_edit("2번째 좀 더 싼 데로"), MockMapService())
+    assert items[1].place.price < 50000
+
+
+async def test_평점_높은_곳으로_바꾸면_평점_기준으로_고른다():
+    from app.adapters.map_service import MockMapService
+    from app.pipeline.edit import apply_edit
+    from app.schemas import Course, Place, TimelineItem
+
+    course = Course(
+        id="c2",
+        region="성수동",
+        items=[
+            TimelineItem(
+                place=Place(
+                    id="a", name="a", category="restaurant",
+                    lat=37.5, lng=127.0, rating=1.0,
+                )
+            ),
+            TimelineItem(
+                place=Place(
+                    id="b", name="b", category="restaurant",
+                    lat=37.5, lng=127.0, rating=1.0,
+                )
+            ),
+        ],
+    )
+    items = await apply_edit(course, parse_edit("2번째 평점 높은 곳으로 바꿔"), MockMapService())
+    assert (items[1].place.rating or 0) > 1.0
