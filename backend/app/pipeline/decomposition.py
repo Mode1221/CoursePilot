@@ -70,13 +70,22 @@ _SOFT_KEYWORDS = [
     "술집", "와인", "카페", "맛집", "코스요리", "오마카세", "한식", "일식", "중식", "양식",
     # 자주 쓰는 표현 보강
     "커피", "베이커리", "빵집", "파스타", "이자카야", "포차", "칵테일", "보드게임", "전시회",
-    "애견동반", "펫프렌들리",
+    "애견동반", "펫프렌들리", "휠체어", "배리어프리", "금연", "테라스", "단체석",
     # 장소 성격을 그대로 검색어로 쓰는 표현
     "한정식", "노포", "서점", "책", "국밥", "라멘", "떡볶이", "전통주", "루프탑바", "전망",
 ]
 
 # 제외 표현에 붙어 오는 조사 — "술은 빼고" 의 "술은" 을 "술" 로 정규화한다
 _PARTICLES = ("은", "는", "을", "를", "이", "가", "도", "만")
+
+
+# "노키즈존 아닌 곳", "테라스 없는 데" 처럼 키워드 뒤에 붙는 부정 표현
+_NEGATION_RE = r"(?:존|석|장)?\s*(?:이|가|은|는)?\s*(?:아닌|아니|없는|없이|말고|빼고|제외)"
+
+
+def _negated(text: str, keyword: str) -> bool:
+    """키워드 바로 뒤에 부정 표현이 붙으면 그 조건은 '원하지 않는다'는 뜻이다."""
+    return re.search(re.escape(keyword) + _NEGATION_RE, text) is not None
 
 
 def _strip_particle(word: str) -> str:
@@ -364,11 +373,16 @@ def parse_constraints(text: str, today: date | None = None) -> PlanConstraints:
             seen.append(word)
     c.exclude_keywords = seen
     # "술 빼고" 는 "술집"도 함께 빼야 한다 — 부분 일치로 소프트 키워드를 거른다
-    matched = [
-        k
-        for k in _SOFT_KEYWORDS
-        if k in text and not any(ex in k or k in ex for ex in seen)
-    ]
+    matched: list[str] = []
+    for k in _SOFT_KEYWORDS:
+        if k not in text or any(ex in k or k in ex for ex in seen):
+            continue
+        if _negated(text, k):  # "노키즈존 아닌 곳" → 검색어가 아니라 제외 조건
+            if k not in seen:
+                seen.append(k)
+            continue
+        matched.append(k)
+    c.exclude_keywords = seen
     # "산책"이 잡혔으면 그 안에 든 "책"은 별도 키워드가 아니다
     c.keywords = [
         k for k in matched if not any(k != other and k in other for other in matched)

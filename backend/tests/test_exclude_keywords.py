@@ -44,3 +44,23 @@ def test_제외어와_겹치는_키워드는_검색어에서_뺀다():
 def test_장소_성격_표현을_검색어로_넘긴다():
     assert "한정식" in parse_constraints("부모님이랑 점심 한정식").keywords
     assert "노포" in parse_constraints("을지로 노포 투어").keywords
+
+
+def test_키워드_뒤_부정_표현은_제외_조건이_된다():
+    c = parse_constraints("성수동 노키즈존 아닌 곳")
+    assert "노키즈" in c.exclude_keywords
+    assert "노키즈" not in c.keywords
+
+    t = parse_constraints("테라스 없는 데로")
+    assert "테라스" in t.exclude_keywords
+
+
+def test_긍정_표현은_그대로_검색어():
+    c = parse_constraints("반려동물 동반 가능한 곳 홍대")
+    assert "반려동물" in c.keywords
+    assert c.exclude_keywords == []
+
+
+def test_접근성_키워드를_인식한다():
+    assert "휠체어" in parse_constraints("휠체어 접근 되는 곳").keywords
+    assert "금연" in parse_constraints("금연 구역으로").keywords
