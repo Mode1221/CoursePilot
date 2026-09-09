@@ -104,3 +104,17 @@ def test_좁다는_말은_좌석_주의로_읽는다():
 
     _, cons = extract_aspects(["매장이 좁아요", "자리가 없어요"])
     assert "좌석" in cons
+
+
+def test_조사가_끼어도_축을_읽는다():
+    from app.reviews.aspects import extract_aspects
+
+    pros, cons = extract_aspects(["분위기는 좋은데 맛은 별로"])
+    assert "분위기" in pros and "맛" in cons
+
+
+def test_응대_위생_표현도_조사를_흡수한다():
+    from app.reviews.aspects import extract_aspects
+
+    _, cons = extract_aspects(["위생은 별로였어요", "응대가 별로"])
+    assert "청결" in cons and "친절" in cons
