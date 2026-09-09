@@ -131,6 +131,51 @@ class UserStore:
                 return self._to_user(row)
         return self._mem.get(user_id)
 
+    def preference_stats(self, limit: int = 5000) -> dict:
+        """온보딩 설문 응답 집계(개인정보 없이 문항별 분포).
+
+        설문을 실제로 채우는 비율을 봐야 문항 수·문구를 조정할 수 있다.
+        """
+        if is_ready():
+            from sqlalchemy import select
+
+            from app.db import SessionLocal
+            from app.models import UserModel
+
+            with SessionLocal() as s:
+                rows = s.execute(select(UserModel.preferences).limit(limit)).all()
+            prefs = [Preferences.model_validate(r[0] or {}) for r in rows]
+        else:
+            prefs = [u.preferences for u in list(self._mem.values())[:limit]]
+
+        total = len(prefs)
+        filled = {"mood": 0, "region": 0, "transport": 0, "budget": 0, "diet": 0}
+        budgets: dict[str, int] = {}
+        moods: dict[str, int] = {}
+        diets: dict[str, int] = {}
+        for pref in prefs:
+            for field in ("mood", "region", "transport", "budget"):
+                if getattr(pref, field):
+                    filled[field] += 1
+            if pref.diet:
+                filled["diet"] += 1
+            if pref.budget:
+                budgets[pref.budget] = budgets.get(pref.budget, 0) + 1
+            if pref.mood:
+                moods[pref.mood] = moods.get(pref.mood, 0) + 1
+            for d in pref.diet:
+                diets[d] = diets.get(d, 0) + 1
+        any_filled = sum(1 for p in prefs if p.mood or p.region or p.transport or p.budget or p.diet)
+        return {
+            "users": total,
+            "answered_any": any_filled,
+            "answered_rate": round(any_filled / total, 4) if total else None,
+            "filled_by_question": filled,
+            "budget_distribution": budgets,
+            "mood_distribution": moods,
+            "diet_distribution": diets,
+        }
+
     def set_preferences(self, user_id: str, prefs: Preferences) -> User | None:
         if is_ready():
             # 전체 저장(_save)은 그 사이 바뀐 크레딧까지 되돌릴 수 있다 → 선호만 갱신
