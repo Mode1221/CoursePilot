@@ -663,7 +663,14 @@ async def generate(
         edit_cmd = parse_edit(req.text) if course.items else EditCommand(action="none")
         # "다시 해줘" — 직전 조건을 그대로 다시 쓴다(조건이 없다고 되묻지 않게)
         request_text = req.text
-        if _REGENERATE_RE.search(req.text):
+        exclude_ids: set[str] | None = None
+        if _REPLACE_ALL_RE.search(req.text):
+            # 지금 코스의 장소는 빼고 같은 조건으로 다시 고른다
+            previous = _last_condition_text(course_id)
+            if previous:
+                request_text = previous
+            exclude_ids = {it.place.id for it in course.items} or None
+        elif _REGENERATE_RE.search(req.text):
             previous = _last_condition_text(course_id)
             if previous:
                 request_text = previous
@@ -707,7 +714,11 @@ async def generate(
                 course.items = await apply_edit(course, edit_cmd, get_map_service())
             else:
                 result = await generate_course(
-                    request_text, get_map_service(), prefs, on_progress
+                    request_text,
+                    get_map_service(),
+                    prefs,
+                    on_progress,
+                    exclude_place_ids=exclude_ids,
                 )
                 course.items = result.timeline
                 relaxed = result.relaxed
@@ -835,6 +846,12 @@ def _last_condition_text(course_id: str) -> str | None:
         if is_actionable(text, parse_constraints(text)):
             return text
     return None
+
+
+# "전부 다른 곳으로", "여기 말고 다른 데로" — 조건은 그대로 두고 장소만 갈아 끼운다
+_REPLACE_ALL_RE = re.compile(
+    r"(?:전부|다|모두|싹)\s*다른\s*(?:곳|데|장소)|여기\s*말고\s*다른|비슷한데\s*다른"
+)
 
 
 _QUESTION_RE = re.compile(r"[?？]\s*$|나요|까요|어때|얼마나|있나|없나|맞나|되나|뭐야|어디야")
