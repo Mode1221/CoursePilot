@@ -518,6 +518,15 @@ async def review_summary(req: ReviewSummaryRequest) -> dict:
         found = await fetch_filtered(req.place_name)
     summary = await summarize_reviews(found)
     pros, cons = extract_aspects(found)
+    # 배치가 모아 둔 사실 태그(주차·단체석 등)를 함께 얹는다 — 리뷰 소스 키가 없어도
+    # 이 정보는 쓸 수 있고, 리뷰에서 뽑은 축과 중복되면 한 번만 보여준다.
+    from app.places import place_repo
+
+    stored = place_repo.get_many([req.place_id]).get(req.place_id)
+    if stored is not None:
+        pros = pros + [t for t in stored.fact_tags if t not in pros]
+        cons = cons + [t for t in stored.caution_tags if t not in cons]
+        pros = [t for t in pros if t not in cons]
     result = {"summary": summary, "count": len(found), "pros": pros, "cons": cons}
     if found:  # 빈 결과는 캐시하지 않는다(수집 전일 수 있음)
         _summary_cache_put(cache_key, result)
