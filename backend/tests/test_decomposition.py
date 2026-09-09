@@ -61,3 +61,18 @@ def test_브런치는_기본_시작을_11시로_잡는다():
     # 시각·시간대를 말했으면 그 값이 우선
     assert parse_constraints("아침 브런치").start_time == time(9, 0)
     assert parse_constraints("오후 2시 브런치").start_time == time(14, 0)
+
+
+def test_접미사_없는_지명도_인식한다():
+    from app.pipeline.decomposition import parse_constraints
+
+    assert parse_constraints("광화문에서 점심 먹고 산책").region == "광화문"
+    assert parse_constraints("대학로 연극 보고 저녁").region == "대학로"
+
+
+def test_다른_키워드에_포함된_조각은_키워드로_보지_않는다():
+    from app.pipeline.decomposition import parse_constraints
+
+    # "산책"의 "책"이 별도 키워드로 잡히면 검색어가 오염된다
+    assert parse_constraints("광화문에서 산책").keywords == ["산책"]
+    assert "책" in parse_constraints("책 읽을 곳").keywords
