@@ -135,6 +135,10 @@ def score_place(
     # 감정 섞인 리뷰 원문 대신, 스니펫에서 뽑은 사실 축만 본다.
     score += w.fact_tag * _fact_tag_match(place, constraints)
 
+    # 심야 요청이면 늦게까지 여는 곳이 실제로 답이다(이름·카테고리 매칭만으로는 부족).
+    if "심야" in constraints.keywords and _open_late(place):
+        score += w.late_night
+
     # 업력: 상권에서 오래 버틴 가게일수록 실패 확률이 낮다(리뷰 원문 없이 얻는 품질 신호).
     score += w.longevity * longevity_signal(place)
 
@@ -188,6 +192,18 @@ def _drop_impossible(
         p for p in candidates if not any(tag in p.caution_tags for tag in required)
     ]
     return kept or candidates
+
+
+# 이 시각 이후까지 열면 "늦게까지 하는 곳"으로 본다(자정 넘김 포함).
+LATE_CLOSE_HOUR = 23
+
+
+def _open_late(place: Place) -> bool:
+    if place.close_time is None:
+        return False
+    if place.open_time and place.close_time <= place.open_time:
+        return True  # 자정을 넘겨 영업
+    return place.close_time.hour >= LATE_CLOSE_HOUR
 
 
 def _fact_tag_match(place: Place, constraints: PlanConstraints) -> float:
