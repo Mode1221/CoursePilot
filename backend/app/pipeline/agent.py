@@ -125,10 +125,22 @@ async def generate_course(
     )
 
 
+# 온보딩 예산 문항 → 1인 예산 상한(원). 문항 값과 1:1 대응.
+BUDGET_CHOICES: dict[str, int] = {
+    "2만원 이하": 20000,
+    "2~4만원": 40000,
+    "4~6만원": 60000,
+    "6만원 이상": 100000,
+}
+
+
 def _apply_preferences(constraints: PlanConstraints, prefs: dict) -> None:
     """온보딩 선호 프로필로 미입력 조건을 자동 보완 (9-6). 명시값은 유지."""
     if not constraints.region and prefs.get("region"):
         constraints.region = prefs["region"]
+    # 예산은 요청에 금액이 없을 때만 보완한다(문장에 적힌 금액이 항상 우선)
+    if constraints.budget_max is None and prefs.get("budget") in BUDGET_CHOICES:
+        constraints.budget_max = BUDGET_CHOICES[prefs["budget"]]
     if prefs.get("mood") and prefs["mood"] not in constraints.keywords:
         constraints.keywords.append(prefs["mood"])
     for diet in prefs.get("diet") or []:

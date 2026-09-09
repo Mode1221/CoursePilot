@@ -80,6 +80,46 @@ describe("온보딩", () => {
     );
   });
 
+  it("예산·제외 조건까지 5문항을 저장한다", async () => {
+    vi.mocked(api.signup).mockResolvedValue({ user_id: "u1", credits_left: 5 });
+    vi.mocked(api.setPreferences).mockResolvedValue(undefined);
+
+    render(<Onboarding />);
+    await verifyPhone();
+    fireEvent.change(screen.getByPlaceholderText("예: 성수동"), { target: { value: "성수동" } });
+    fireEvent.change(screen.getByLabelText("분위기"), { target: { value: "조용한" } });
+    fireEvent.change(screen.getByLabelText("이동수단"), { target: { value: "차량" } });
+    fireEvent.change(screen.getByLabelText("1인 예산대"), { target: { value: "2~4만원" } });
+    fireEvent.click(screen.getByLabelText("비건"));
+    fireEvent.click(screen.getByText("저장"));
+
+    await waitFor(() => expect(push).toHaveBeenCalledWith("/"));
+    expect(api.setPreferences).toHaveBeenCalledWith("u1", {
+      mood: "조용한",
+      region: "성수동",
+      transport: "차량",
+      budget: "2~4만원",
+      diet: ["비건"],
+    });
+  });
+
+  it("체크박스를 다시 누르면 제외 조건이 빠진다", async () => {
+    vi.mocked(api.signup).mockResolvedValue({ user_id: "u1", credits_left: 5 });
+    vi.mocked(api.setPreferences).mockResolvedValue(undefined);
+
+    render(<Onboarding />);
+    await verifyPhone();
+    fireEvent.click(screen.getByLabelText("노키즈"));
+    fireEvent.click(screen.getByLabelText("노키즈"));
+    fireEvent.click(screen.getByText("저장"));
+
+    await waitFor(() => expect(push).toHaveBeenCalledWith("/"));
+    expect(api.setPreferences).toHaveBeenCalledWith(
+      "u1",
+      expect.objectContaining({ diet: [] }),
+    );
+  });
+
   it("실패하면 오류를 보여주고 다시 시도할 수 있다", async () => {
     vi.mocked(api.signup).mockRejectedValue(new Error("boom"));
     render(<Onboarding />);
