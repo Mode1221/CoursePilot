@@ -24,7 +24,32 @@
 17. 코스 점수 vs 실제 만족도 회귀로 계수 튜닝 — 예측점수·만족도 대조 데이터 수집 *(구현)*
 
 ## E. 외부 정량 (합법·요약 아님)
-18. 별점·리뷰 수(Google, 숫자만)  19. 공공데이터(TourAPI)  20. 실시간 혼잡/영업
+18. 별점·리뷰 수(Google, 숫자만) *(구현: 표본 N≥30 만 신뢰)*  19. 공공데이터(TourAPI·LOCALDATA·KOPIS) *(구현)*  20. 실시간 혼잡/영업 *(후보)*
+
+## F. 원천별 역할 *(구현)*
+| 용도 | 원천 | 비용 | 비고 |
+| --- | --- | --- | --- |
+| 장소 발견 | 카카오 로컬(주) / 네이버 지역검색(보조) | 무료 | 평점·리뷰·영업시간 없음 |
+| place_id 매핑 | Google Text Search, IDs-only 필드마스크 | 사실상 무료 | locationBias 100m |
+| 영업시간 | Google Place Details (Pro) | 월 5,000 무료 | `regularOpeningHours`+`currentOpeningHours`+`businessStatus` 한 콜 |
+| 집계 평점 | Google Place Details (Enterprise) | 월 1,000 무료 | 평점 콜과 영업시간 콜을 절대 섞지 않는다 |
+| 폐업·업력 | LOCALDATA CSV | 무료·무인증 | 시군구 단위, 주 1회 |
+| 관광·문화 영업시간 | TourAPI detailIntro | 무료 | Google에 없는 곳 보강 |
+| 공연·전시 일정 | KOPIS | 무료 | 코스 날짜에 진행 중인 것만 |
+| 경로 | 네이버 Directions 5 (`maps.apigw.ntruss.com`) | 월 60,000 무료 | 한도 초과 시 직선거리 근사 |
+| 조건 분해 | Claude Haiku 4.5 | 요청당 ~$0.002 | 규칙 파서 폴백 유지 |
+| 사실 태그 | 네이버 블로그 검색 스니펫 | 무료 | 태그만 저장, 원문 미저장 |
+
+### 하지 않는 것
+- 네이버플레이스·카카오맵 크롤링(약관·판례 리스크)
+- LLM 웹검색으로 영업시간 1차 확인(부정확·느림·비쌈 → 최후 폴백 + "확인 필요" 표시만)
+- 리뷰 원문을 품질 스코어에 사용
+
+### 저장·갱신
+- 영구: place_id·좌표·카테고리·자체 신호 / TTL: Google 영업시간 30일·평점 90일
+- 폐업·업력 주 1회(전체), 영업시간 30일(최근 90일 내 추천된 활성 집합), 평점 90일(인기 상위)
+- 배치: `scripts/build_places.py`(구축) / `scripts/refresh_places.py`(갱신)
+- 무료 한도 소진 시 호출 자체를 차단(`app/quota.py`), `/admin/metrics` 에 사용량 노출
 
 ## 활용(정밀화)
 - 시간 감쇠(최신 트렌드), 지역×카테고리 정규화(상대 인기)
