@@ -674,6 +674,11 @@ async def generate(
             previous = _last_condition_text(course_id)
             if previous:
                 request_text = previous
+        elif _CONDITION_CHANGE_RE.search(req.text):
+            # 새 값이 앞에 오도록 이어 붙여 파서가 새 값을 우선 잡게 한다
+            previous = _last_condition_text(course_id)
+            if previous:
+                request_text = f"{req.text} {previous}"
 
         # 질문("여기 주차 되나요?")에 코스를 갈아엎지 않는다. 편집 명령이 아닌
         # 물음이면 지금 코스로 답하고 크레딧도 돌려준다.
@@ -839,13 +844,27 @@ def _last_condition_text(course_id: str) -> str | None:
         if msg.role != "user":
             continue
         text = msg.text
-        if _REGENERATE_RE.search(text) or _is_question(text):
+        # 방금 들어온 요청 자신과 재생성·조건변경·질문 요청은 조건 문장이 아니다
+        if (
+            _REGENERATE_RE.search(text)
+            or _CONDITION_CHANGE_RE.search(text)
+            or _REPLACE_ALL_RE.search(text)
+            or _is_question(text)
+        ):
             continue
         if parse_edit(text).action != "none":
             continue
         if is_actionable(text, parse_constraints(text)):
             return text
     return None
+
+
+# "시간을 12시로", "예산을 5만원으로 올려줘" — 조건 일부만 바꾸는 요청.
+# 이전 조건을 버리면 지역·소요시간 같은 나머지가 통째로 사라진다.
+_CONDITION_CHANGE_RE = re.compile(
+    r"(?:시간|시각|예산|인원|지역|날짜|이동\s*수단|동선)\s*(?:을|를|은|는)?\s*"
+    r"[^\s]*\s*(?:으로|로)?\s*(?:바꿔|바꾸|변경|올려|낮춰|줄여|늘려|해줘)"
+)
 
 
 # "전부 다른 곳으로", "여기 말고 다른 데로" — 조건은 그대로 두고 장소만 갈아 끼운다
