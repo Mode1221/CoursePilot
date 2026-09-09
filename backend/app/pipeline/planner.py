@@ -172,6 +172,33 @@ def keyword_slot(constraints: PlanConstraints) -> str | None:
     return None
 
 
+def excluded_slots(constraints: PlanConstraints) -> set[str]:
+    """사용자가 빼달라고 한 성격의 슬롯. 감점만으로는 템플릿이 그 칸을 요구해
+    결국 코스에 들어가므로, 칸 자체를 만들지 않는다."""
+    out: set[str] = set()
+    for word in constraints.exclude_keywords:
+        low = word.lower()
+        for slot, kws in _SLOT_KEYWORDS.items():
+            if any(k in low or low in k for k in kws):
+                out.add(slot)
+    return out
+
+
+def _replace_excluded(slots: list[str], excluded: set[str]) -> list[str]:
+    """제외된 슬롯을 대체 슬롯으로 바꾼다(모두 제외면 그대로 둔다)."""
+    if not excluded:
+        return slots
+    order = ["cafe", "activity", "meal", "bar"]
+    out: list[str] = []
+    for slot in slots:
+        if slot not in excluded:
+            out.append(slot)
+            continue
+        alt = next((s for s in order if s not in excluded), None)
+        out.append(alt if alt else slot)
+    return out
+
+
 def desired_slots(constraints: PlanConstraints) -> list[str]:
     dur = constraints.duration_min or 180
     n = max(2, min(4, dur // 90))
@@ -181,9 +208,11 @@ def desired_slots(constraints: PlanConstraints) -> list[str]:
         if n == 1:  # "한 곳만" — 요청 키워드 우선, 없으면 식사 시간대 기준
             wanted = keyword_slot(constraints)
             if wanted:
-                return [wanted]
+                return _replace_excluded([wanted], excluded_slots(constraints))
             hour = constraints.start_time.hour if constraints.start_time else 12
-            return ["meal" if _is_mealtime(hour) else "cafe"]
+            return _replace_excluded(
+                ["meal" if _is_mealtime(hour) else "cafe"], excluded_slots(constraints)
+            )
     evening = constraints.start_time is not None and constraints.start_time.hour >= 18
     comp = constraints.companion
 
@@ -196,7 +225,10 @@ def desired_slots(constraints: PlanConstraints) -> list[str]:
             5: ["meal", "cafe", "bar", "activity", "bar"],
             6: ["meal", "cafe", "bar", "activity", "meal", "bar"],
         }[n]
-        return _shift_meal_to_mealtime(slots, constraints.start_time)
+        return _replace_excluded(
+            _shift_meal_to_mealtime(slots, constraints.start_time),
+            excluded_slots(constraints),
+        )
     if comp == "가족":
         slots = {
             2: ["meal", "cafe"],
@@ -205,7 +237,10 @@ def desired_slots(constraints: PlanConstraints) -> list[str]:
             5: ["meal", "activity", "cafe", "activity", "meal"],
             6: ["meal", "activity", "cafe", "activity", "meal", "cafe"],
         }[n]
-        return _shift_meal_to_mealtime(slots, constraints.start_time)
+        return _replace_excluded(
+            _shift_meal_to_mealtime(slots, constraints.start_time),
+            excluded_slots(constraints),
+        )
 
     last = "bar" if (evening and comp != "가족") else ("activity" if comp == "데이트" else "cafe")
     base = {
@@ -215,7 +250,9 @@ def desired_slots(constraints: PlanConstraints) -> list[str]:
         5: ["meal", "activity", "cafe", "meal", last],
         6: ["meal", "activity", "cafe", "meal", "activity", last],
     }[n]
-    return _shift_meal_to_mealtime(base, constraints.start_time)
+    return _replace_excluded(
+        _shift_meal_to_mealtime(base, constraints.start_time), excluded_slots(constraints)
+    )
 
 
 # 식사 시간대(현지 관습): 점심 11~14시, 저녁 17~21시
@@ -396,6 +433,14 @@ async def plan_course(
     """스코어링·템플릿·동선·Best-of-N 을 적용해 최적 타임라인을 반환."""
     if not candidates:
         return []
+
+    # 빼달라고 한 성격은 후보에서 제거한다. 감점(soft)만으로는 Best-of-N 의 다른
+    # 시드(협업필터·선호순서)가 그 장소를 다시 끌어올려 코스에 넣을 수 있다.
+    dropped = excluded_slots(constraints)
+    if dropped:
+        kept = [p for p in candidates if classify(p) not in dropped]
+        if kept:  # 전부 걸러지면 아무 코스도 못 만드므로 원래 후보를 쓴다
+            candidates = kept
 
     # 자체 인기 신호 조회 후 0~1 로 정규화(최댓값 대비 상대값)
     from app.popularity import popularity_store
