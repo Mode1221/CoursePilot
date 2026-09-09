@@ -129,3 +129,19 @@ def test_지명_접미사_오탐을_거른다():
     assert parse_constraints("성수동 저녁").region == "성수동"
     assert parse_constraints("서초구 점심").region == "서초구"
     assert parse_constraints("대구 저녁").region == "대구"
+
+
+def test_아이_어르신_동반_표현을_가족으로_본다():
+    from app.pipeline.decomposition import parse_constraints
+
+    for text in ("애들이랑 갈 만한 곳", "유모차 끌고 갈 데", "어르신이랑 점심", "임산부도 괜찮은 곳"):
+        assert parse_constraints(text).companion == "가족", text
+    # 다른 동행유형은 그대로
+    assert parse_constraints("친구랑 술 한잔").companion == "친구"
+
+
+def test_동반_조건_검색어를_인식한다():
+    from app.pipeline.decomposition import parse_constraints
+
+    assert "키즈존" in parse_constraints("키즈존 있는 카페").keywords
+    assert "좌식" in parse_constraints("좌식 자리 있는 한식당").keywords
