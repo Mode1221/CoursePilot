@@ -144,7 +144,7 @@ export default function PlaceDetailModal({
             영업 {yearsOpen}년차
           </div>
         )}
-        {place.price != null && <div style={{ fontSize: "var(--fs-sm)", color: "var(--text-muted)" }}>1인 약 {place.price.toLocaleString()}원</div>}
+        {place.price != null && <div style={{ fontSize: "var(--fs-sm)", color: "var(--text-muted)" }}>1인 약 {place.price.toLocaleString()}원{place.price_estimated ? " (추정)" : ""}</div>}
         {(place.open_time || place.close_time) && (
           <div style={{ fontSize: "var(--fs-sm)", color: "var(--text-muted)" }}>
             영업 {place.open_time?.slice(0, 5)}~{place.close_time?.slice(0, 5)}

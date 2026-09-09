@@ -24,6 +24,7 @@ class Place(BaseModel):
     lng: float
     rating: float | None = None
     price: int | None = None  # 1인 예상 비용(원). 없으면 예산 검증에서 제외
+    price_estimated: bool = False  # 카테고리 기반 추정값(실제 가격이 아님)
     category_code: str | None = None  # 카카오 category_group_code (FD6/CE7/AT4/CT1 …)
     rating_count: int | None = None  # 집계 평점의 표본 수(N<30 이면 신뢰하지 않음)
     tour_listed: bool = False  # 관광·문화 공식 등재(TourAPI 등)

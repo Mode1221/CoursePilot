@@ -17,6 +17,7 @@ export interface Place {
   lng: number;
   rating?: number | null;
   price?: number | null;
+  price_estimated?: boolean | null; // 카테고리 기반 추정값
   open_time?: string | null;
   close_time?: string | null;
   break_start?: string | null;
