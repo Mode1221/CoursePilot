@@ -8,6 +8,7 @@ interface UserState {
   questionsLeft: number | null;
   load: () => void;
   setUser: (userId: string) => void;
+  clearUser: () => void;
   setQuestionsLeft: (n: number) => void;
 }
 
@@ -28,6 +29,11 @@ export const useUserStore = create<UserState>((set) => ({
   setUser: (userId) => {
     if (typeof window !== "undefined") window.localStorage.setItem(KEY, userId);
     set({ userId });
+  },
+  clearUser: () => {
+    // 회원 탈퇴 후 세션을 남기면 없는 계정으로 요청이 계속 나간다
+    if (typeof window !== "undefined") window.localStorage.removeItem(KEY);
+    set({ userId: null, questionsLeft: null });
   },
   setQuestionsLeft: (n) => set({ questionsLeft: n }),
 }));

@@ -13,6 +13,7 @@ vi.mock("@/services/api", () => ({
     renameCourse: vi.fn(),
     deleteCourse: vi.fn(),
     getPreferences: vi.fn(),
+    deleteAccount: vi.fn(),
   },
 }));
 
@@ -76,6 +77,27 @@ describe("마이페이지", () => {
   it("취향이 없으면 설정을 권한다", async () => {
     render(<MyPage />);
     await waitFor(() => expect(screen.getByText("취향을 설정하면 추천이 정확해져요.")).toBeTruthy());
+  });
+
+  it("회원 탈퇴는 확인을 받고 계정을 삭제한다", async () => {
+    vi.mocked(api.deleteAccount).mockResolvedValue({ ok: true, deleted_courses: 2 });
+    const confirmSpy = vi.spyOn(window, "confirm").mockReturnValue(true);
+    render(<MyPage />);
+
+    fireEvent.click(screen.getByText("회원 탈퇴"));
+
+    await waitFor(() => expect(api.deleteAccount).toHaveBeenCalledWith("u1"));
+    expect(confirmSpy).toHaveBeenCalled();
+    confirmSpy.mockRestore();
+  });
+
+  it("확인을 취소하면 삭제하지 않는다", () => {
+    vi.mocked(api.deleteAccount).mockClear();
+    const confirmSpy = vi.spyOn(window, "confirm").mockReturnValue(false);
+    render(<MyPage />);
+    fireEvent.click(screen.getByText("회원 탈퇴"));
+    expect(api.deleteAccount).not.toHaveBeenCalled();
+    confirmSpy.mockRestore();
   });
 
 });

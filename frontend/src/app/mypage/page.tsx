@@ -12,11 +12,12 @@ import type { Course } from "@/types";
 
 // 마이페이지: 내가 만든 코스 히스토리 + 북마크 (9-4).
 export default function MyPage() {
-  const { userId, load } = useUserStore();
+  const { userId, load, clearUser } = useUserStore();
   const [courses, setCourses] = useState<Course[]>([]);
   const [bookmarks, setBookmarks] = useState<Course[]>([]);
   const [loadError, setLoadError] = useState(false);
   const [prefs, setPrefs] = useState<string[]>([]);
+  const [deleting, setDeleting] = useState(false);
 
   useEffect(() => {
     load();
@@ -140,6 +141,36 @@ export default function MyPage() {
       <section style={{ marginTop: "var(--sp-8)" }}>
         <h2>북마크</h2>
         <CourseList items={bookmarks} hrefBase="/share" empty="북마크한 코스가 없어요." />
+      </section>
+      <section
+        style={{
+          marginTop: "var(--sp-10)",
+          paddingTop: "var(--sp-4)",
+          borderTop: "1px solid var(--border)",
+        }}
+      >
+        <Button
+          size="sm"
+          variant="ghost"
+          disabled={deleting}
+          onClick={async () => {
+            if (!userId) return;
+            if (!window.confirm("계정과 내 코스·북마크가 모두 삭제돼요. 계속할까요?")) return;
+            setDeleting(true);
+            try {
+              await api.deleteAccount(userId);
+              clearUser();
+              toast("계정을 삭제했어요.", "success");
+              window.location.href = "/";
+            } catch {
+              toast("계정을 삭제하지 못했어요.", "error");
+              setDeleting(false);
+            }
+          }}
+          style={{ color: "var(--danger)" }}
+        >
+          {deleting ? "삭제 중…" : "회원 탈퇴"}
+        </Button>
       </section>
     </main>
   );
