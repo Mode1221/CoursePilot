@@ -19,7 +19,9 @@ from app.constants import TRANSIT_OVERHEAD_MIN, TRAVEL_SPEED_M_PER_MIN
 from app.schemas import Place, Route, TravelMode
 
 _SEARCH_URL = "https://openapi.naver.com/v1/search/local.json"
-_DIRECTIONS_URL = "https://naveropenapi.apigw.ntruss.com/map-direction/v1/driving"
+# NCP Maps 는 도메인이 maps.apigw.ntruss.com 으로 바뀌었다(구 naveropenapi 는 순차 종료).
+_DIRECTIONS_URL = "https://maps.apigw.ntruss.com/map-direction/v1/driving"
+_BLOG_SEARCH_URL = "https://openapi.naver.com/v1/search/blog.json"
 
 MAX_DISPLAY = 5  # 네이버 지역검색 API 의 한 번 호출 상한
 # 후보를 넓히기 위한 보조 질의어(코스 카테고리와 대응)
@@ -100,10 +102,7 @@ class NaverMapService(MapService):
             "start": f"{origin.lng},{origin.lat}",
             "goal": f"{dest.lng},{dest.lat}",
         }
-        headers = {
-            "X-NCP-APIGW-API-KEY-ID": settings.naver_client_id,
-            "X-NCP-APIGW-API-KEY": settings.naver_client_secret,
-        }
+        headers = _directions_headers()
         resp = await self._client.get(_DIRECTIONS_URL, params=params, headers=headers)
         resp.raise_for_status()
         summary = resp.json()["route"]["traoptimal"][0]["summary"]
@@ -114,6 +113,35 @@ class NaverMapService(MapService):
             duration_min=round(summary["duration"] / 60000),  # ms → 분
             distance_m=summary["distance"],
         )
+
+
+def _directions_headers() -> dict[str, str]:
+    """경로 API 키. NCP 전용 키가 있으면 그것을, 없으면 개발자센터 키로 폴백."""
+    return {
+        "X-NCP-APIGW-API-KEY-ID": settings.ncp_api_key_id or settings.naver_client_id,
+        "X-NCP-APIGW-API-KEY": settings.ncp_api_key or settings.naver_client_secret,
+    }
+
+
+async def blog_mention_count(client: httpx.AsyncClient, query: str) -> int | None:
+    """블로그 검색 결과 '건수'만 가져온다(인지도 신호).
+
+    본문·스니펫은 저장하지 않는다 — 품질 판단에 리뷰 원문을 쓰지 않기로 한 원칙.
+    """
+    if not settings.naver_client_id:
+        return None
+    headers = {
+        "X-Naver-Client-Id": settings.naver_client_id,
+        "X-Naver-Client-Secret": settings.naver_client_secret,
+    }
+    try:
+        resp = await client.get(
+            _BLOG_SEARCH_URL, params={"query": query, "display": 1}, headers=headers
+        )
+        resp.raise_for_status()
+        return int(resp.json().get("total") or 0)
+    except Exception:
+        return None
 
 
 def _strip_tags(text: str) -> str:

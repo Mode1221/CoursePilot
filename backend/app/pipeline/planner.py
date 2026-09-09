@@ -5,7 +5,8 @@
 """
 from __future__ import annotations
 
-from datetime import time
+import math
+from datetime import date, time
 
 from app.adapters.map_service import MapService
 from app.pipeline.validation import build_timeline
@@ -63,8 +64,10 @@ def score_place(
     w = weights or PLACE_WEIGHTS
     score = 0.0
 
-    # 평점: 자체 원탭 별점이 있으면 외부 별점과 블렌드(자체 우선), 없으면 외부만
-    ext = (place.rating / 5.0) if place.rating is not None else None
+    # 평점: 자체 원탭 별점이 있으면 외부 별점과 블렌드(자체 우선), 없으면 외부만.
+    # 외부 집계 평점은 표본이 적으면(N<30) 신뢰하지 않는다 — 5.0(리뷰 2개)이
+    # 4.3(리뷰 800개)보다 위로 오는 것이 지금까지의 대표적 오정렬이었다.
+    ext = (place.rating / 5.0) if _rating_trusted(place) else None
     own = (self_rating / 5.0) if self_rating is not None else None
     if own is not None and ext is not None:
         score += w.rating * (
@@ -127,7 +130,64 @@ def score_place(
     party_kw = _party_keywords(constraints.party_size)
     if party_kw and any(k in haystack for k in party_kw):
         score += w.party
+
+    # 업력: 상권에서 오래 버틴 가게일수록 실패 확률이 낮다(리뷰 원문 없이 얻는 품질 신호).
+    score += w.longevity * longevity_signal(place)
+
+    # 인근 폐업률: 같은 동네가 빠르게 죽고 있으면 감점.
+    closure = closure_signal(place)
+    if closure is not None:
+        score -= w.closure_penalty * closure
+
+    # 관광·문화 공식 등재(TourAPI 등)와 블로그 인지도 — 둘 다 리뷰 원문을 쓰지 않는 신호.
+    if place.tour_listed:
+        score += w.tour_listed
+    score += w.awareness * awareness_signal(place)
     return score
+
+
+# 외부 집계 평점을 신뢰할 최소 표본 수. Google Enterprise 콜에서 함께 받는다.
+MIN_TRUSTED_RATINGS = 30
+# 업력 상한(년). 이 이상은 더 가점하지 않는다 — log 로 완만하게 올린다.
+LONGEVITY_CAP_YEARS = 20
+# 인지도(블로그 검색 건수) 포화 지점.
+AWARENESS_CAP = 3000
+
+
+def _rating_trusted(place: Place) -> bool:
+    """표본 수를 아는 경우에만 N>=30 을 요구한다(모르면 종전대로 사용)."""
+    if place.rating is None:
+        return False
+    if place.rating_count is None:
+        return True
+    return place.rating_count >= MIN_TRUSTED_RATINGS
+
+
+def longevity_signal(place: Place) -> float:
+    """인허가일자 기준 업력 → 0~1. log 라 초기 몇 년의 차이를 크게 본다."""
+    if place.opened_on is None:
+        return 0.0
+    years = (date.today() - place.opened_on).days / 365.25
+    if years <= 0:
+        return 0.0
+    return min(1.0, math.log1p(years) / math.log1p(LONGEVITY_CAP_YEARS))
+
+
+def closure_signal(place: Place) -> float | None:
+    """인근 폐업률 0~1. 대장이 없거나 표본이 적으면 None(중립)."""
+    try:
+        from app.adapters.localdata import get_localdata_registry
+
+        return get_localdata_registry().closure_rate(place.address)
+    except Exception:
+        return None
+
+
+def awareness_signal(place: Place) -> float:
+    """블로그 검색 건수 → 0~1. 리뷰 원문이 아니라 건수만 쓴다."""
+    if not place.blog_mentions:
+        return 0.0
+    return min(1.0, math.log1p(place.blog_mentions) / math.log1p(AWARENESS_CAP))
 
 
 # 우천 시 피해야 할/선호할 장소 성격

@@ -21,6 +21,14 @@ class Settings(BaseSettings):
     naver_client_id: str = ""
     naver_client_secret: str = ""
 
+    # 경로(네이버 클라우드 플랫폼 Maps). 개발자센터 키와 별개이므로 분리해서 받는다.
+    # 미설정이면 개발자센터 키로 폴백하지만, 운영에서는 반드시 NCP 키를 넣어야 한다.
+    ncp_api_key_id: str = ""
+    ncp_api_key: str = ""
+
+    # 관광·문화시설 정보(공공데이터포털 TourAPI). 미설정 시 미사용.
+    tourapi_service_key: str = ""
+
     # 장소 발견 주 원천: 카카오 로컬 REST API(무료). 미설정 시 네이버/Mock 폴백.
     kakao_rest_api_key: str = ""
 

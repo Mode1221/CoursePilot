@@ -40,7 +40,10 @@ def main() -> int:
     )
     print(f"상권 {len(report.districts)}곳: {', '.join(report.districts)}")
     print(f"수집 {report.collected} / 폐업 제거 {report.closed_removed}")
-    print(f"영업시간 {report.hours_filled} / 평점 {report.ratings_filled} / 저장 {report.upserted}")
+    print(
+        f"영업시간 {report.hours_filled} / 평점 {report.ratings_filled} / "
+        f"인지도 {report.awareness_filled} / 저장 {report.upserted}"
+    )
     return 0
 
 
