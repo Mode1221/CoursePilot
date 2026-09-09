@@ -83,3 +83,24 @@ def test_부정_표현도_조사와_함께_인식한다():
         ["룸 없어서 아쉬웠어요", "애견 동반 불가라 아쉬움", "뷰가 별로", "다시는 안 갈래요"]
     )
     assert {"단체석", "반려동물", "뷰", "재방문"} <= set(cons)
+
+
+def test_주차장_넓다는_말을_좌석으로_읽지_않는다():
+    from app.reviews.aspects import extract_aspects
+
+    pros, _ = extract_aspects(["주차장 넓어요", "주차 가능해요"])
+    assert "주차" in pros and "좌석" not in pros
+
+
+def test_자리_표현만_좌석으로_읽는다():
+    from app.reviews.aspects import extract_aspects
+
+    pros, _ = extract_aspects(["자리 넉넉해요", "테이블 많고 좋아요"])
+    assert "좌석" in pros
+
+
+def test_좁다는_말은_좌석_주의로_읽는다():
+    from app.reviews.aspects import extract_aspects
+
+    _, cons = extract_aspects(["매장이 좁아요", "자리가 없어요"])
+    assert "좌석" in cons
