@@ -49,3 +49,15 @@ def test_동행_표현과_키워드를_더_넓게_인식한다():
     assert parse_constraints("소개팅 장소 추천").companion == "데이트"
     assert "커피" in parse_constraints("가볍게 커피만 마실 곳").keywords
     assert "보드게임" in parse_constraints("보드게임 카페 가고 싶어").keywords
+
+
+def test_브런치는_기본_시작을_11시로_잡는다():
+    from datetime import time
+
+    from app.pipeline.decomposition import parse_constraints
+
+    assert parse_constraints("연남동 브런치").start_time == time(11, 0)
+    assert parse_constraints("조식 먹고 산책").start_time == time(11, 0)
+    # 시각·시간대를 말했으면 그 값이 우선
+    assert parse_constraints("아침 브런치").start_time == time(9, 0)
+    assert parse_constraints("오후 2시 브런치").start_time == time(14, 0)
