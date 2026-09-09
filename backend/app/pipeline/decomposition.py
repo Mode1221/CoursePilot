@@ -127,6 +127,8 @@ _WEEKDAYS = {"월": 0, "화": 1, "수": 2, "목": 3, "금": 4, "토": 5, "일": 
 _WEEKDAY_RE = re.compile(r"(다음\s*주|담주|이번\s*주)?\s*([월화수목금토일])요일")
 _MD_RE = re.compile(r"(\d{1,2})\s*월\s*(\d{1,2})\s*일")
 _RELATIVE_DAYS = {"오늘": 0, "내일": 1, "낼": 1, "모레": 2, "글피": 3}
+# "이번 주말", "주말에" → 다가오는 토요일 (다음 주말이면 한 주 더)
+_WEEKEND_RE = re.compile(r"(다음|담|이번)?\s*(?:주\s*)?주말")
 
 
 def _parse_date(text: str, today: date) -> date | None:
@@ -156,6 +158,15 @@ def _parse_date(text: str, today: date) -> date | None:
     for word, offset in _RELATIVE_DAYS.items():
         if word in text:
             return today + timedelta(days=offset)
+
+    weekend = _WEEKEND_RE.search(text)
+    if weekend:
+        ahead = (5 - today.weekday()) % 7  # 다가오는 토요일
+        if ahead == 0:
+            ahead = 7
+        if weekend.group(1) in ("다음", "담"):  # "이번 주말"은 다가오는 주말
+            ahead += 7
+        return today + timedelta(days=ahead)
     return None
 
 
