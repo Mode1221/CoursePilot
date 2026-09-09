@@ -95,6 +95,7 @@ async def generate_course(
     factor = 1.5 + 0.5 * feedback_store.acceptance_rate()  # 1.75 기본, 2.0 상한
     if force_relax:
         factor = 2.0  # 사용자가 완화에 동의했으므로 가장 과감한 폭을 쓴다
+    base_len = len(timeline)  # 완화 없이 나온 결과. 이보다 나아졌을 때만 "완화했다"고 말한다
     best = timeline  # 완화가 되레 더 나쁠 수 있으므로 원래 결과를 기준선으로 둔다
     relaxed_c = constraints.model_copy(deep=True)
     if relaxed_c.max_travel_min is not None:
@@ -111,9 +112,17 @@ async def generate_course(
             best = timeline
 
     timeline = best
+    # 완화 결과를 실제로 쓴 경우에만 완화했다고 알린다 — 바뀐 게 없는데
+    # "일부 조건은 완화했어요"라고 하면 사용자는 무엇이 깎였는지 알 수 없다.
+    relaxed = len(timeline) > base_len
     needs_confirmation = len(timeline) < _min_usable(constraints)
     await progress("done")
-    return PlanResult(relaxed_c, timeline, relaxed=True, needs_confirmation=needs_confirmation)
+    return PlanResult(
+        relaxed_c if relaxed else constraints,
+        timeline,
+        relaxed=relaxed,
+        needs_confirmation=needs_confirmation,
+    )
 
 
 def _apply_preferences(constraints: PlanConstraints, prefs: dict) -> None:
