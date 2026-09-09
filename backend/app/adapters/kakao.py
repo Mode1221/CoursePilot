@@ -20,6 +20,7 @@ _KEYWORD_URL = "https://dapi.kakao.com/v2/local/search/keyword.json"
 _CATEGORY_URL = "https://dapi.kakao.com/v2/local/search/category.json"
 
 MAX_SIZE = 15  # 한 페이지 상한
+REGION_RADIUS_M = 3000  # 지역 좌표 기준 검색 반경(도보 코스 상권 크기)
 MAX_PAGE = 3  # 키워드 검색은 45건이면 후보로 충분하다
 
 # 카카오 category_group_code → 코스 슬롯. 이름 문자열 매칭보다 안정적이다.
@@ -83,6 +84,8 @@ class KakaoLocalService(MapService):
         self._headers = {"Authorization": f"KakaoAK {settings.kakao_rest_api_key}"}
         self._client = httpx.AsyncClient(timeout=10)
         self._routes = route_service or MockMapService()
+        # 지역 좌표는 바뀌지 않으므로 한 번만 조회한다(검색마다 1콜 더 쓰지 않도록)
+        self._centers: dict[str, tuple[float, float] | None] = {}
 
     @property
     def enabled(self) -> bool:
@@ -92,9 +95,12 @@ class KakaoLocalService(MapService):
         self, region: str, keywords: list[str], limit: int = 10
     ) -> list[Place]:
         query = " ".join([region, *keywords]).strip()
+        # 지역명을 질의에 넣기만 하면 "성수동 카페"에 다른 동네 결과가 섞인다.
+        # 지역 좌표를 한 번 찾아 반경을 걸면 상권 안에서만 후보가 나온다.
+        center = await self._region_center(region)
         places: dict[str, Place] = {}
         for page in range(1, MAX_PAGE + 1):
-            docs = await self._keyword_page(query, page)
+            docs = await self._keyword_page(query, page, center)
             for doc in docs:
                 place = to_place(doc)
                 if place and place.id not in places:
@@ -103,8 +109,35 @@ class KakaoLocalService(MapService):
                 break
         return list(places.values())[:limit]
 
-    async def _keyword_page(self, query: str, page: int) -> list[dict]:
-        params = {"query": query, "size": MAX_SIZE, "page": page}
+    async def _region_center(self, region: str) -> tuple[float, float] | None:
+        """지역명 → 대표 좌표. 실패하면 None(반경 없이 검색)."""
+        region = (region or "").strip()
+        if not region:
+            return None
+        if region in self._centers:
+            return self._centers[region]
+        center: tuple[float, float] | None = None
+        try:
+            docs = await self._keyword_page(region, 1, None)
+            if docs:
+                place = to_place(docs[0])
+                center = (place.lat, place.lng) if place else None
+        except Exception:
+            center = None
+        self._centers[region] = center
+        return center
+
+    async def _keyword_page(
+        self, query: str, page: int, center: tuple[float, float] | None = None
+    ) -> list[dict]:
+        params: dict = {"query": query, "size": MAX_SIZE, "page": page}
+        if center is not None:
+            params |= {
+                "y": center[0],
+                "x": center[1],
+                "radius": REGION_RADIUS_M,
+                "sort": "distance",
+            }
         resp = await self._client.get(_KEYWORD_URL, params=params, headers=self._headers)
         resp.raise_for_status()
         return resp.json().get("documents") or []

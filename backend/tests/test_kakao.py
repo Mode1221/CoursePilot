@@ -82,7 +82,7 @@ async def test_검색은_중복을_제거하고_limit을_지킨다(monkeypatch):
     service = KakaoLocalService()
     pages = {1: [DOC, {**DOC, "id": "2"}], 2: [{**DOC, "id": "2"}, {**DOC, "id": "3"}]}
 
-    async def fake_page(query, page):
+    async def fake_page(query, page, center=None):
         return pages.get(page, [])
 
     monkeypatch.setattr(service, "_keyword_page", fake_page)
@@ -94,13 +94,56 @@ async def test_limit에_도달하면_다음_페이지를_부르지_않는다(mon
     service = KakaoLocalService()
     seen: list[int] = []
 
-    async def fake_page(query, page):
+    async def fake_page(query, page, center=None):
         seen.append(page)
         return [{**DOC, "id": f"{page}-{i}"} for i in range(15)]
 
     monkeypatch.setattr(service, "_keyword_page", fake_page)
     await service.search_places("성수", [], limit=10)
-    assert seen == [1]
+    assert seen == [1, 1]  # 지역 좌표 조회 1회 + 검색 1페이지
+
+
+async def test_지역_좌표로_반경을_건다(monkeypatch):
+    service = KakaoLocalService()
+    calls: list[tuple[str, tuple[float, float] | None]] = []
+
+    async def fake_page(query, page, center=None):
+        calls.append((query, center))
+        return [DOC]
+
+    monkeypatch.setattr(service, "_keyword_page", fake_page)
+    await service.search_places("성수", ["고기"], limit=5)
+    # 첫 콜은 지역 좌표 조회, 그다음부터는 그 좌표를 반경 기준으로 넘긴다
+    assert calls[0] == ("성수", None)
+    assert calls[1] == ("성수 고기", (37.5445, 127.0557))
+
+
+async def test_지역_좌표는_한_번만_조회한다(monkeypatch):
+    service = KakaoLocalService()
+    lookups: list[str] = []
+
+    async def fake_page(query, page, center=None):
+        if center is None:
+            lookups.append(query)
+        return [DOC]
+
+    monkeypatch.setattr(service, "_keyword_page", fake_page)
+    await service.search_places("성수", ["고기"], limit=5)
+    await service.search_places("성수", ["카페"], limit=5)
+    assert lookups == ["성수"]
+
+
+async def test_좌표를_못_찾으면_반경_없이_검색한다(monkeypatch):
+    service = KakaoLocalService()
+    centers: list[tuple[float, float] | None] = []
+
+    async def fake_page(query, page, center=None):
+        centers.append(center)
+        return [] if query == "없는동네" else [DOC]
+
+    monkeypatch.setattr(service, "_keyword_page", fake_page)
+    result = await service.search_places("없는동네", ["고기"], limit=5)
+    assert centers[1] is None and [p.id for p in result] == ["kakao-1234"]
 
 
 async def test_경로는_위임한다():
