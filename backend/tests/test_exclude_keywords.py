@@ -64,3 +64,18 @@ def test_긍정_표현은_그대로_검색어():
 def test_접근성_키워드를_인식한다():
     assert "휠체어" in parse_constraints("휠체어 접근 되는 곳").keywords
     assert "금연" in parse_constraints("금연 구역으로").keywords
+
+
+def test_빼달라고_한_지역은_검색_지역으로_쓰지_않는다():
+    # "성수동 말고" 인데 성수동에서 찾으면 요청과 정반대가 된다
+    c = parse_constraints("성수동 말고 다른 동네")
+    assert c.region is None
+    assert "성수동" in c.exclude_keywords
+
+    # 대안 지역을 말했으면 그쪽을 쓴다
+    other = parse_constraints("성수동 말고 홍대")
+    assert other.region == "홍대"
+
+    # 장소 성격만 제외한 경우는 지역을 그대로 쓴다
+    keep = parse_constraints("술집 빼고 성수동")
+    assert keep.region == "성수동"
