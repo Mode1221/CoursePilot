@@ -6,7 +6,7 @@
 from __future__ import annotations
 
 import re
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 from app.adapters.map_service import MapService
 from app.constants import DEFAULT_REGION, DEFAULT_START_TIME
@@ -30,6 +30,8 @@ _QUALITY_WORDS: dict[str, str] = {
 _REMOVE_RE = re.compile(r"(빼|삭제|제거|없애|지워|지우|치워)")
 # "카페 하나 추가해줘", "술집 넣어줘" → 전체 재생성 대신 한 칸만 덧붙인다
 _ADD_RE = re.compile(r"(추가|넣어|붙여|더\s*가|하나\s*더)")
+# "첫번째만 남기고" 처럼 남길 대상을 말하는 표현(전체 삭제로 오해하면 안 된다)
+_KEEP_RE = re.compile(r"남기고|빼고\s*(?:다|전부)|제외하고\s*(?:다|전부)")
 # "다 지워", "전부 삭제", "초기화" → 코스를 비운다(새로 만들라는 뜻이 아니다)
 _CLEAR_RE = re.compile(
     r"(?:다|전부|모두|싹|전체)\s*(?:다\s*)?(?:지워|지우|삭제|없애|비워|치워)|초기화|리셋"
@@ -48,6 +50,7 @@ class EditCommand:
     action: str  # "replace"|"remove"|"add"|"reorder"|"swap"|"clear"|"clarify"|"none"
     index: int = -1  # 0-based
     index2: int = -1  # swap 의 두 번째 대상(0-based)
+    indexes: list[int] = field(default_factory=list)  # remove 가 여러 자리를 지목한 경우
     keyword: str = ""
     match: str = ""  # 순서 대신 이름/카테고리로 지목한 경우("카페 빼줘")
 
@@ -83,6 +86,9 @@ def _find_category(text: str) -> tuple[str, str]:
 
 def parse_edit(text: str) -> EditCommand:
     if _CLEAR_RE.search(text):
+        # "첫번째만 남기고 다 지워" — 남길 곳을 말했는데 전부 지우면 안 된다
+        if _KEEP_RE.search(text):
+            return EditCommand(action="clarify")
         return EditCommand(action="clear")
     # 순서 재배치는 대상 지목이 필요 없다(코스 전체가 대상)
     if _REORDER_RE.search(text):
@@ -114,7 +120,14 @@ def parse_edit(text: str) -> EditCommand:
         keyword = m.group(1) if m else _quality_keyword(text)
         return EditCommand(action="replace", index=idx, keyword=keyword, match=match)
     if _REMOVE_RE.search(text):
-        return EditCommand(action="remove", index=idx, match=match)
+        # "2번째랑 3번째 빼줘" — 지목한 자리를 모두 지운다
+        picked = _find_indices(text)
+        return EditCommand(
+            action="remove",
+            index=idx,
+            match=match,
+            indexes=picked if len(picked) > 1 else [],
+        )
     return EditCommand(action="none")
 
 
@@ -181,7 +194,17 @@ async def apply_edit(
         return items
 
     if cmd.action == "remove":
-        items.pop(index)
+        if cmd.indexes:
+            # 뒤에서부터 지워야 앞 인덱스가 밀리지 않는다
+            resolved = sorted(
+                {len(items) - 1 if i == LAST_INDEX else i for i in cmd.indexes},
+                reverse=True,
+            )
+            for i in resolved:
+                if 0 <= i < len(items):
+                    items.pop(i)
+        else:
+            items.pop(index)
     elif cmd.action == "replace":
         existing_ids = {it.place.id for it in items}
         region = course.region or DEFAULT_REGION
