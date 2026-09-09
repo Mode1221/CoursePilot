@@ -152,3 +152,40 @@ def test_client_는_싱글턴이다():
 async def test_요일별_영업시간을_고른다(weekday, expected):
     place = await _FakeClient().refresh_hours(_place(), weekday=weekday)
     assert place.open_time == expected
+
+
+async def test_그_요일만_영업구간이_없으면_정기휴무로_본다():
+    from app.adapters.google import is_closed_now
+
+    client = _FakeClient()
+    place = await client.refresh_hours(_place(), weekday=2)  # 수요일 구간 없음
+    assert place.closed_that_day is True
+    assert place.hours_unverified is False  # "모름"이 아니라 "쉼"이다
+    assert is_closed_now(place)
+
+
+async def test_영업시간표_자체가_없으면_모름으로_남긴다():
+    client = _FakeClient(hours={"businessStatus": "OPERATIONAL"})
+    place = await client.refresh_hours(_place(), weekday=2)
+    assert place.closed_that_day is False
+    assert place.hours_unverified is True
+
+
+async def test_영업하는_요일이면_휴무_표시가_풀린다():
+    place = _place(closed_that_day=True)
+    await _FakeClient().refresh_hours(place, weekday=0)
+    assert place.closed_that_day is False
+
+
+async def test_확정_갱신은_코스_요일을_넘긴다(monkeypatch):
+    client = _FakeClient()
+    seen: list[int | None] = []
+
+    async def spy(place, weekday=None):
+        seen.append(weekday)
+        return place
+
+    monkeypatch.setattr(client, "refresh_hours", spy)
+    monkeypatch.setattr("app.adapters.google.get_places_client", lambda: client)
+    await refresh_final_hours([_place()], weekday=5)
+    assert seen == [5]

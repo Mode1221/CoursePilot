@@ -49,6 +49,15 @@ async def test_확정_코스에서도_폐업이_확인되면_뺀다(monkeypatch)
     assert [i.place.id for i in result] == ["a"]
 
 
+async def test_정기휴무인_장소도_뺀다(monkeypatch):
+    monkeypatch.setattr("app.adapters.google.refresh_final_hours", _noop)
+    closed = _place("b")
+    closed.closed_that_day = True
+    timeline = [_item(_place("a")), _item(closed)]
+    result = await _verify_hours(timeline, PlanConstraints(), MockMapService())
+    assert [i.place.id for i in result] == ["a"]
+
+
 async def test_전부_정상이면_그대로_둔다(monkeypatch):
     monkeypatch.setattr("app.adapters.google.refresh_final_hours", _noop)
     timeline = [_item(_place("a", "OPERATIONAL"))]
@@ -63,5 +72,5 @@ async def test_지도_서비스가_없으면_시간_재계산_없이_빼기만_�
     assert [i.place.id for i in result] == ["a"]
 
 
-async def _noop(places):
+async def _noop(places, *, weekday=None):
     return places

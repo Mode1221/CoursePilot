@@ -37,6 +37,7 @@ class Place(BaseModel):
     last_recommended_at: datetime | None = None  # 갱신 대상(활성 집합) 판정용
     hours_checked_at: datetime | None = None
     rating_checked_at: datetime | None = None
+    closed_that_day: bool = False  # 코스 날짜가 정기휴무
     hours_unverified: bool = False  # 영업시간을 확인하지 못함 → 사용자에게 "확인 필요" 표시
     open_time: time | None = None
     close_time: time | None = None

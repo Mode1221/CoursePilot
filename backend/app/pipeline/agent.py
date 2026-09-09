@@ -154,10 +154,13 @@ async def _verify_hours(
     now = datetime.now(UTC)
     for place in places:
         place.last_recommended_at = now  # 활성 집합(최근 90일) 판정 근거
+    # 요일은 오늘이 아니라 모임 날짜 기준이어야 한다 — 토요일 코스를 평일 영업시간으로
+    # 검증하면 정기휴무를 놓친다.
+    weekday = constraints.plan_date.weekday() if constraints and constraints.plan_date else None
     try:
         from app.adapters.google import refresh_final_hours
 
-        await refresh_final_hours(places)
+        await refresh_final_hours(places, weekday=weekday)
     except Exception:
         pass
     # Google 에 영업시간이 없는 곳(관광지·전시관이 대부분)은 공공 데이터로 메운다.
