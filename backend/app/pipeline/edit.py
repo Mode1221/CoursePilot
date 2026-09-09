@@ -46,6 +46,8 @@ _REORDER_RE = re.compile(
 )
 # 교체 대상 키워드: "빵집으로", "카페로" 등 조사 앞 명사
 _TARGET_RE = re.compile(r"([가-힣A-Za-z]+?)(?:으로|로)\s*(?:바꿔|교체|변경)")
+# "다른 술집", "딴 카페" — 동사 없이 성격만 말한 교체 요청("여기 말고 다른 술집")
+_OTHER_KIND_RE = re.compile(r"(?:다른|딴)\s*([가-힣]{2,6}?)(?:으로|로|\s|$)")
 
 
 @dataclass
@@ -87,6 +89,18 @@ def _find_category(text: str) -> tuple[str, str]:
     return "", ""
 
 
+def _other_kind(text: str) -> str:
+    """"다른 술집" 처럼 동사 없이 말한 교체 대상의 성격. 없으면 빈 문자열."""
+    m = _OTHER_KIND_RE.search(text)
+    if not m:
+        return ""
+    word = m.group(1)
+    # "다른 곳/데/장소/곳들"은 성격이 아니라 그냥 교체 요청이다(기존 경로가 처리한다)
+    if any(generic in word for generic in ("곳", "데", "장소")):
+        return ""
+    return word
+
+
 def parse_edit(text: str) -> EditCommand:
     if _CLEAR_RE.search(text):
         # "첫번째만 남기고 다 지워" — 남길 곳을 말했는데 전부 지우면 안 된다
@@ -113,16 +127,21 @@ def parse_edit(text: str) -> EditCommand:
             elif idx >= 0 and _ADD_BEFORE_RE.search(text):
                 at = idx
             return EditCommand(action="add", index=at, keyword=keyword, match=cat)
+    other_kind = _other_kind(text)
     if idx < 0 and idx != LAST_INDEX:
         # 순서를 못 찾았으면 "카페 빼줘"처럼 카테고리로 지목했는지 본다
         _, match = _find_category(text)
         if not match:
-            # "더 저렴한 곳으로 바꿔" — 바꾸려는 의도는 분명한데 대상이 없다.
-            # 새 코스를 만들어 버리는 대신 어느 자리인지 되묻는다.
-            if _REPLACE_RE.search(text) and _quality_keyword(text):
+            # "더 저렴한 곳으로 바꿔", "여기 말고 다른 술집" — 바꾸려는 의도는
+            # 분명한데 대상이 없다. 새 코스를 만들어 버리는 대신 되묻는다.
+            if other_kind or (_REPLACE_RE.search(text) and _quality_keyword(text)):
                 return EditCommand(action="clarify")
             return EditCommand(action="none")
         idx = MATCH_INDEX
+
+    # "두번째는 다른 카페로" — 자리를 집었으면 그 자리를 그 성격으로 바꾼다
+    if other_kind and not _REMOVE_RE.search(text) and not _ADD_RE.search(text):
+        return EditCommand(action="replace", index=idx, keyword=other_kind, match=match)
 
     if _REPLACE_RE.search(text):
         m = _TARGET_RE.search(text)
