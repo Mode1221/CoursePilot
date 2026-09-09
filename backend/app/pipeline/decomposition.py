@@ -301,8 +301,33 @@ def _parse_date(text: str, today: date) -> date | None:
     return None
 
 
+# 자주 나오는 오타·변형 표기. 검색어를 놓치면 코스 성격이 통째로 달라진다.
+TYPO_FIXES: dict[str, str] = {
+    "카폐": "카페",
+    "까페": "카페",
+    "맜집": "맛집",
+    "맛징": "맛집",
+    "브런취": "브런치",
+    "부런치": "브런치",
+    "디져트": "디저트",
+    "베이커": "베이커리",
+    "이자까야": "이자카야",
+    "파스터": "파스타",
+    "전시히": "전시회",
+    "술찝": "술집",
+}
+
+
+def normalize_typos(text: str) -> str:
+    """오타를 표준 표기로 바꾼다(원문은 건드리지 않고 파싱용 사본만)."""
+    for wrong, right in TYPO_FIXES.items():
+        text = text.replace(wrong, right)
+    return text
+
+
 def parse_constraints(text: str, today: date | None = None) -> PlanConstraints:
     """규칙 기반 조건 추출. LLM 폴백/오프라인 개발용."""
+    text = normalize_typos(text)
     c = PlanConstraints()
     c.plan_date = _parse_date(text, today or date.today())
 
