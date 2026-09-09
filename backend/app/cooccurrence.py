@@ -9,11 +9,24 @@ from __future__ import annotations
 from collections import defaultdict
 from itertools import combinations
 
+# 쌍은 장소 수의 제곱으로 늘어난다 — DB 미사용 모드에서 유일하게 O(n^2) 로 커지는
+# 신호라 상한을 둔다. 넘으면 신호가 약한(적게 함께 담긴) 쌍부터 버린다.
+MAX_PAIRS = 50_000
+EVICT_RATIO = 0.1  # 상한 도달 시 한 번에 정리하는 비율
+
 
 class CooccurrenceStore:
     def __init__(self) -> None:
         # frozenset({a,b}) -> count
         self._mem: dict[frozenset[str], float] = defaultdict(float)
+
+    def _evict_if_needed(self) -> None:
+        if len(self._mem) <= MAX_PAIRS:
+            return
+        drop = max(1, int(len(self._mem) * EVICT_RATIO))
+        weakest = sorted(self._mem.items(), key=lambda kv: kv[1])[:drop]
+        for key, _ in weakest:
+            del self._mem[key]
 
     def bump_course(self, place_ids: list[str], weight: float = 1.0) -> None:
         """코스에 함께 담긴 장소 쌍을 모두 가중 누적."""
@@ -22,6 +35,7 @@ class CooccurrenceStore:
         if not pairs:
             return
         if not self._db_ready():
+            self._evict_if_needed()
             for a, b in pairs:
                 self._mem[frozenset((a, b))] += weight
             return
