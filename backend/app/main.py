@@ -598,7 +598,11 @@ async def relax(course_id: str, x_user_id: str | None = Header(default=None)) ->
             )
         else:
             ai_text = _ai_reply(
-                course, True, result.needs_confirmation, constraints=result.constraints
+                course,
+                True,
+                result.needs_confirmation,
+                constraints=result.constraints,
+                closed_dropped=result.closed_dropped,
             )
         chat_store.append(course_id, "ai", ai_text)
         await broadcast_state(course_id, course.model_dump(mode="json"))
@@ -655,6 +659,7 @@ async def generate(
 
         relaxed = False
         needs_confirmation = False
+        closed_dropped = 0
         is_edit = False
         region_guessed = False  # 지역을 못 알아들어 기본 지역으로 만든 경우
         pref_region: str | None = None  # 선호 프로필로 지역을 채운 경우
@@ -728,6 +733,7 @@ async def generate(
                 course.items = result.timeline
                 relaxed = result.relaxed
                 needs_confirmation = result.needs_confirmation
+                closed_dropped = result.closed_dropped
                 gen_constraints = result.constraints
                 region_guessed = result.constraints.region is None
                 # 문장에 지역이 없어 저장된 선호로 채웠다면 그 사실을 알린다
@@ -817,6 +823,7 @@ async def generate(
                 region_guessed,
                 gen_constraints,
                 pref_region,
+                closed_dropped,
             )
         chat_store.append(course_id, "ai", ai_text)
         await broadcast_state(course_id, course.model_dump(mode="json"))
@@ -922,8 +929,13 @@ def _ai_reply(
     region_guessed: bool = False,
     constraints: PlanConstraints | None = None,
     pref_region: str | None = None,
+    closed_dropped: int = 0,
 ) -> str:
     n = len(course.items)
+    # 폐업·휴무로 뺀 자리는 반드시 말한다 — 말없이 줄이면 "왜 3곳만 줬지"가 된다.
+    closed_note = (
+        f" 문 닫는 곳 {closed_dropped}곳은 빼고 구성했어요." if closed_dropped else ""
+    )
     if needs_confirmation:
         # 왜 부족한지 짚어 줘야 무엇을 바꿀지 알 수 있다("완화할까요?"만으로는 막막하다)
         hour = constraints.start_time.hour if constraints and constraints.start_time else None
@@ -941,7 +953,7 @@ def _ai_reply(
             )
         if n == 0:
             return "조건에 맞는 장소를 찾지 못했어요. 지역이나 시간을 바꿔 볼까요?"
-        return f"{n}곳까지만 찾았어요. 조건을 완화할까요?"
+        return f"{n}곳까지만 찾았어요.{closed_note} 조건을 완화할까요?"
     # 무엇을 알아들었는지 먼저 되짚어 준다(잘못 알아들었으면 바로 정정 가능)
     parts: list[str] = []
     if course.plan_date:
@@ -959,6 +971,7 @@ def _ai_reply(
         base += f" {last.depart.strftime('%H:%M')}쯤 마무리돼요."
     if constraints is not None and constraints.prefer_indoor:
         base += " 비 예보라 실내 위주로 골랐어요."
+    base += closed_note
     if relaxed:
         base += " 일부 조건은 완화했어요."
     if pref_region:
