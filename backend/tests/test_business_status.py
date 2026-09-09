@@ -74,3 +74,32 @@ async def test_지도_서비스가_없으면_시간_재계산_없이_빼기만_�
 
 async def _noop(places, *, weekday=None):
     return places
+
+
+async def test_새로_받은_영업시간_밖이면_뺀다(monkeypatch):
+    """후보 단계에서는 영업시간을 몰라 통과했지만, 확정 후 조회에서 드러난다."""
+    monkeypatch.setattr("app.adapters.google.refresh_final_hours", _noop)
+    late = _place("late")
+    late.open_time, late.close_time = time(9, 0), time(15, 0)
+    timeline = [
+        TimelineItem(place=late, arrive=time(19, 0), depart=time(20, 0)),
+        TimelineItem(place=_place("ok"), arrive=time(19, 0), depart=time(20, 0)),
+    ]
+    result = await _verify_hours(timeline, PlanConstraints(start_time=time(19, 0)), MockMapService())
+    assert [i.place.id for i in result] == ["ok"]
+
+
+async def test_영업시간을_모르면_빼지_않는다(monkeypatch):
+    monkeypatch.setattr("app.adapters.google.refresh_final_hours", _noop)
+    timeline = [TimelineItem(place=_place("unknown"), arrive=time(19, 0), depart=time(20, 0))]
+    result = await _verify_hours(timeline, PlanConstraints(), MockMapService())
+    assert [i.place.id for i in result] == ["unknown"]
+
+
+async def test_시각을_모르면_판단하지_않는다(monkeypatch):
+    monkeypatch.setattr("app.adapters.google.refresh_final_hours", _noop)
+    early = _place("early")
+    early.open_time, early.close_time = time(9, 0), time(15, 0)
+    timeline = [TimelineItem(place=early)]
+    result = await _verify_hours(timeline, PlanConstraints(), MockMapService())
+    assert [i.place.id for i in result] == ["early"]
