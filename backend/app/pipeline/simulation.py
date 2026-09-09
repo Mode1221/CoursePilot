@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import random
 from dataclasses import dataclass
-from datetime import time
+from datetime import date, time, timedelta
 
 from app.pipeline.calibration import Report, Sample
 from app.pipeline.planner import classify, score_place
@@ -41,10 +41,18 @@ class Session:
 
 
 def build_catalog() -> list[Place]:
-    """슬롯별 후보 장소. 외부 평점은 숨은 선호와 일부러 어긋나게 둔다."""
+    """슬롯별 후보 장소.
+
+    현실의 함정을 그대로 심어 둔다 — 평점이 높은 후보일수록 리뷰가 몇 개뿐이고
+    (표본을 안 보면 속는다), 가장 오래 버틴 가게는 실제로 채택되는 곳이 아니다
+    (업력도 만능이 아니다). 정적 신호만으로는 숨은 선호를 못 맞히고, 채택
+    신호가 쌓여야 맞힌다.
+    """
+    today = date.today()
     places: list[Place] = []
     for slot, category in _CATEGORIES.items():
         for i in range(CATALOG_PER_SLOT):
+            years = 12 if i == 2 else max(0, 6 - i * 2)  # 최장수 가게는 2번(정답 아님)
             places.append(
                 Place(
                     id=f"{slot}-{i}",
@@ -54,6 +62,9 @@ def build_catalog() -> list[Place]:
                     lng=127.05 + i * 0.001,
                     # 평점은 숨은 선호와 반대로 — 평점만 보면 못 맞힌다
                     rating=round(3.0 + i * 0.4, 1),
+                    # 평점이 높을수록 표본이 적다 → 그 평점은 신뢰하지 않는다
+                    rating_count=60 if i == 0 else (400 if i == 2 else max(3, 25 - i * 6)),
+                    opened_on=today - timedelta(days=int(years * 365.25)) if years else None,
                     price=15000,
                 )
             )

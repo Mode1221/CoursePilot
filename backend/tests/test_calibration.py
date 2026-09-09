@@ -90,3 +90,22 @@ def test_라벨_파일을_읽는다(tmp_path):
     assert len(samples) == 1
     assert samples[0].chosen_id == "a"
     assert evaluate(samples).top1 == 1.0
+
+
+def test_새_신호_계수도_탐색_대상에_들어간다():
+    from app.pipeline.weights import ScoreWeights
+
+    names = ScoreWeights.field_names()
+    for signal in ("longevity", "closure_penalty", "tour_listed", "awareness", "fact_tag"):
+        assert signal in names
+
+
+def test_표본_적은_평점에_속지_않는_계수가_더_낫다():
+    """표본 수를 무시하면(=평점만 신뢰) 랭킹이 나빠지는지 확인한다."""
+    from app.pipeline.simulation import simulate_sessions, to_samples
+    from app.pipeline.weights import PLACE_WEIGHTS
+
+    samples = to_samples(simulate_sessions(40, seed=5))
+    now = evaluate(samples, PLACE_WEIGHTS)
+    rating_only = evaluate(samples, PLACE_WEIGHTS.replace(longevity=0.0, rating=1.0))
+    assert now.mrr >= rating_only.mrr
