@@ -39,7 +39,7 @@ _BUDGET_WON_RE = re.compile(r"(\d{4,})\s*원")
 _PARTY_RE = re.compile(r"(\d{1,2})\s*(?:명|인)(?!분)")
 # "술집 빼고", "매운 거 말고" 처럼 제외를 뜻하는 표현
 _EXCLUDE_RE = re.compile(
-    r"([가-힣]{2,6}?)\s*(?:은|는|을|를|이|가|거|건)?\s*(?:빼고|제외하고|제외|말고|없이)"
+    r"([가-힣]{1,6}?)\s*(?:은|는|을|를|이|가|거|건)?\s*(?:빼고|제외하고|제외|말고|없이)"
 )
 # "강남역에서 출발", "홍대입구역에서 만나" 처럼 출발지를 지정하는 표현
 _START_PLACE_RE = re.compile(
@@ -70,7 +70,18 @@ _SOFT_KEYWORDS = [
     "술집", "와인", "카페", "맛집", "코스요리", "오마카세", "한식", "일식", "중식", "양식",
     # 자주 쓰는 표현 보강
     "커피", "베이커리", "빵집", "파스타", "이자카야", "포차", "칵테일", "보드게임", "전시회",
+    # 장소 성격을 그대로 검색어로 쓰는 표현
+    "한정식", "노포", "서점", "책", "국밥", "라멘", "떡볶이", "전통주", "루프탑바", "전망",
 ]
+
+# 제외 표현에 붙어 오는 조사 — "술은 빼고" 의 "술은" 을 "술" 로 정규화한다
+_PARTICLES = ("은", "는", "을", "를", "이", "가", "도", "만")
+
+
+def _strip_particle(word: str) -> str:
+    if len(word) > 1 and word[-1] in _PARTICLES:
+        return word[:-1]
+    return word
 
 # 동행유형(컨텍스트 신호): 표현 → 정규화 라벨
 _COMPANION_MAP = {
@@ -300,9 +311,18 @@ def parse_constraints(text: str, today: date | None = None) -> PlanConstraints:
             break
 
     # 제외 조건: "술집 빼고" → 해당 표현은 소프트 키워드에서 빼고 감점 대상으로 남긴다
-    c.exclude_keywords = [m.group(1) for m in _EXCLUDE_RE.finditer(text)]
-    excluded = set(c.exclude_keywords)
-    c.keywords = [k for k in _SOFT_KEYWORDS if k in text and k not in excluded]
+    seen: list[str] = []
+    for m in _EXCLUDE_RE.finditer(text):
+        word = _strip_particle(m.group(1))
+        if word and word not in seen:
+            seen.append(word)
+    c.exclude_keywords = seen
+    # "술 빼고" 는 "술집"도 함께 빼야 한다 — 부분 일치로 소프트 키워드를 거른다
+    c.keywords = [
+        k
+        for k in _SOFT_KEYWORDS
+        if k in text and not any(ex in k or k in ex for ex in seen)
+    ]
     if c.prefer_indoor and "실내" not in c.keywords:
         c.keywords.insert(0, "실내")  # 우천이면 실내를 최우선 검색어로
     return c
