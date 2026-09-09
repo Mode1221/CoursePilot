@@ -47,7 +47,8 @@ def test_질문에는_코스를_바꾸지_않고_답한다():
     after = client.get(f"/courses/{cid}").json()["items"]
     text = client.get(f"/courses/{cid}/messages").json()[-1]["text"]
     assert [i["place"]["id"] for i in after] == [i["place"]["id"] for i in before]
-    assert "지금 코스는" in text
+    # 주차를 물었으면 주차로 답한다(코스 요약을 되풀이하지 않는다)
+    assert "주차" in text
     assert (
         client.get(f"/users/{uid}/credits", headers={"X-User-Id": uid}).json()[
             "questions_left"
