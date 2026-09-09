@@ -42,13 +42,15 @@ def test_4xx는_에러율에_포함되지_않는다():
 
 
 def test_요청이_없으면_0():
-    assert MetricsStore().snapshot() == {
-        "total_requests": 0,
-        "error_rate": 0.0,
-        "routes": [],
-        "externals": [],
-        "alerts": [],
-    }
+    from app.quota import quota_store
+
+    quota_store.clear()
+    snapshot = MetricsStore().snapshot()
+    assert snapshot["total_requests"] == 0
+    assert snapshot["error_rate"] == 0.0
+    assert snapshot["routes"] == snapshot["externals"] == snapshot["alerts"] == []
+    # 유료 API 사용량은 항상 함께 노출한다(0 이라도 한도가 보여야 한다)
+    assert all(row["used"] == 0 for row in snapshot["quotas"])
 
 
 def test_폴백률이_높으면_알림에_뜬다():

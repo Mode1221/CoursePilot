@@ -121,12 +121,17 @@ class MetricsStore:
             for name, stat in sorted(self._externals.items())
         ]
         error_rate = round(errors / total, 4) if total else 0.0
+        from app.quota import quota_store
+
+        quota_rows = quota_store.snapshot()
+        quota_alerts = quota_store.alerts()
         return {
             "total_requests": total,
             "error_rate": error_rate,
             "routes": routes,
             "externals": externals,
-            "alerts": _alerts(total, error_rate, externals),
+            "quotas": quota_rows,
+            "alerts": _alerts(total, error_rate, externals) + quota_alerts,
         }
 
     def clear(self) -> None:
