@@ -20,6 +20,14 @@ _TIME_OF_DAY_RE = re.compile(r"(새벽|아침|점심|낮|오후|저녁|밤)")
 # 12시간제에서 오후로 해석해야 하는 표현
 _PM_WORDS = {"오후", "저녁", "밤", "낮"}
 _DURATION_RE = re.compile(r"(\d{1,2})\s*시간\s*(반)?")
+# "한 시간", "두 시간 반" 처럼 한글 수사로 말하는 소요 시간
+_HANGUL_HOURS = {"한": 1, "두": 2, "세": 3, "네": 4, "다섯": 5, "여섯": 6, "일곱": 7, "여덟": 8}
+_HANGUL_DURATION_RE = re.compile(
+    r"(?<![가-힣])(한|두|세|네|다섯|여섯|일곱|여덟)\s*시간\s*(반)?"
+)
+# "퇴근하고", "퇴근 후" → 통상 저녁 7시 시작
+_AFTER_WORK_RE = re.compile(r"퇴근\s*(?:하고|후|하면|한\s*뒤|끝나고)")
+AFTER_WORK_HOUR = 19
 # "저녁 7시부터 10시까지" 같은 범위 표현
 _RANGE_RE = re.compile(
     r"(오전|오후|아침|점심|낮|저녁|밤|새벽)?\s*(\d{1,2})\s*시\s*(?:\d{1,2}\s*분)?\s*"
@@ -269,6 +277,8 @@ def parse_constraints(text: str, today: date | None = None) -> PlanConstraints:
         tod = _TIME_OF_DAY_RE.search(text)
         if tod:
             c.start_time = time(_TIME_OF_DAY[tod.group(1)], 0)
+        elif _AFTER_WORK_RE.search(text):
+            c.start_time = time(AFTER_WORK_HOUR, 0)
         elif _BRUNCH_RE.search(text):
             # "연남동 브런치" 처럼 시각을 말하지 않으면 기본 12시로 잡혀
             # 브런치 시간대를 벗어난다 → 11시로 시작
@@ -301,6 +311,12 @@ def parse_constraints(text: str, today: date | None = None) -> PlanConstraints:
 
     # 소요 시간 → 종료 시각 (N시간 / N시간 반)
     dm = _DURATION_RE.search(text)
+    hm = _HANGUL_DURATION_RE.search(text) if dm is None else None
+    if hm is not None and not rm and c.duration_min is None:
+        c.duration_min = _HANGUL_HOURS[hm.group(1)] * 60 + (30 if hm.group(2) else 0)
+        if c.start_time:
+            total = c.start_time.hour * 60 + c.start_time.minute + c.duration_min
+            c.end_time = time((total // 60) % 24, total % 60)
     if dm and not rm and c.duration_min is None:
         c.duration_min = int(dm.group(1)) * 60 + (30 if dm.group(2) else 0)
         if c.start_time:

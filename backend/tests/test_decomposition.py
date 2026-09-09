@@ -100,3 +100,19 @@ def test_다음달_날짜를_인식한다():
 
     assert _parse_date("다음달 5일 저녁", date(2026, 9, 9)) == date(2026, 10, 5)
     assert _parse_date("담달 20일", date(2026, 12, 1)) == date(2027, 1, 20)
+
+
+def test_한글_수사_소요시간과_퇴근_표현():
+    from datetime import time
+
+    from app.pipeline.decomposition import parse_constraints
+
+    c = parse_constraints("퇴근 후 성수동 두 시간")
+    assert c.start_time == time(19, 0)
+    assert c.duration_min == 120
+    assert c.end_time == time(21, 0)
+
+    assert parse_constraints("한 시간 안에 끝나는 코스").duration_min == 60
+    assert parse_constraints("세 시간 반 정도").duration_min == 210
+    # 방문 개수 표현("두 곳")과 섞이지 않는다
+    assert parse_constraints("두 곳만 가고 싶어").duration_min is None
