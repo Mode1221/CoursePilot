@@ -16,6 +16,7 @@ export default function MyPage() {
   const [courses, setCourses] = useState<Course[]>([]);
   const [bookmarks, setBookmarks] = useState<Course[]>([]);
   const [loadError, setLoadError] = useState(false);
+  const [prefs, setPrefs] = useState<string[]>([]);
 
   useEffect(() => {
     load();
@@ -33,6 +34,26 @@ export default function MyPage() {
   }, [userId]);
 
   useEffect(reload, [reload]);
+
+  // 저장된 선호가 코스 추천에 쓰인다는 걸 보이게 한다(빈 값은 표시하지 않음)
+  useEffect(() => {
+    if (!userId) return;
+    let cancelled = false;
+    api
+      .getPreferences(userId)
+      .then((p) => {
+        if (cancelled) return;
+        setPrefs(
+          [p.region, p.mood, p.transport, p.budget, ...(p.diet ?? [])].filter(
+            (v): v is string => Boolean(v),
+          ),
+        );
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, [userId]);
 
   if (!userId) {
     return (
@@ -62,6 +83,23 @@ export default function MyPage() {
           </Button>
         </p>
       )}
+
+      <section
+        style={{
+          marginTop: "var(--sp-6)",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "space-between",
+          gap: "var(--sp-3)",
+        }}
+      >
+        <p style={{ margin: 0, fontSize: "var(--fs-sm)", color: "var(--text-muted)" }}>
+          {prefs.length > 0 ? `내 취향: ${prefs.join(" · ")}` : "취향을 설정하면 추천이 정확해져요."}
+        </p>
+        <Link href="/onboarding" style={{ textDecoration: "none", flexShrink: 0 }}>
+          <Button size="sm">취향 수정</Button>
+        </Link>
+      </section>
 
       <section style={{ marginTop: "var(--sp-6)" }}>
         <h2>내 코스</h2>

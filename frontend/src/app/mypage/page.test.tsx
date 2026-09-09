@@ -12,6 +12,7 @@ vi.mock("@/services/api", () => ({
     duplicateCourse: vi.fn(),
     renameCourse: vi.fn(),
     deleteCourse: vi.fn(),
+    getPreferences: vi.fn(),
   },
 }));
 
@@ -21,6 +22,13 @@ describe("마이페이지", () => {
   beforeEach(() => {
     vi.mocked(api.myCourses).mockResolvedValue([COURSE] as never);
     vi.mocked(api.myBookmarks).mockResolvedValue([]);
+    vi.mocked(api.getPreferences).mockResolvedValue({
+      mood: null,
+      region: null,
+      transport: null,
+      budget: null,
+      diet: [],
+    });
     vi.mocked(api.duplicateCourse).mockResolvedValue({
       ...COURSE,
       id: "c2",
@@ -50,4 +58,24 @@ describe("마이페이지", () => {
     render(<MyPage />);
     expect(screen.getByText("로그인이 필요해요")).toBeDefined();
   });
+
+  it("저장된 취향을 요약해 보여준다", async () => {
+    vi.mocked(api.getPreferences).mockResolvedValue({
+      mood: "조용한",
+      region: "연남동",
+      transport: "도보",
+      budget: "2~4만원",
+      diet: ["비건"],
+    });
+    render(<MyPage />);
+    await waitFor(() =>
+      expect(screen.getByText("내 취향: 연남동 · 조용한 · 도보 · 2~4만원 · 비건")).toBeTruthy(),
+    );
+  });
+
+  it("취향이 없으면 설정을 권한다", async () => {
+    render(<MyPage />);
+    await waitFor(() => expect(screen.getByText("취향을 설정하면 추천이 정확해져요.")).toBeTruthy());
+  });
+
 });
