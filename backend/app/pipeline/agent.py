@@ -90,8 +90,12 @@ async def generate_course(
     enough = _min_valid(constraints)
     if len(timeline) >= enough and not force_relax:
         await progress("done")
+        before_ids = {item.place.id for item in timeline}
         before = len(timeline)
         timeline = await _verify_hours(timeline, constraints, map_service)
+        timeline = await _refill(
+            timeline, before_ids, constraints, map_service, origin, exclude_place_ids
+        )
         # 개수를 직접 말한 요청("5곳")에 못 미치면, 완화 없이 끝내더라도
         # 그 사실을 알리고 완화 여부를 물어본다(조용히 4곳만 주지 않는다).
         # 폐업·휴무로 빠진 뒤의 개수로 판단해야 한다 — 빼기 전 개수로 재면
@@ -133,9 +137,12 @@ async def generate_course(
     # "일부 조건은 완화했어요"라고 하면 사용자는 무엇이 깎였는지 알 수 없다.
     relaxed = len(timeline) > base_len
     await progress("done")
+    before_ids = {item.place.id for item in timeline}
     before = len(timeline)
-    timeline = await _verify_hours(
-        timeline, relaxed_c if relaxed else constraints, map_service
+    final_c = relaxed_c if relaxed else constraints
+    timeline = await _verify_hours(timeline, final_c, map_service)
+    timeline = await _refill(
+        timeline, before_ids, final_c, map_service, origin, exclude_place_ids
     )
     return PlanResult(
         relaxed_c if relaxed else constraints,
@@ -144,6 +151,34 @@ async def generate_course(
         needs_confirmation=len(timeline) < _min_usable(constraints),
         closed_dropped=before - len(timeline),
     )
+
+
+async def _refill(
+    timeline: list[TimelineItem],
+    before_ids: set[str],
+    constraints: PlanConstraints,
+    map_service: MapService,
+    origin: Place | None,
+    exclude_place_ids: set[str] | None,
+) -> list[TimelineItem]:
+    """폐업·휴무로 빠진 자리를 한 번만 다시 채운다.
+
+    빠진 장소만 제외하고 다시 짜 본다(남은 장소는 다시 뽑힐 수 있다). 결과가
+    더 길 때만 채택하고, 재시도는 한 번뿐이다 — 다시 짤 때마다 또 검증에서
+    빠질 수 있어 끝이 없다.
+    """
+    dropped = before_ids - {item.place.id for item in timeline}
+    if not dropped:
+        return timeline
+    excluded = set(exclude_place_ids or set()) | dropped
+    try:
+        retry = await _attempt(constraints, map_service, origin, excluded)
+    except Exception:
+        return timeline
+    if len(retry) <= len(timeline):
+        return timeline  # 더 나아지지 않으면 원래 코스를 지킨다
+    verified = await _verify_hours(retry, constraints, map_service)
+    return verified if len(verified) > len(timeline) else timeline
 
 
 async def _verify_hours(
