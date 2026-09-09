@@ -18,6 +18,7 @@ _FACT_QUESTIONS: tuple[tuple[str, tuple[str, ...]], ...] = (
 )
 _COST_WORDS = ("얼마", "비용", "가격", "예산")
 _HOURS_WORDS = ("영업시간", "몇 시까지", "몇시까지", "문 닫", "문닫", "언제까지 해", "브레이크")
+_WHY_WORDS = ("왜", "이유", "어떻게 골", "근거")
 _TIME_WORDS = ("몇 시", "언제", "얼마나 걸", "소요", "끝나")
 
 
@@ -79,6 +80,21 @@ def hours_answer(course: Course) -> str:
     return ". ".join(parts) + "." if parts else "영업시간 정보가 없어요."
 
 
+def why_answer(course: Course, text: str) -> str:
+    """"왜 골랐어?" — 이미 계산해 둔 근거를 장소별로 한 줄씩 답한다."""
+    from app.reasons import course_reasons
+
+    reasons = course_reasons(course, text)
+    lines = [
+        f"{item.place.name}: {', '.join(reasons[item.place.id])}"
+        for item in course.items
+        if reasons.get(item.place.id)
+    ]
+    if not lines:
+        return "특별한 조건이 없어서 이동 동선과 시간대에 맞춰 골랐어요."
+    return " / ".join(lines)
+
+
 def cost_answer(course: Course) -> str:
     """비용 질문: 아는 것만 더하고, 추정이 섞였는지 밝힌다."""
     priced = [it.place for it in course.items if it.place.price is not None]
@@ -96,6 +112,8 @@ def course_answer(course: Course, text: str = "") -> str:
     fact = fact_answer(course, text)
     if fact:
         return fact
+    if any(w in text for w in _WHY_WORDS):
+        return why_answer(course, text)
     if any(w in text for w in _HOURS_WORDS):
         return hours_answer(course)
     # "얼마나 걸려"는 비용이 아니라 시간을 묻는 말이다 — 시간 표현을 먼저 본다.
