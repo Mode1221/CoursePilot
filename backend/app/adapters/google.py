@@ -75,6 +75,16 @@ def _weekday_period(hours: dict | None, weekday: int) -> tuple[time | None, time
     return None, None
 
 
+def _consume(name: str) -> bool:
+    """무료 한도가 남아 있으면 1콜을 차감하고 True. 소진되면 호출하지 않는다."""
+    from app.quota import quota_store
+
+    if not quota_store.allow(name):
+        return False
+    quota_store.record(name)
+    return True
+
+
 class GooglePlacesClient:
     """티어별로 분리된 Google Places 호출."""
 
@@ -96,7 +106,7 @@ class GooglePlacesClient:
     # --- ① 매핑 (IDs-only) -------------------------------------------------
     async def map_place_id(self, place: Place) -> str | None:
         """상호+좌표(100m 바이어스)로 Google place_id 만 받아온다."""
-        if not self.enabled:
+        if not self.enabled or not _consume("google.map_id"):
             return None
         body = {
             "textQuery": f"{place.name} {place.address or ''}".strip(),
@@ -119,7 +129,7 @@ class GooglePlacesClient:
     # --- ② 영업시간 (Pro) --------------------------------------------------
     async def fetch_hours(self, place_id: str) -> dict | None:
         """영업시간·영업상태만. 평점 필드를 절대 섞지 않는다."""
-        if not self.enabled:
+        if not self.enabled or not _consume("google.hours"):
             return None
         resp = await self._client.get(
             _DETAILS_URL.format(place_id=place_id), headers=self._headers(HOURS_MASK)
@@ -130,7 +140,7 @@ class GooglePlacesClient:
     # --- ③ 평점 (Enterprise) ----------------------------------------------
     async def fetch_rating(self, place_id: str) -> tuple[float, int] | None:
         """집계 평점+평가 수만. 평가 수가 적으면 신호로 쓰지 않는다."""
-        if not self.enabled:
+        if not self.enabled or not _consume("google.rating"):
             return None
         resp = await self._client.get(
             _DETAILS_URL.format(place_id=place_id), headers=self._headers(RATING_MASK)

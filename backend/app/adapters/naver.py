@@ -102,6 +102,12 @@ class NaverMapService(MapService):
             "start": f"{origin.lng},{origin.lat}",
             "goal": f"{dest.lng},{dest.lat}",
         }
+        from app.quota import quota_store
+
+        if not quota_store.allow("naver.directions"):
+            # 무료 한도를 넘기면 직선거리 근사로 떨어진다(요금보다 근사가 낫다).
+            return _straight_line_route(origin, dest, TravelMode.CAR)
+        quota_store.record("naver.directions")
         headers = _directions_headers()
         resp = await self._client.get(_DIRECTIONS_URL, params=params, headers=headers)
         resp.raise_for_status()
