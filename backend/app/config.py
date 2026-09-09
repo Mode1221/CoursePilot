@@ -21,6 +21,10 @@ class Settings(BaseSettings):
     naver_client_id: str = ""
     naver_client_secret: str = ""
 
+    # 폐업·업력 원천: LOCALDATA(지방행정 인허가) CSV 디렉터리.
+    # 무료·무인증이며 시군구 단위 파일을 주 1회 갱신한다. 비우면 필터 미적용.
+    localdata_csv_dir: str = ""
+
     # 리뷰 소스(요약/스코어링 1순위: Google Places). 미설정 시 Mock 폴백
     google_maps_api_key: str = ""
 
