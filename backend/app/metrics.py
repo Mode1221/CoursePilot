@@ -5,8 +5,11 @@
 """
 from __future__ import annotations
 
+import logging
 from collections import defaultdict, deque
 from dataclasses import dataclass, field
+
+logger = logging.getLogger("coursepilot")
 
 SAMPLE_SIZE = 200  # 라우트별 보관하는 최근 지연시간 샘플 수
 
@@ -44,14 +47,32 @@ class MetricsStore:
     def __init__(self) -> None:
         self._routes: dict[str, RouteStat] = defaultdict(RouteStat)
         self._externals: dict[str, ExternalStat] = defaultdict(ExternalStat)
+        self._alerting: set[str] = set()  # 이미 경고를 남긴 항목(로그 폭주 방지)
 
     def record_external(self, name: str, ok: bool) -> None:
-        """외부 호출 1건 기록. ok=False 면 폴백으로 처리된 호출."""
+        """외부 호출 1건 기록. ok=False 면 폴백으로 처리된 호출.
+
+        임계(폴백률)를 넘거나 회복되는 순간에만 로그를 남긴다 —
+        /admin/metrics 를 들여다보지 않아도 눈에 띄게 하기 위함.
+        """
         stat = self._externals[name]
         if ok:
             stat.ok += 1
         else:
             stat.fallback += 1
+        self._log_transition(name, stat)
+
+    def _log_transition(self, name: str, stat: ExternalStat) -> None:
+        samples = stat.ok + stat.fallback
+        if samples < MIN_ALERT_SAMPLES:
+            return
+        rate = stat.fallback / samples
+        if rate >= FALLBACK_RATE_ALERT and name not in self._alerting:
+            self._alerting.add(name)
+            logger.warning("외부 연동 폴백률 %.0f%% — %s (표본 %d)", rate * 100, name, samples)
+        elif rate < FALLBACK_RATE_ALERT and name in self._alerting:
+            self._alerting.discard(name)
+            logger.info("외부 연동 폴백률 회복 — %s (%.0f%%)", name, rate * 100)
 
     def record(self, key: str, status: int, elapsed_ms: float) -> None:
         stat = self._routes[key]
@@ -105,6 +126,7 @@ class MetricsStore:
     def clear(self) -> None:
         self._routes.clear()
         self._externals.clear()
+        self._alerting.clear()
 
 
 def _alerts(total: int, error_rate: float, externals: list[dict]) -> list[dict]:
