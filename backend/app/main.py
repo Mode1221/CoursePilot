@@ -636,7 +636,8 @@ async def generate(
             popularity_store.bump_many(dropped, weight=-1)
 
         if is_edit and new_ids == old_ids:
-            # 없는 순번·카테고리를 지목하면 아무것도 바뀌지 않는다 → 조용히 넘어가지 않는다
+            # 없는 순번·카테고리를 지목하면 아무것도 바뀌지 않는다 → 알리고 크레딧도 돌려준다
+            user_store.refund_credit(x_user_id)
             ai_text = "요청하신 자리를 찾지 못했어요. 순번(예: 2번째)이나 장소 종류로 다시 말씀해 주세요."
         else:
             ai_text = _ai_reply(
