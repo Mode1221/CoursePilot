@@ -123,6 +123,12 @@ class SafeMapService(MapService):
             return await self._fallback.get_route(origin, dest, mode)
 
 
+def _unvisitable(place: Place) -> bool:
+    from app.adapters.google import is_closed_now
+
+    return is_closed_now(place)
+
+
 class ClosedFilterMapService(MapService):
     """LOCALDATA 로 폐업 장소를 걷어내고 인허가일자(업력)를 붙이는 데코레이터.
 
@@ -139,6 +145,8 @@ class ClosedFilterMapService(MapService):
         try:
             from app.adapters.localdata import get_localdata_registry
 
+            # 이전 조회에서 폐업·휴업으로 확인된 곳은 대장 유무와 무관하게 뺀다.
+            places = [p for p in places if not _unvisitable(p)]
             registry = get_localdata_registry()
             registry.reload_if_stale()
             if not registry.loaded:
