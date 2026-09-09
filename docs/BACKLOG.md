@@ -5,7 +5,6 @@
 ## P0 — 실서비스 개시 필수
 1. **실배포** (🔑)
    - VM(오라클 프리티어/Lightsail) → DNS A레코드(`도메인`, `api.도메인`) → `cp .env.prod.example .env` → `./deploy.sh`.
-   - 결제 원장(`app/payment_ledger.py`)은 인메모리 → 다중 인스턴스·재시작 내구성이 필요하면 DB 테이블로 이전.
    - 파일: `docker-compose.prod.yml`, `Caddyfile`, `deploy.sh`, `docs/DEPLOY.md`.
 2. **외부 연동 실호출 검증** (🔑) — 키 주입 후 각 벤더 응답/엔드포인트 실확인.
    - LLM: `app/pipeline/llm.py`, `app/llm_client.py` (Anthropic Haiku).

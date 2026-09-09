@@ -275,7 +275,7 @@ async def purchase_points(
         expected = req.points * settings.point_price_krw
         if not result.paid or result.amount < expected:
             raise HTTPException(status_code=402, detail="결제가 확인되지 않았습니다")
-        payment_ledger.mark_used(req.imp_uid)
+        payment_ledger.mark_used(req.imp_uid, user_id=user_id, points=req.points)
 
     user = user_store.purchase_points(user_id, req.points)
     if user is None:
