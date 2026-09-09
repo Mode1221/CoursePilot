@@ -111,11 +111,11 @@ async def fill_ratings(
 
 
 async def fill_awareness(places: list[Place], limit: int = AWARENESS_PER_RUN) -> int:
-    """블로그 검색 '건수'로 인지도를 채운다(원문·스니펫은 저장하지 않는다)."""
+    """블로그 검색으로 인지도(건수)와 사실 태그를 함께 채운다(원문 미저장)."""
     import httpx
 
-    from app.adapters.naver import blog_mention_count
     from app.config import settings
+    from app.reviews.fact_tags import blog_signals, tags_from_snippets
 
     if not settings.naver_client_id:
         return 0
@@ -123,15 +123,20 @@ async def fill_awareness(places: list[Place], limit: int = AWARENESS_PER_RUN) ->
     if not targets:
         return 0
     async with httpx.AsyncClient(timeout=10) as client:
-        counts = await asyncio.gather(
-            *(blog_mention_count(client, p.name) for p in targets),
-            return_exceptions=True,
+        results = await asyncio.gather(
+            *(blog_signals(client, p.name) for p in targets), return_exceptions=True
         )
     filled = 0
-    for place, count in zip(targets, counts, strict=False):
-        if isinstance(count, int):
-            place.blog_mentions = count
-            filled += 1
+    for place, result in zip(targets, results, strict=False):
+        if not isinstance(result, tuple):
+            continue
+        total, snippets = result
+        if total is None:
+            continue
+        place.blog_mentions = total
+        # 스니펫은 태그만 남기고 버린다(원문 저장 금지).
+        place.fact_tags, place.caution_tags = tags_from_snippets(snippets)
+        filled += 1
     return filled
 
 

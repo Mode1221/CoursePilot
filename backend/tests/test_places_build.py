@@ -147,18 +147,22 @@ async def test_한_사이클을_돌면_리포트가_나온다(monkeypatch, hours
     assert report.districts == [DISTRICTS[0].name]
 
 
-async def test_인지도는_건수만_채운다(monkeypatch):
+async def test_인지도와_사실_태그를_한_번에_채운다(monkeypatch):
     from app.batch.places_build import fill_awareness
 
     monkeypatch.setattr("app.config.settings.naver_client_id", "id")
 
-    async def fake_count(client, query):
-        return 1234 if query == "가게" else None
+    async def fake_signals(client, query, limit=10):
+        if query != "가게":
+            return None, []
+        return 1234, ["주차 가능하고 단체 가능한 곳", "주차장 넉넉해요 룸 있음"]
 
-    monkeypatch.setattr("app.adapters.naver.blog_mention_count", fake_count)
+    monkeypatch.setattr("app.reviews.fact_tags.blog_signals", fake_signals)
     places = [_place("p1"), _place("p2", name="다른가게")]
     assert await fill_awareness(places) == 1
-    assert places[0].blog_mentions == 1234 and places[1].blog_mentions is None
+    assert places[0].blog_mentions == 1234
+    assert "주차" in places[0].fact_tags
+    assert places[1].blog_mentions is None
 
 
 async def test_네이버_키가_없으면_인지도를_건너뛴다(monkeypatch):

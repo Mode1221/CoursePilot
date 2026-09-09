@@ -27,6 +27,8 @@ class Place(BaseModel):
     category_code: str | None = None  # 카카오 category_group_code (FD6/CE7/AT4/CT1 …)
     rating_count: int | None = None  # 집계 평점의 표본 수(N<30 이면 신뢰하지 않음)
     tour_listed: bool = False  # 관광·문화 공식 등재(TourAPI 등)
+    fact_tags: list[str] = Field(default_factory=list)  # 주차·단체석 등 '가능' 사실 태그
+    caution_tags: list[str] = Field(default_factory=list)  # '주의' 사실 태그(원문은 저장하지 않음)
     blog_mentions: int | None = None  # 블로그 검색 결과 건수 = 인지도(원문은 저장하지 않음)
     opened_on: date | None = None  # 인허가일자(LOCALDATA). 업력 스코어링용
     google_place_id: str | None = None
