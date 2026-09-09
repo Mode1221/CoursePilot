@@ -97,3 +97,26 @@ def test_NCP_키가_없으면_개발자센터_키로_폴백(monkeypatch):
     monkeypatch.setattr(settings, "naver_client_id", "dev-id")
     monkeypatch.setattr(settings, "naver_client_secret", "dev-secret")
     assert _directions_headers()["X-NCP-APIGW-API-KEY-ID"] == "dev-id"
+
+
+def test_점심시간이_빠진_표기는_하루_전체로_본다():
+    from app.adapters.tourapi import parse_break
+
+    assert parse_hours("09:00 ~ 12:00, 13:00 ~ 18:00") == ("09:00", "18:00")
+    assert parse_break("09:00 ~ 12:00, 13:00 ~ 18:00") == ("12:00", "13:00")
+
+
+def test_구간이_하나면_쉬는_시간은_없다():
+    from app.adapters.tourapi import parse_break
+
+    assert parse_break("09:00~18:00") is None
+
+
+async def test_쉬는_시간도_장소에_담는다():
+    client = _Fake(
+        {"contentid": "1", "contenttypeid": "14"},
+        {"usetimeculture": "10:00 ~ 12:30, 14:00 ~ 19:00"},
+    )
+    place = await client.enrich(_place())
+    assert (place.open_time, place.close_time) == (time(10, 0), time(19, 0))
+    assert (place.break_start, place.break_end) == (time(12, 30), time(14, 0))

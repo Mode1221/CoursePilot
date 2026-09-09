@@ -31,15 +31,35 @@ CONTENT_TYPE_INTRO_FIELDS: dict[str, tuple[str, str]] = {
 _HOURS_RE = re.compile(r"(\d{1,2}):(\d{2})\s*[~-]\s*(\d{1,2}):(\d{2})")
 
 
+def _spans(text: str | None) -> list[tuple[str, str]]:
+    """자유서술에서 시각 구간을 모두 뽑는다(잘못된 시각은 버린다)."""
+    spans: list[tuple[str, str]] = []
+    for match in _HOURS_RE.finditer(text or ""):
+        oh, om, ch, cm = (int(g) for g in match.groups())
+        if oh > 23 or ch > 24 or om > 59 or cm > 59:
+            continue
+        spans.append((f"{oh:02d}:{om:02d}", f"{ch % 24:02d}:{cm:02d}"))
+    return spans
+
+
 def parse_hours(text: str | None) -> tuple[str, str] | None:
-    """자유서술 이용시간에서 '개장~마감'을 뽑는다. 못 뽑으면 None."""
-    match = _HOURS_RE.search(text or "")
-    if not match:
+    """자유서술 이용시간에서 '개장~마감'을 뽑는다. 못 뽑으면 None.
+
+    "09:00~12:00, 13:00~18:00" 처럼 점심시간이 빠진 표기는 첫 구간만 보면
+    오후 관람이 통째로 사라진다 → 첫 개장~마지막 마감으로 본다.
+    """
+    spans = _spans(text)
+    if not spans:
         return None
-    oh, om, ch, cm = (int(g) for g in match.groups())
-    if oh > 23 or ch > 24 or om > 59 or cm > 59:
+    return spans[0][0], spans[-1][1]
+
+
+def parse_break(text: str | None) -> tuple[str, str] | None:
+    """구간이 둘로 나뉘어 있으면 그 사이가 쉬는 시간이다."""
+    spans = _spans(text)
+    if len(spans) < 2 or spans[0][1] >= spans[1][0]:
         return None
-    return f"{oh:02d}:{om:02d}", f"{ch % 24:02d}:{cm:02d}"
+    return spans[0][1], spans[1][0]
 
 
 class TourApiClient:
@@ -98,12 +118,16 @@ class TourApiClient:
         fields = CONTENT_TYPE_INTRO_FIELDS.get(content_type)
         if not intro or not fields:
             return place
-        hours = parse_hours(intro.get(fields[0]))
+        raw = intro.get(fields[0])
+        hours = parse_hours(raw)
         if hours:
             from datetime import time
 
             open_h, close_h = (time.fromisoformat(h) for h in hours)
             place.open_time, place.close_time = open_h, close_h
+            rest = parse_break(raw)
+            if rest:
+                place.break_start, place.break_end = (time.fromisoformat(h) for h in rest)
             place.hours_unverified = False
         return place
 
