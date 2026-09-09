@@ -11,8 +11,10 @@ from app.schemas import PlanConstraints, TravelMode
 
 # "5시간"의 '시'를 시각으로 오인하지 않도록 뒤에 '간'이 오면 제외.
 # 분("1시 30분") / 반("1시반") 도 함께 캡처.
+# "11시 전에 끝내자"의 11시는 시작이 아니라 종료 시각이므로 여기서는 잡지 않는다.
 _HOUR_RE = re.compile(
     r"(오전|오후|아침|점심|낮|저녁|밤|새벽)?\s*(\d{1,2})\s*시(?!간)\s*(?:(\d{1,2})\s*분|(반))?"
+    r"(?!\s*(?:반\s*)?(?:전에는|전에|이전에|까지))"
 )
 # 시각 없이 시간대만 말한 경우("저녁에 홍대")의 기본 시작 시각
 _TIME_OF_DAY = {"새벽": 6, "아침": 9, "점심": 12, "낮": 13, "오후": 14, "저녁": 18, "밤": 20}
@@ -50,6 +52,11 @@ _PARTY_RE = re.compile(r"(\d{1,2})\s*(?:명|인)(?!분|당)")
 # "술집 빼고", "매운 거 말고" 처럼 제외를 뜻하는 표현
 _EXCLUDE_RE = re.compile(
     r"([가-힣]{1,6}?)\s*(?:은|는|을|를|이|가|거|건)?\s*(?:빼고|제외하고|제외|말고|없이)"
+)
+# "웨이팅 긴 데는 싫어", "시끄러운 곳은 별로" — 싫다고 말한 성격도 제외 조건이다
+_DISLIKE_RE = re.compile(
+    r"([가-힣]{2,8})\s*(?:[가-힣]{1,3})?\s*(?:데|곳|집|장소)\s*(?:는|은|이|가)?\s*"
+    r"(?:싫어|싫고|싫다|별로|피하고|안\s*갔으면|안\s*좋아)"
 )
 # "강남역에서 출발", "홍대입구역에서 만나" 처럼 출발지를 지정하는 표현
 _START_PLACE_RE = re.compile(
@@ -193,8 +200,10 @@ _WEEKDAY_RE = re.compile(r"(다음\s*주|담주|이번\s*주)?\s*([월화수목�
 _MD_RE = re.compile(r"(\d{1,2})\s*월\s*(\d{1,2})\s*일")
 _RELATIVE_DAYS = {"오늘": 0, "내일": 1, "낼": 1, "모레": 2, "글피": 3}
 # "11시까지"처럼 시작만 따로 말하고 종료만 "까지"로 붙이는 표현
+# "11시까지", "11시 전에는 끝내고", "10시 반 전에 마무리" — 모두 종료 시각이다
 _END_ONLY_RE = re.compile(
-    r"(오전|오후|아침|점심|낮|저녁|밤|새벽)?\s*(\d{1,2})\s*시(?!간)(?:\s*(\d{1,2})\s*분)?\s*까지"
+    r"(오전|오후|아침|점심|낮|저녁|밤|새벽)?\s*(\d{1,2})\s*시(?!간)(?:\s*(\d{1,2})\s*분|\s*반)?"
+    r"\s*(?:까지|전에는|전에|이전에)"
 )
 # "이번 주말", "주말에" → 다가오는 토요일 (다음 주말이면 한 주 더)
 _WEEKEND_RE = re.compile(r"(다음|담|이번)?\s*(?:주\s*)?주말")
@@ -334,19 +343,21 @@ def parse_constraints(text: str, today: date | None = None) -> PlanConstraints:
         span = (end_h * 60 + end_min) - (start_h * 60)
         c.duration_min = span if span > 0 else span + 24 * 60
 
-    # 범위 표현이 없어도 "…11시까지"만 붙는 경우가 흔하다("6시에 만나서 11시까지")
-    if not rm and c.start_time is not None and c.end_time is None:
+    # 범위 표현이 없어도 "…11시까지"만 붙는 경우가 흔하다("6시에 만나서 11시까지").
+    # 시작 시각을 말하지 않고 끝만 못박는 요청("10시 전에 마무리")도 같은 자리에서 받는다.
+    if not rm and c.end_time is None:
         em = _END_ONLY_RE.search(text)
         if em:
-            start_h = c.start_time.hour
+            start_h = c.start_time.hour if c.start_time else 0
             end_h = _to_24h(int(em.group(2)), em.group(1))
-            end_min = int(em.group(3)) if em.group(3) else 0
+            end_min = int(em.group(3)) if em.group(3) else (30 if "반" in em.group(0) else 0)
             # 마커가 없으면 시작 이후로 해석한다("6시에 만나서 11시까지" = 23시)
             if not em.group(1) and end_h < 12 and end_h + 12 > start_h:
                 end_h += 12
             c.end_time = time(end_h % 24, min(end_min, 59))
-            span = (end_h * 60 + end_min) - (start_h * 60 + c.start_time.minute)
-            c.duration_min = span if span > 0 else span + 24 * 60
+            if c.start_time is not None:
+                span = (end_h * 60 + end_min) - (start_h * 60 + c.start_time.minute)
+                c.duration_min = span if span > 0 else span + 24 * 60
 
     # 소요 시간 → 종료 시각 (N시간 / N시간 반)
     dm = _DURATION_RE.search(text)
@@ -431,6 +442,12 @@ def parse_constraints(text: str, today: date | None = None) -> PlanConstraints:
     seen: list[str] = []
     for m in _EXCLUDE_RE.finditer(text):
         word = _strip_particle(m.group(1))
+        if word and word not in seen:
+            seen.append(word)
+    for m in _DISLIKE_RE.finditer(text):
+        # 조사를 떼지 않는다 — "좁은"의 '은'은 조사가 아니라 어미다("좁"으로 남으면
+        # 엉뚱한 장소까지 걸린다).
+        word = m.group(1).strip()
         if word and word not in seen:
             seen.append(word)
     c.exclude_keywords = seen
