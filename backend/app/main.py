@@ -635,9 +635,13 @@ async def generate(
             dropped = [pid for pid in old_ids if pid not in set(new_ids)]
             popularity_store.bump_many(dropped, weight=-1)
 
-        ai_text = _ai_reply(
-            course, relaxed, needs_confirmation, region_guessed, gen_constraints
-        )
+        if is_edit and new_ids == old_ids:
+            # 없는 순번·카테고리를 지목하면 아무것도 바뀌지 않는다 → 조용히 넘어가지 않는다
+            ai_text = "요청하신 자리를 찾지 못했어요. 순번(예: 2번째)이나 장소 종류로 다시 말씀해 주세요."
+        else:
+            ai_text = _ai_reply(
+                course, relaxed, needs_confirmation, region_guessed, gen_constraints
+            )
         chat_store.append(course_id, "ai", ai_text)
         await broadcast_state(course_id, course.model_dump(mode="json"))
         await broadcast_message(course_id, "ai", ai_text)
