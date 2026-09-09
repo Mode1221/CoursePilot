@@ -60,3 +60,26 @@ def test_리뷰가_많으면_기준이_엄격해진다():
     assert _threshold(9) == 1
     assert _threshold(10) == 2
     assert _threshold(20) == 4
+
+
+def test_모임_코스에_중요한_축을_뽑는다():
+    from app.reviews.aspects import extract_aspects
+
+    pros, _ = extract_aspects(
+        [
+            "단체 가능해서 회식하기 좋아요",
+            "한강뷰가 최고예요",
+            "재방문 의사 있어요",
+            "반려동물 동반 가능해서 좋았어요",
+        ]
+    )
+    assert {"단체석", "뷰", "재방문", "반려동물"} <= set(pros)
+
+
+def test_부정_표현도_조사와_함께_인식한다():
+    from app.reviews.aspects import extract_aspects
+
+    _, cons = extract_aspects(
+        ["룸 없어서 아쉬웠어요", "애견 동반 불가라 아쉬움", "뷰가 별로", "다시는 안 갈래요"]
+    )
+    assert {"단체석", "반려동물", "뷰", "재방문"} <= set(cons)
