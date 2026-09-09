@@ -110,4 +110,17 @@ describe("PlaceDetailModal", () => {
     getByText(/년차/);
     getByText(/영업시간 확인 필요/);
   });
+
+  it("브레이크 타임을 영업시간 옆에 보여준다", async () => {
+    relatedPlaces.mockResolvedValue([]);
+    const withBreak: Place = {
+      ...place,
+      open_time: "10:00:00",
+      close_time: "22:00:00",
+      break_start: "15:00:00",
+      break_end: "17:00:00",
+    };
+    const { getByText } = render(<PlaceDetailModal place={withBreak} onClose={() => {}} />);
+    await waitFor(() => getByText(/브레이크 15:00~17:00/));
+  });
 });

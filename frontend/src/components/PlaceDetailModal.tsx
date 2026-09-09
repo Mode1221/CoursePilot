@@ -148,6 +148,10 @@ export default function PlaceDetailModal({
         {(place.open_time || place.close_time) && (
           <div style={{ fontSize: "var(--fs-sm)", color: "var(--text-muted)" }}>
             영업 {place.open_time?.slice(0, 5)}~{place.close_time?.slice(0, 5)}
+            {/* 브레이크는 헛걸음으로 이어지는 정보라 영업시간 옆에 붙인다 */}
+            {place.break_start && place.break_end && (
+              <> · 브레이크 {place.break_start.slice(0, 5)}~{place.break_end.slice(0, 5)}</>
+            )}
           </div>
         )}
         {place.hours_unverified && (
