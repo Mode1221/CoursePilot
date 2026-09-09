@@ -19,7 +19,7 @@ _ORDINALS = {
 }
 # "다른 곳으로", "딴 데로" 처럼 동사 없이 교체를 뜻하는 표현도 받는다.
 _REPLACE_RE = re.compile(r"(바꿔|바꾸|교체|변경|다른\s*(?:곳|데|장소)|딴\s*(?:곳|데))")
-_REMOVE_RE = re.compile(r"(빼|삭제|제거|없애)")
+_REMOVE_RE = re.compile(r"(빼|삭제|제거|없애|지워|지우|치워)")
 # "카페 하나 추가해줘", "술집 넣어줘" → 전체 재생성 대신 한 칸만 덧붙인다
 _ADD_RE = re.compile(r"(추가|넣어|붙여|더\s*가|하나\s*더)")
 # 교체 대상 키워드: "빵집으로", "카페로" 등 조사 앞 명사
@@ -49,17 +49,26 @@ _CATEGORY_WORDS = {
 }
 
 
+def _find_category(text: str) -> tuple[str, str]:
+    """카테고리 지목 표현을 찾는다. 한 글자 표현("바")이 "바꿔"에 걸리지 않도록
+    앞뒤가 다른 한글이 아닌 경우만 인정한다."""
+    for word, cat in _CATEGORY_WORDS.items():
+        if re.search(rf"(?<![가-힣]){re.escape(word)}(?![가-힣])", text):
+            return word, cat
+    return "", ""
+
+
 def parse_edit(text: str) -> EditCommand:
     idx = _find_index(text)
     match = ""
     # 추가는 순서 지목이 없어도 성립한다(맨 뒤에 덧붙임)
     if _ADD_RE.search(text) and not _REPLACE_RE.search(text) and not _REMOVE_RE.search(text):
-        keyword = next((w for w in _CATEGORY_WORDS if w in text), "")
+        keyword, cat = _find_category(text)
         if keyword:
-            return EditCommand(action="add", keyword=keyword, match=_CATEGORY_WORDS[keyword])
+            return EditCommand(action="add", keyword=keyword, match=cat)
     if idx < 0 and idx != LAST_INDEX:
         # 순서를 못 찾았으면 "카페 빼줘"처럼 카테고리로 지목했는지 본다
-        match = next((cat for word, cat in _CATEGORY_WORDS.items() if word in text), "")
+        _, match = _find_category(text)
         if not match:
             return EditCommand(action="none")
         idx = MATCH_INDEX

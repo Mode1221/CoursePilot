@@ -37,3 +37,18 @@ async def test_마지막_삭제는_끝_항목을_지운다():
     course = _course()
     items = await apply_edit(course, parse_edit("마지막 빼줘"), MockMapService())
     assert [it.place.id for it in items] == ["p0", "p1"]
+
+
+def test_지워_치워도_삭제로_인식한다():
+    assert parse_edit("세 번째 지워").action == "remove"
+    assert parse_edit("세 번째 지워").index == 2
+    assert parse_edit("첫번째 치워줘").action == "remove"
+
+
+def test_순서_바꿔줘는_바_카테고리로_오인하지_않는다():
+    cmd = parse_edit("순서 바꿔줘")
+    assert cmd.action == "none"
+
+
+def test_한글자_카테고리는_단독일_때만_인식한다():
+    assert parse_edit("바 빼줘").match == "bar"
