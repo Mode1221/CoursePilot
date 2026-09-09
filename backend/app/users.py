@@ -14,7 +14,6 @@ from pydantic import BaseModel
 
 from app.db import is_ready
 
-
 MAX_REFERRAL_BONUS = 10  # 한 계정이 레퍼럴로 받을 수 있는 보너스 횟수 상한
 
 
