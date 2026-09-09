@@ -113,3 +113,46 @@ def _xml_items(xml_text: str) -> list[dict]:
 def drop_finished(performances: list[Performance], day: date) -> list[Performance]:
     """코스 날짜에 하지 않는 공연·전시를 후보에서 제거한다."""
     return [p for p in performances if p.runs_on(day)]
+
+
+# 이 표기가 카테고리에 있으면 "기간이 있는 장소"로 보고 일정을 확인한다.
+SCHEDULED_CATEGORY_HINTS = ("전시", "공연", "극장", "연극", "뮤지컬", "콘서트", "갤러리")
+
+
+def needs_schedule_check(place) -> bool:
+    """상시 영업이 아니라 기간제로 운영될 가능성이 있는 장소인지."""
+    haystack = f"{place.category or ''} {place.name}"
+    return any(hint in haystack for hint in SCHEDULED_CATEGORY_HINTS)
+
+
+def _norm(text: str) -> str:
+    return "".join((text or "").split()).lower()
+
+
+def is_running(place, performances: list[Performance], day: date) -> bool:
+    """그 장소에서 코스 날짜에 진행 중인 공연·전시가 있는지.
+
+    일정 목록에 그 장소가 아예 없으면 판단하지 않는다(True) — KOPIS 에 없는
+    소규모 전시장까지 "안 한다"고 잘라내면 후보가 과도하게 준다.
+    """
+    name = _norm(place.name)
+    listed = [p for p in performances if _norm(p.venue) and _norm(p.venue) in name or name in _norm(p.venue)]
+    if not listed:
+        return True
+    return any(p.runs_on(day) for p in listed)
+
+
+async def drop_finished_places(places: list, day: date, client: CultureClient | None = None) -> list:
+    """코스 날짜에 아무것도 하지 않는 공연·전시 장소를 뺀다."""
+    client = client or CultureClient()
+    targets = [p for p in places if needs_schedule_check(p)]
+    if not client.enabled or not targets:
+        return places
+    performances = await client.performances(day)
+    if not performances:
+        return places  # 일정을 못 받으면 판단하지 않는다(폴백 유지)
+    return [
+        p
+        for p in places
+        if not needs_schedule_check(p) or is_running(p, performances, day)
+    ]

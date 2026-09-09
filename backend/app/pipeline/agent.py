@@ -7,7 +7,7 @@ from __future__ import annotations
 import asyncio
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
-from datetime import UTC, datetime, time
+from datetime import UTC, date, datetime, time
 
 from app.adapters.map_service import MapService
 from app.constants import DEFAULT_REGION
@@ -189,7 +189,27 @@ async def _verify_hours(
         await fill_missing_hours(places)
     except Exception:
         pass
+    await _drop_finished_shows(timeline, constraints)
     return await _drop_closed(timeline, constraints, map_service)
+
+
+async def _drop_finished_shows(
+    timeline: list[TimelineItem], constraints: PlanConstraints | None
+) -> None:
+    """기간이 끝난 전시·공연은 그날 갈 수 없다 — 휴무와 같이 표시해 둔다."""
+    if constraints is None:
+        return
+    day = constraints.plan_date or date.today()
+    try:
+        from app.adapters.culture import drop_finished_places
+
+        places = [item.place for item in timeline]
+        running = {p.id for p in await drop_finished_places(places, day)}
+        for place in places:
+            if place.id not in running:
+                place.closed_that_day = True
+    except Exception:
+        pass
 
 
 async def _drop_closed(
