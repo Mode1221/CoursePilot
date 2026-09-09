@@ -1,11 +1,17 @@
-import { cleanup, render, screen } from "@testing-library/react";
+import { cleanup, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import MapPanel from "./MapPanel";
 import { useCourseStore } from "@/store/courseStore";
 
 vi.mock("@/services/api", () => ({
-  api: { searchPlaces: vi.fn(), addPlace: vi.fn(), setItems: vi.fn(), reorder: vi.fn() },
+  api: {
+    searchPlaces: vi.fn(),
+    addPlace: vi.fn(),
+    setItems: vi.fn(),
+    reorder: vi.fn(),
+    courseReasons: vi.fn(),
+  },
 }));
 
 function setCourse(overrides: Record<string, unknown> = {}) {
@@ -43,7 +49,11 @@ function setCourse(overrides: Record<string, unknown> = {}) {
 }
 
 describe("MapPanel", () => {
-  beforeEach(() => setCourse());
+  beforeEach(async () => {
+    const { api } = await import("@/services/api");
+    vi.mocked(api.courseReasons).mockResolvedValue({ reasons: {} } as never);
+    setCourse();
+  });
   afterEach(cleanup);
 
   it("타임라인 순번·시간과 구간 이동수단을 보여준다", () => {
@@ -63,4 +73,16 @@ describe("MapPanel", () => {
     expect(screen.queryByLabelText("카페 A 삭제")).toBeNull();
     expect(screen.getAllByLabelText(/지도에서 보기|지도에서 보기/).length).toBeGreaterThan(0);
   });
+  it("장소 선택 근거를 카드에 보여준다", async () => {
+    const { api } = await import("@/services/api");
+    vi.mocked(api.courseReasons).mockResolvedValue({
+      reasons: { p1: ["'조용한' 조건에 맞아요", "평점 4.6"] },
+    } as never);
+    setCourse();
+    render(<MapPanel />);
+    await waitFor(() =>
+      expect(screen.getByText("'조용한' 조건에 맞아요 · 평점 4.6")).toBeTruthy(),
+    );
+  });
+
 });
