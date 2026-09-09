@@ -44,7 +44,7 @@ async def test_카카오_검색_성공을_기록한다():
 async def test_카카오_검색_실패를_기록하고_올린다():
     service = KakaoLocalService()
     service._client = httpx.AsyncClient(transport=_Transport(status=500))
-    with pytest.raises(Exception):
+    with pytest.raises(httpx.HTTPStatusError):
         await service._keyword_page("성수", 1)
     assert _ext("kakao.keyword")["fallback"] == 1
 
