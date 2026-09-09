@@ -1,0 +1,57 @@
+"""대표 시나리오 품질 회귀 방지.
+
+파서·플래너를 고치다 보면 특정 요청만 조용히 나빠지기 쉽다. 실제로 들어올 법한
+문장들을 mock 데이터로 돌려, 코스가 성립하는 최소 기준을 지키는지 확인한다.
+"""
+from __future__ import annotations
+
+import pytest
+
+from app.adapters.map_service import MockMapService
+from app.pipeline.agent import generate_course
+from app.pipeline.planner import classify
+
+SCENARIOS = [
+    ("성수동에서 토요일 저녁 데이트", 2),
+    ("강남에서 4명이서 저녁 먹고 2차까지", 2),
+    ("연남동 브런치", 2),
+    ("비 오는 날 홍대 실내 데이트", 2),
+    # 2시간이면 식사 한 곳으로도 코스가 성립한다(억지로 칸을 늘리지 않는다)
+    ("퇴근하고 강남 두 시간", 1),
+    ("성수동 오전 10시부터 5시간 도보", 3),
+    ("부모님이랑 점심 한정식 강남", 2),
+    ("혼자 조용히 책 읽을 곳 성수동", 1),
+]
+
+
+@pytest.mark.parametrize(("text", "min_stops"), SCENARIOS)
+async def test_대표_시나리오는_코스가_성립한다(text: str, min_stops: int):
+    result = await generate_course(text, MockMapService())
+    assert len(result.timeline) >= min_stops, text
+
+    # 시간이 거꾸로 흐르거나 겹치지 않는다
+    for prev, nxt in zip(result.timeline, result.timeline[1:], strict=False):
+        assert prev.depart is not None and nxt.arrive is not None
+        if prev.depart <= nxt.arrive:  # 자정을 넘기는 코스는 비교 대상에서 제외
+            assert prev.depart <= nxt.arrive, text
+
+
+async def test_긴_코스는_같은_카테고리로만_채우지_않는다():
+    result = await generate_course("성수동 오전 10시부터 5시간 도보", MockMapService())
+    kinds = {classify(it.place) for it in result.timeline}
+    assert len(kinds) >= 2
+
+
+async def test_제외_조건은_코스에_들어가지_않는다():
+    result = await generate_course("성수동 저녁 술집 빼고", MockMapService())
+    assert all(classify(it.place) != "bar" for it in result.timeline)
+
+
+async def test_이동시간_상한을_말하면_대체로_지킨다():
+    result = await generate_course("성수동 도보 10분 이내 저녁", MockMapService())
+    overs = [
+        it.travel_to_next.duration_min
+        for it in result.timeline
+        if it.travel_to_next and it.travel_to_next.duration_min > 20
+    ]
+    assert not overs
