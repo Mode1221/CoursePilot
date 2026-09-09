@@ -45,9 +45,11 @@ def test_지워_치워도_삭제로_인식한다():
     assert parse_edit("첫번째 치워줘").action == "remove"
 
 
-def test_순서_바꿔줘는_바_카테고리로_오인하지_않는다():
-    cmd = parse_edit("순서 바꿔줘")
-    assert cmd.action == "none"
+def test_순서_바꿔줘는_순서_재배치로_인식한다():
+    assert parse_edit("순서 바꿔줘").action == "reorder"
+    assert parse_edit("동선 좀 최적화해줘").action == "reorder"
+    # 카테고리(bar)로 오인하지 않는다
+    assert parse_edit("순서 바꿔줘").match == ""
 
 
 def test_한글자_카테고리는_단독일_때만_인식한다():

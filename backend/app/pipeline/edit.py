@@ -22,13 +22,18 @@ _REPLACE_RE = re.compile(r"(바꿔|바꾸|교체|변경|다른\s*(?:곳|데|장�
 _REMOVE_RE = re.compile(r"(빼|삭제|제거|없애|지워|지우|치워)")
 # "카페 하나 추가해줘", "술집 넣어줘" → 전체 재생성 대신 한 칸만 덧붙인다
 _ADD_RE = re.compile(r"(추가|넣어|붙여|더\s*가|하나\s*더)")
+# "순서 바꿔줘", "동선 정리해줘" → 장소는 그대로 두고 방문 순서만 다시 짠다
+_REORDER_RE = re.compile(
+    r"(?:순서|순번|동선)\s*(?:를|을)?\s*(?:[가-힣]{0,3}\s*)?"
+    r"(?:바꿔|바꾸|변경|정리|최적화|다시)"
+)
 # 교체 대상 키워드: "빵집으로", "카페로" 등 조사 앞 명사
 _TARGET_RE = re.compile(r"([가-힣A-Za-z]+?)(?:으로|로)\s*(?:바꿔|교체|변경)")
 
 
 @dataclass
 class EditCommand:
-    action: str  # "replace" | "remove" | "add" | "none"
+    action: str  # "replace" | "remove" | "add" | "reorder" | "none"
     index: int = -1  # 0-based
     keyword: str = ""
     match: str = ""  # 순서 대신 이름/카테고리로 지목한 경우("카페 빼줘")
@@ -59,6 +64,9 @@ def _find_category(text: str) -> tuple[str, str]:
 
 
 def parse_edit(text: str) -> EditCommand:
+    # 순서 재배치는 대상 지목이 필요 없다(코스 전체가 대상)
+    if _REORDER_RE.search(text):
+        return EditCommand(action="reorder")
     idx = _find_index(text)
     match = ""
     # 추가는 순서 지목이 없어도 성립한다(맨 뒤에 덧붙임)
@@ -107,6 +115,8 @@ async def apply_edit(
 ) -> list[TimelineItem]:
     """편집 명령을 적용해 갱신된 타임라인을 반환. 전체 동선 재계산."""
     items = list(course.items)
+    if cmd.action == "reorder":
+        return await _apply_reorder(items, map_service)
     if cmd.action == "add":
         return await _apply_add(course, items, cmd, map_service)
     if cmd.index == MATCH_INDEX:
@@ -143,6 +153,19 @@ async def apply_edit(
     start = items[0].arrive if items and items[0].arrive else DEFAULT_START_TIME
     mode = _infer_mode(items)
     return await recompute([it.place for it in items], start, mode, map_service)
+
+
+async def _apply_reorder(
+    items: list[TimelineItem], map_service: MapService
+) -> list[TimelineItem]:
+    """장소는 그대로 두고 이동거리가 짧아지도록 방문 순서만 다시 짠다."""
+    if len(items) <= 2:
+        return items
+    from app.pipeline.planner import route_order
+
+    ordered = route_order([it.place for it in items])
+    start = items[0].arrive or DEFAULT_START_TIME
+    return await recompute(ordered, start, _infer_mode(items), map_service)
 
 
 async def _apply_add(
