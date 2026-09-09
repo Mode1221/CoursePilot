@@ -79,38 +79,68 @@ def _tag_summary(reviews: list[str]) -> str:
 async def summarize_reviews(reviews: list[str]) -> str:
     """검색된 비협찬 리뷰를 요약. 2차 LLM 필터로 협찬 의심 제외 지시 (8장).
 
+    프로바이더는 조건 분해와 같은 설정(`llm_provider`)을 따른다 — 예전에는
+    OpenAI 만 봐서, Anthropic 키만 넣은 배포에서는 항상 태그 요약으로 떨어졌다.
     키가 없거나 호출이 실패하면 원문 대신 애스펙트 태그 요약으로 폴백한다.
     """
     if not reviews:
         return "참고할 리뷰가 없습니다."
 
     from app.config import settings
-    from app.llm_client import get_openai_client
     from app.metrics import metrics_store
+
+    try:
+        if settings.llm_provider == "openai":
+            content = await _summarize_openai(reviews)
+        else:
+            content = await _summarize_anthropic(reviews)
+    except Exception:
+        content = None
+    metrics_store.record_external("llm.review_summary", ok=bool(content))
+    return content or _tag_summary(reviews)
+
+
+_SUMMARY_SYSTEM = (
+    "리뷰를 2~3문장으로 요약. 협찬/체험단 의심 리뷰는 제외하고 참고용으로만 정리."
+)
+
+
+def _joined(reviews: list[str]) -> str:
+    return "\n".join(f"- {r}" for r in reviews)
+
+
+async def _summarize_anthropic(reviews: list[str]) -> str | None:
+    from app.config import settings
+    from app.llm_client import get_anthropic_client
+
+    client = get_anthropic_client()
+    if client is None:
+        return None
+    resp = await client.messages.create(
+        model=settings.anthropic_model,
+        max_tokens=512,
+        system=_SUMMARY_SYSTEM,
+        messages=[{"role": "user", "content": _joined(reviews)}],
+    )
+    parts = [b.text for b in resp.content if getattr(b, "type", "") == "text"]
+    return "\n".join(parts).strip() or None
+
+
+async def _summarize_openai(reviews: list[str]) -> str | None:
+    from app.config import settings
+    from app.llm_client import get_openai_client
 
     client = get_openai_client()
     if client is None:
-        metrics_store.record_external("llm.review_summary", ok=False)
-        return _tag_summary(reviews)
-
-    try:
-        joined = "\n".join(f"- {r}" for r in reviews)
-        resp = await client.chat.completions.create(
-            model=settings.openai_model,
-            messages=[
-                {
-                    "role": "system",
-                    "content": "리뷰를 2~3문장으로 요약. 협찬/체험단 의심 리뷰는 제외하고 참고용으로만 정리.",
-                },
-                {"role": "user", "content": joined},
-            ],
-        )
-        content = resp.choices[0].message.content
-        metrics_store.record_external("llm.review_summary", ok=bool(content))
-        return content or _tag_summary(reviews)
-    except Exception:
-        metrics_store.record_external("llm.review_summary", ok=False)
-        return _tag_summary(reviews)
+        return None
+    resp = await client.chat.completions.create(
+        model=settings.openai_model,
+        messages=[
+            {"role": "system", "content": _SUMMARY_SYSTEM},
+            {"role": "user", "content": _joined(reviews)},
+        ],
+    )
+    return resp.choices[0].message.content
 
 
 def dedupe(contents: list[str]) -> list[str]:
