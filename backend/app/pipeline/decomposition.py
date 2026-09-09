@@ -71,6 +71,12 @@ _STRICT_MODE_RE = re.compile(r"(?:도보|걸어서|차량|대중교통)\s*로?�
 # "비 온대", "우천", "장마" → 실내 위주 대체 코스
 _RAIN_RE = re.compile(r"비\s*(?:와|와서|온다|온대|올|오면|오는|맞기)|우천|장마|폭우|비올")
 _MODE_MAP = {"도보": TravelMode.WALK, "차량": TravelMode.CAR, "대중교통": TravelMode.TRANSIT}
+# 시간 표현 없이 수단만 말하는 경우("지하철로 이동", "택시 타고"). 긴 표현부터 본다.
+_MODE_WORD_RES: list[tuple[re.Pattern[str], TravelMode]] = [
+    (re.compile(r"대중\s*교통|지하철|전철|버스\s*(?:로|타)|차\s*없이|뚜벅이"), TravelMode.TRANSIT),
+    (re.compile(r"자차|자가용|차\s*(?:로|끌|가지)|택시|드라이브|차량"), TravelMode.CAR),
+    (re.compile(r"도보|걸어서|걸어\s*갈|걸을"), TravelMode.WALK),
+]
 _SOFT_KEYWORDS = [
     "조용한", "활기찬", "비건", "채식", "분위기", "가성비", "뷰", "데이트",
     "루프탑", "감성", "이색", "브런치", "노키즈", "반려동물", "주차", "야경", "핫플",
@@ -335,6 +341,11 @@ def parse_constraints(text: str, today: date | None = None) -> PlanConstraints:
                 break
 
     # 이동수단 + 이동시간 상한
+    # 수단만 말한 경우도 반영한다("지하철로", "택시 타고") — 예전엔 전부 도보였다
+    for rx, mode in _MODE_WORD_RES:
+        if rx.search(text):
+            c.travel_mode = mode
+            break
     tm = _TRAVEL_RE.search(text)
     if tm:
         if tm.group(1) in _MODE_MAP:
