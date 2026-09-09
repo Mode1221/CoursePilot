@@ -226,13 +226,16 @@ export default function MapPanel({ readOnly = false }: { readOnly?: boolean }) {
 
 /** 장소 수 · 총 소요시간 · 이동시간 한 줄 요약. */
 function CourseSummary({ course }: { course: Parameters<typeof courseStats>[0] }) {
-  const { places, travelMin, totalMin, costPerPerson, costKnown } = courseStats(course);
+  const { places, travelMin, totalMin, costPerPerson, costKnown, costEstimated } = courseStats(course);
   const parts = [`${places}곳`];
   if (totalMin > 0) parts.push(`총 ${formatDuration(totalMin)}`);
   if (travelMin > 0) parts.push(`이동 ${formatDuration(travelMin)}`);
   const cost = formatCost(costPerPerson);
   // 가격을 모르는 장소가 섞여 있으면 "이상"으로 과소평가임을 밝힌다
-  if (cost) parts.push(`1인 ${cost}${costKnown < places ? " 이상" : ""}`);
+  if (cost) {
+    const suffix = costKnown < places ? " 이상" : costEstimated ? " 예상" : "";
+    parts.push(`1인 ${cost}${suffix}`);
+  }
   return (
     <span style={{ color: "var(--text-muted)", fontSize: "var(--fs-sm)" }}>{parts.join(" · ")}</span>
   );

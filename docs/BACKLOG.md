@@ -36,6 +36,7 @@
 - 데이터 원천: LOCALDATA 폐업 필터 + 인허가일자 업력(`adapters/localdata.py`, `ClosedFilterMapService`)
 - 데이터 원천: 영업시간 LLM 웹검색 폴백(최후 수단·확인 필요 표시), 공연·전시 일정(KOPIS) 기간 필터
 - 운영: 주기 갱신 배치(`scripts/refresh_places.py`) — 폐업 주1회·영업시간 30일·평점 90일, 활성 집합 기준
+- UI: 코스 합계 비용에 추정 포함 여부 표시("1인 4만원 예상")
 - 예산: 검색 API가 주지 않는 가격을 카테고리 기반으로 추정(추정 표시), 예산 제약 실동작
 - 장소: 카카오 검색에 지역 좌표·반경(3km) 적용 — 타지역 결과 혼입 제거
 - 운영: LOCALDATA CSV 자동 내려받기(`scripts/fetch_localdata.py`)
