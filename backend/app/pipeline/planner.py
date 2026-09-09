@@ -250,9 +250,24 @@ def desired_slots(constraints: PlanConstraints) -> list[str]:
         5: ["meal", "activity", "cafe", "meal", last],
         6: ["meal", "activity", "cafe", "meal", "activity", last],
     }[n]
-    return _replace_excluded(
-        _shift_meal_to_mealtime(base, constraints.start_time), excluded_slots(constraints)
-    )
+    slots = _shift_meal_to_mealtime(base, constraints.start_time)
+    return _replace_excluded(_lead_with_keyword(slots, constraints), excluded_slots(constraints))
+
+
+def _lead_with_keyword(slots: list[str], constraints: PlanConstraints) -> list[str]:
+    """요청 키워드가 성격을 지목했으면 그 칸을 앞으로 세운다.
+
+    "반려동물 동반 카페"인데 시간대 때문에 식당부터 시작하면 요청과 어긋난다.
+    이미 그 성격이 첫 칸이면 그대로 둔다.
+    """
+    wanted = keyword_slot(constraints)
+    if not wanted or not slots or slots[0] == wanted:
+        return slots
+    if wanted in slots:  # 순서만 당긴다
+        rest = list(slots)
+        rest.remove(wanted)
+        return [wanted, *rest]
+    return [wanted, *slots[1:]]
 
 
 # 식사 시간대(현지 관습): 점심 11~14시, 저녁 17~21시

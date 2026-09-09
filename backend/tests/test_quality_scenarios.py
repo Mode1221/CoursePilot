@@ -55,3 +55,17 @@ async def test_이동시간_상한을_말하면_대체로_지킨다():
         if it.travel_to_next and it.travel_to_next.duration_min > 20
     ]
     assert not overs
+
+
+async def test_요청한_성격이_첫_칸에_온다():
+    """"카페" 를 말했는데 식사 시간대라고 식당부터 시작하면 요청과 어긋난다."""
+    from app.pipeline.decomposition import parse_constraints
+    from app.pipeline.planner import desired_slots
+
+    assert desired_slots(parse_constraints("성수동 반려동물 동반 카페"))[0] == "cafe"
+    assert desired_slots(parse_constraints("성수동 전시 보고 저녁"))[0] == "activity"
+    # 성격을 말하지 않으면 기존 템플릿 그대로
+    assert desired_slots(parse_constraints("성수동 저녁 데이트"))[0] == "meal"
+
+    result = await generate_course("성수동 반려동물 동반 카페", MockMapService())
+    assert classify(result.timeline[0].place) == "cafe"
