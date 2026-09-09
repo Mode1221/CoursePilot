@@ -35,6 +35,12 @@ _SLOT_KEYWORDS: dict[str, tuple[str, ...]] = {
 
 
 def classify(place: Place) -> str:
+    # 카카오 category_group_code 가 있으면 그것이 가장 정확하다(이름 문자열 매칭보다 안정적).
+    from app.adapters.kakao import slot_for
+
+    slot = slot_for(place.category_code, place.category)
+    if slot:
+        return slot
     cat = (place.category or "").lower()
     for slot, kws in _SLOT_KEYWORDS.items():
         if any(k in cat for k in kws):

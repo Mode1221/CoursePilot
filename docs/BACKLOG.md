@@ -34,6 +34,7 @@
 
 ## 최근 처리 (2026-09-09, 3차)
 - 데이터 원천: LOCALDATA 폐업 필터 + 인허가일자 업력(`adapters/localdata.py`, `ClosedFilterMapService`)
+- 데이터 원천: 카카오 로컬 어댑터(장소 발견 주 원천)·카테고리 코드 기반 슬롯 분류, 상권 구축 배치(`scripts/build_places.py`)
 - 데이터 원천: Google Places 티어 분리(IDs-only/영업시간/평점) + 30·90일 TTL, 확정 코스만 갱신, 미확인 영업시간 '확인 필요' 표시
 
 ## 최근 처리 (2026-09-09, 2차)
