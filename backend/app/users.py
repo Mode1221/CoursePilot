@@ -14,6 +14,8 @@ from pydantic import BaseModel
 
 from app.db import is_ready
 
+MAX_REFERRAL_BONUS = 10  # 한 계정이 레퍼럴로 받을 수 있는 보너스 횟수 상한
+
 
 class Preferences(BaseModel):
     """온보딩 선호 프로필 (모두 선택). AI 요청 컨텍스트에 자동 포함."""
@@ -32,6 +34,7 @@ class User(BaseModel):
     credits_used: int = 0
     credit_period: str = ""
     points: int = 0  # 구매 포인트(이월). 무료 크레딧 소진 후 사용
+    referral_bonus_count: int = 0  # 레퍼럴로 받은 보너스 횟수(상한 확인용)
     preferences: Preferences = Preferences()
 
     @property
@@ -65,6 +68,19 @@ class UserStore:
             credit_period=_period_now(),
         )
         return self._save(user)
+
+    def grant_referral_bonus(self, user_id: str, amount: int) -> bool:
+        """레퍼럴 보너스 지급. 상한(MAX_REFERRAL_BONUS)을 넘으면 지급하지 않는다.
+
+        번호만 바꿔가며 자기 자신을 초대해 무한히 크레딧을 늘리는 것을 막는다.
+        """
+        user = self.get(user_id)
+        if user is None or user.referral_bonus_count >= MAX_REFERRAL_BONUS:
+            return False
+        user.referral_bonus_count += 1
+        user.credits_limit += amount
+        self._save(user)
+        return True
 
     def grant_credits(self, user_id: str, amount: int) -> User | None:
         """레퍼럴 등으로 무료 크레딧 추가 지급 (9-4). 한도 자체를 늘린다."""
@@ -276,6 +292,7 @@ class UserStore:
                 row.credits_used = user.credits_used
                 row.credit_period = user.credit_period
                 row.points = user.points
+                row.referral_bonus_count = user.referral_bonus_count
                 row.preferences = user.preferences.model_dump()
                 s.commit()
             return user
@@ -291,6 +308,7 @@ class UserStore:
             credits_used=row.credits_used,
             credit_period=row.credit_period,
             points=row.points,
+            referral_bonus_count=getattr(row, "referral_bonus_count", 0) or 0,
             preferences=Preferences.model_validate(row.preferences or {}),
         )
 

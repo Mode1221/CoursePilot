@@ -37,6 +37,8 @@ class UserModel(Base):
     credits_used: Mapped[int] = mapped_column(Integer, default=0)
     credit_period: Mapped[str] = mapped_column(String, default="")  # YYYY-MM
     points: Mapped[int] = mapped_column(Integer, default=0)  # 구매 포인트(이월, 리셋 없음)
+    # 레퍼럴 보너스 지급 횟수(상한 확인용). 번호만 바꿔 무한 초대하는 것을 막는다
+    referral_bonus_count: Mapped[int] = mapped_column(Integer, default=0, server_default="0")
     preferences: Mapped[dict] = mapped_column(JSON, default=dict)  # 온보딩 프로필
     created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
 
