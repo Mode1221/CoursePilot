@@ -6,6 +6,7 @@ export interface CourseStats {
   totalMin: number; // 첫 도착 ~ 마지막 출발
   costPerPerson: number; // 가격이 있는 장소들의 1인 예상 합계(원)
   costKnown: number; // 가격 정보를 가진 장소 수
+  costEstimated: boolean; // 합계에 카테고리 추정가가 섞였는지
 }
 
 function toMinutes(hhmm: string): number {
@@ -33,6 +34,8 @@ export function courseStats(course: Course): CourseStats {
     totalMin,
     costPerPerson,
     costKnown: priced.length,
+    // 추정가가 하나라도 섞이면 합계를 확정 금액처럼 보여주면 안 된다
+    costEstimated: priced.some((it) => it.place.price_estimated === true),
   };
 }
 

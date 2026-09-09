@@ -63,3 +63,35 @@ it("금액을 사람이 읽기 좋게 만든다", () => {
   expect(formatCost(8000)).toBe("8천원");
   expect(formatCost(0)).toBeNull();
 });
+
+describe("추정가 표시", () => {
+  const item = (price: number | undefined, estimated?: boolean) => ({
+    place: {
+      id: `p${price}`,
+      name: "장소",
+      lat: 37.5,
+      lng: 127.0,
+      price,
+      price_estimated: estimated,
+    },
+    arrive: "12:00",
+    depart: "13:00",
+  });
+
+  it("추정가가 섞이면 표시한다", () => {
+    const course = { id: "c", title: "t", items: [item(10000, true), item(5000)] } as never;
+    expect(courseStats(course).costEstimated).toBe(true);
+  });
+
+  it("실제 가격만 있으면 표시하지 않는다", () => {
+    const course = { id: "c", title: "t", items: [item(10000), item(5000)] } as never;
+    expect(courseStats(course).costEstimated).toBe(false);
+  });
+
+  it("가격이 없는 장소는 합계에서 빠진다", () => {
+    const course = { id: "c", title: "t", items: [item(10000), item(undefined)] } as never;
+    const stats = courseStats(course);
+    expect(stats.costPerPerson).toBe(10000);
+    expect(stats.costKnown).toBe(1);
+  });
+});
