@@ -708,6 +708,13 @@ async def generate(
             # 없는 순번·카테고리를 지목하면 아무것도 바뀌지 않는다 → 알리고 크레딧도 돌려준다
             user_store.refund_credit(x_user_id)
             ai_text = "요청하신 자리를 찾지 못했어요. 순번(예: 2번째)이나 장소 종류로 다시 말씀해 주세요."
+        elif is_edit and edit_cmd.action in ("reorder", "swap"):
+            # 순서만 바꾼 경우엔 "N곳으로 구성했어요" 대신 무엇이 달라졌는지 말한다
+            total = sum(
+                it.travel_to_next.duration_min for it in course.items if it.travel_to_next
+            )
+            order = " → ".join(it.place.name for it in course.items)
+            ai_text = f"순서를 바꿨어요. {order} (총 이동 {total}분)"
         else:
             ai_text = _ai_reply(
                 course,

@@ -72,3 +72,31 @@ async def test_없는_순번_스왑은_그대로_둔다():
     course = _course()
     items = await apply_edit(course, parse_edit("8번이랑 9번 순서 바꿔"), MockMapService())
     assert [it.place.id for it in items] == ["a", "b", "c"]
+
+
+def test_순서_변경_안내는_바뀐_순서를_알려준다():
+    import itertools
+
+    from fastapi.testclient import TestClient
+
+    from app.main import api
+
+    client = TestClient(api)
+    phones = itertools.count(1)
+    uid = client.post(
+        "/signup", json={"phone": f"010-1919-{next(phones):04d}"}
+    ).json()["user_id"]
+    cid = client.post("/courses", headers={"X-User-Id": uid}).json()["id"]
+    client.post(
+        f"/courses/{cid}/generate",
+        headers={"X-User-Id": uid},
+        json={"text": "성수동 오전 10시 5시간 도보"},
+    )
+    client.post(
+        f"/courses/{cid}/generate",
+        headers={"X-User-Id": uid},
+        json={"text": "첫번째랑 두번째 순서 바꿔"},
+    )
+    text = client.get(f"/courses/{cid}/messages").json()[-1]["text"]
+    assert "순서를 바꿨어요" in text
+    assert "총 이동" in text
