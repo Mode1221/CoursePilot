@@ -26,3 +26,13 @@ async def test_pool_scales_with_slots():
     assert svc.limits
     assert svc.limits[0] >= 4 * CANDIDATES_PER_SLOT
     assert svc.limits[0] <= MAX_CANDIDATES
+
+
+def test_여섯칸_코스도_후보를_다_채울_수_있다():
+    """6칸 * 칸당 6후보 = 36 → 상한(40)에 걸리지 않아야 한다."""
+    from app.adapters.naver import _build_queries
+    from app.pipeline.agent import CANDIDATES_PER_SLOT, MAX_CANDIDATES
+
+    assert MAX_CANDIDATES >= 6 * CANDIDATES_PER_SLOT
+    # 네이버는 질의당 5개가 상한이라, 40개를 채우려면 질의가 8개 필요하다
+    assert len(_build_queries("성수동", [], MAX_CANDIDATES)) == 8
