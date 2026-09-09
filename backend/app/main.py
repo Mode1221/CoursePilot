@@ -348,6 +348,9 @@ async def my_bookmarks(
     return store.get_many(ids)
 
 
+BOOKMARK_WEIGHT = 2  # 북마크는 채택보다 강한 관심 신호
+
+
 @api.put("/users/{user_id}/bookmarks/{course_id}")
 async def add_bookmark(
     user_id: str, course_id: str, x_user_id: str | None = Header(default=None)
@@ -356,10 +359,12 @@ async def add_bookmark(
     course = store.get(course_id)
     if course is None:
         raise HTTPException(status_code=404, detail="코스를 찾을 수 없어요")
-    bookmark_store.add(user_id, course_id)
-    # 북마크된 코스의 장소에 인기 가중(암묵적 정량 신호)
-    popularity_store.bump_many([it.place.id for it in course.items], weight=2)
-    return {"ok": True}
+    added = bookmark_store.add(user_id, course_id)
+    if added:
+        # 북마크된 코스의 장소에 인기 가중(암묵적 정량 신호). 반복 호출로 부풀지 않게
+        # 새로 담긴 경우에만 반영한다.
+        popularity_store.bump_many([it.place.id for it in course.items], weight=BOOKMARK_WEIGHT)
+    return {"ok": True, "added": added}
 
 
 @api.delete("/users/{user_id}/bookmarks/{course_id}")
@@ -367,8 +372,14 @@ async def remove_bookmark(
     user_id: str, course_id: str, x_user_id: str | None = Header(default=None)
 ) -> dict:
     _require_self(user_id, x_user_id)
-    bookmark_store.remove(user_id, course_id)
-    return {"ok": True}
+    removed = bookmark_store.remove(user_id, course_id)
+    course = store.get(course_id)
+    if removed and course is not None:
+        # 북마크를 풀면 담을 때 준 가점을 되돌린다(신호가 한쪽으로만 쌓이지 않게)
+        popularity_store.bump_many(
+            [it.place.id for it in course.items], weight=-BOOKMARK_WEIGHT
+        )
+    return {"ok": True, "removed": removed}
 
 
 class RenameRequest(BaseModel):
