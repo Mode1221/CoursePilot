@@ -23,6 +23,7 @@ from app.constants import DEFAULT_REGION, DEFAULT_START_TIME
 from app.feedback import feedback_store
 from app.middleware import RateLimitMiddleware, RequestLogMiddleware
 from app.pipeline.agent import generate_course
+from app.pipeline.decomposition import is_actionable, parse_constraints
 from app.pipeline.edit import EditCommand, apply_edit, parse_edit
 from app.popularity import popularity_store
 from app.queue import queues
@@ -568,8 +569,20 @@ async def generate(
         region_guessed = False  # 지역을 못 알아들어 기본 지역으로 만든 경우
         gen_constraints: PlanConstraints | None = None  # 편집 명령이면 None
         old_ids = [it.place.id for it in course.items]
+        edit_cmd = parse_edit(req.text) if course.items else EditCommand(action="none")
+        # 편집도 아니고 조건·의도도 없는 입력("ㅋㅋㅋ")으로 엉뚱한 코스를 만들고
+        # 크레딧까지 태우지 않는다 — 무엇을 원하는지 되묻는다.
+        if edit_cmd.action == "none" and not is_actionable(
+            req.text, parse_constraints(req.text)
+        ):
+            user_store.refund_credit(x_user_id)
+            course.locked = False
+            await broadcast_lock(course_id, False)
+            ai_text = '어떤 모임인지 알려주세요. 예: "성수동에서 토요일 저녁 데이트"'
+            chat_store.append(course_id, "ai", ai_text)
+            await broadcast_message(course_id, "ai", ai_text)
+            return GenerateResponse(course=course, relaxed=False, needs_confirmation=False)
         try:
-            edit_cmd = parse_edit(req.text) if course.items else EditCommand(action="none")
             if edit_cmd.action != "none":
                 # 부분 수정: 해당 카드만 교체/삭제 후 전체 동선 재계산 (4-3)
                 is_edit = True

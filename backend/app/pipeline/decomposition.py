@@ -347,3 +347,26 @@ def parse_constraints(text: str, today: date | None = None) -> PlanConstraints:
     if c.prefer_indoor and "실내" not in c.keywords:
         c.keywords.insert(0, "실내")  # 우천이면 실내를 최우선 검색어로
     return c
+
+
+# 요청으로 볼 만한 최소 신호가 없는 입력("ㅋㅋㅋ", "!!!")을 걸러내기 위한 표현
+_INTENT_WORDS = (
+    "추천", "코스", "짜줘", "만들어", "가자", "놀", "데이트", "모임", "약속", "먹",
+    "마시", "구경", "아무데나", "알아서",
+)
+
+
+def is_actionable(text: str, c: PlanConstraints) -> bool:
+    """이 입력으로 코스를 만들어도 되는지. 조건이 하나도 없고 의도 표현도
+    없으면(오타·감탄사) 만들지 말고 되묻는 편이 낫다 — 크레딧이 소모되므로."""
+    if any(
+        v not in (None, [], False)
+        for v in (
+            c.region, c.start_time, c.end_time, c.duration_min, c.budget_max,
+            c.party_size, c.stop_count, c.plan_date, c.companion, c.start_place,
+        )
+    ):
+        return True
+    if c.keywords or c.exclude_keywords or c.prefer_indoor:
+        return True
+    return any(w in text for w in _INTENT_WORDS)
