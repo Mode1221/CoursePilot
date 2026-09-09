@@ -148,6 +148,8 @@ async def admin_signals(x_admin_token: str | None = Header(default=None)) -> dic
         "completed_count": counts.get("completed", 0),
         "seed_strategy_counts": strategy_store.counts(),
         "score_satisfaction_separation": outcome_store.separation(),
+        # 온보딩 설문 응답률·분포(문항 수·문구 조정 근거)
+        "preferences": user_store.preference_stats(),
     }
 
 

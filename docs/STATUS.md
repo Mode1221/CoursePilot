@@ -60,7 +60,7 @@
 
 ## 3-2. 관측성
 - ✅ `GET /admin/metrics` — 라우트별 요청 수·4xx/5xx·p50/p95, 외부 연동 폴백 비율(externals: 지도·리뷰·LLM), 임계 초과 알림(`alerts`)
-- ✅ `GET /admin/signals` — 학습 신호 관측 (둘 다 ADMIN_TOKEN 필요)
+- ✅ `GET /admin/signals` — 학습 신호 관측 + 온보딩 설문 응답률·문항별 분포 (둘 다 ADMIN_TOKEN 필요)
 - ✅ 요청 ID(`X-Request-Id`) 발급·반환, 2초 이상 요청은 warning 로깅
 - ✅ 미처리 예외도 요청 ID를 담아 안내(내부 스택은 서버 로그로만)
 - ✅ 임계 진입·회복 웹훅 알림(`ALERT_WEBHOOK_URL`, 미설정 시 로그 폴백, 15분 재알림 억제)

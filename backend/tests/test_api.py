@@ -185,6 +185,7 @@ def test_admin_signals_shape(client):
         "completed_count",
         "seed_strategy_counts",
         "score_satisfaction_separation",
+        "preferences",
     }
     assert isinstance(body["feedback_counts"], dict)
     assert 0.0 <= body["relax_acceptance_rate"] <= 1.0
