@@ -91,3 +91,38 @@ async def test_한도_안이면_호출하고_사용량이_는다(monkeypatch):
     assert await client.fetch_hours("gp-1") == {"businessStatus": "OPERATIONAL"}
     assert quota_store.used("google.hours") == 1
     quota_store.clear()
+
+
+def test_임계를_처음_넘을_때만_알린다(monkeypatch, store):
+    sent: list[tuple[str, str]] = []
+    monkeypatch.setattr("app.quota._notify", lambda kind, target, text: sent.append((kind, text)))
+    limit = MONTHLY_FREE_LIMITS["google.rating"]
+    store.record("google.rating", int(limit * 0.79))
+    assert sent == []
+    store.record("google.rating", int(limit * 0.02))  # 80% 진입
+    assert len(sent) == 1 and "한도 8" in sent[0][1]
+    store.record("google.rating", 1)  # 여전히 80%대 — 다시 알리지 않는다
+    assert len(sent) == 1
+
+
+def test_한도_소진은_따로_알린다(monkeypatch, store):
+    sent: list[str] = []
+    monkeypatch.setattr("app.quota._notify", lambda kind, target, text: sent.append(text))
+    store.record("google.rating", MONTHLY_FREE_LIMITS["google.rating"])
+    assert any("소진" in t for t in sent)
+
+
+def test_달이_바뀌면_다시_알린다(monkeypatch, store):
+    sent: list[str] = []
+    monkeypatch.setattr("app.quota._notify", lambda kind, target, text: sent.append(text))
+    store.record("google.hours", MONTHLY_FREE_LIMITS["google.hours"], now=JAN)
+    before = len(sent)
+    store.record("google.hours", MONTHLY_FREE_LIMITS["google.hours"], now=FEB)
+    assert len(sent) > before
+
+
+def test_한도가_없는_API는_알리지_않는다(monkeypatch, store):
+    sent: list[str] = []
+    monkeypatch.setattr("app.quota._notify", lambda kind, target, text: sent.append(text))
+    store.record("kakao.search", 1_000_000)
+    assert sent == []
