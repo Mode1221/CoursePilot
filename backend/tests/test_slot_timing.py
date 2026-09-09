@@ -36,3 +36,16 @@ def test_시작_시각이_없으면_기존_순서_유지():
 def test_회식_템플릿도_시간대를_따른다():
     slots = _slots(10, companion="회식")
     assert slots.index("meal") >= 1
+
+
+def test_관람_체험은_카페보다_오래_머문다():
+    from app.pipeline.validation import stay_minutes
+    from app.schemas import Place
+
+    def _p(cat: str) -> Place:
+        return Place(id=cat, name=cat, category=cat, lat=37.5, lng=127.0)
+
+    assert stay_minutes(_p("문화,예술>영화관")) == 150
+    assert stay_minutes(_p("문화,예술>미술관")) == 90
+    assert stay_minutes(_p("카페,디저트")) == 60
+    assert stay_minutes(_p("음식점>한식")) == 90
