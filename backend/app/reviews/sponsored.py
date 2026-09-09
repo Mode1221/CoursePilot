@@ -60,8 +60,18 @@ _SELF_PAID_COMPILED = [re.compile(p, re.IGNORECASE) for p in _SELF_PAID_PATTERNS
 _FIRST_CHUNK = 120  # 제목/첫문단으로 간주할 앞부분 길이
 
 
+# "협찬 아님", "광고 아니에요" — 협찬이 아니라고 밝히는 말까지 걸러내면
+# 멀쩡한 후기가 통째로 사라진다.
+_NOT_SPONSORED_RE = re.compile(
+    r"(?:협찬|광고|지원|제공)\s*(?:은|는|이|가)?\s*"
+    r"(?:아님|아닙|아니에|아니예|아니고|받지\s*않)"
+)
+
+
 def is_sponsored(text: str) -> bool:
     """1차 필터(불리언): 표기 의무 문구가 포함되면 협찬으로 판단."""
+    if _NOT_SPONSORED_RE.search(text):
+        return False
     return any(p.search(text) for p in _COMPILED)
 
 
@@ -94,5 +104,8 @@ def sponsored_score(text: str, account_repeat: bool = False) -> float:
     # "내돈내산"처럼 자비 방문을 밝히면 개연성을 낮춘다(표기 문구가 함께 있으면 상쇄만)
     if any(p.search(text) for p in _SELF_PAID_COMPILED):
         score -= 0.2
+    # "협찬 아님"은 표기 문구가 아니라 부인이다 — 점수에서도 빼 준다
+    if _NOT_SPONSORED_RE.search(text):
+        score -= 0.7
 
     return max(0.0, min(1.0, score))
