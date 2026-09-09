@@ -61,6 +61,7 @@
 - ✅ `GET /admin/signals` — 학습 신호 관측 (둘 다 ADMIN_TOKEN 필요)
 - ✅ 요청 ID(`X-Request-Id`) 발급·반환, 2초 이상 요청은 warning 로깅
 - ✅ 미처리 예외도 요청 ID를 담아 안내(내부 스택은 서버 로그로만)
+- ✅ 임계 진입·회복 웹훅 알림(`ALERT_WEBHOOK_URL`, 미설정 시 로그 폴백, 15분 재알림 억제)
 
 ## 4. 데이터 학습 신호 (docs/DATA_STRATEGY.md) — 전부 ✅
 - 채택·북마크·생존율·교체 음의신호
@@ -68,6 +69,7 @@
 - 시간대 컨텍스트, 행동 선호(선언 vs 행동), 재정렬 패턴
 - 시간감쇠(EWMA)·카테고리 상대 정규화
 - 경량 협업필터링(공동채택), Best-of-N 전략 로깅, 예측점수↔만족도 대조, 관측 엔드포인트
+- 계수 오프라인 캘리브레이션(`pipeline/calibration.py`)·합성 신호 리플레이(`pipeline/simulation.py`) — 리플레이 전 top1 0.06 → 후 0.49
 
 ## 5. 실시간·동시편집 (5장)
 - ✅ Socket.IO 룸 브로드캐스트, 액션 큐 직렬화 + AI Lock, append-only 채팅 로그

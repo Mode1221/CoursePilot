@@ -42,6 +42,9 @@ class Settings(BaseSettings):
     # 비워두면 개발 편의를 위해 열려 있으므로, 배포 시에는 반드시 설정한다.
     admin_token: str = ""
 
+    # 임계 알림 외부 발송(슬랙/디스코드 등 웹훅 URL). 미설정 시 로그만 남긴다.
+    alert_webhook_url: str = ""
+
     cors_origins: list[str] = ["http://localhost:3000"]
 
     @property
