@@ -9,6 +9,12 @@ from datetime import time
 
 from app.adapters.map_service import MapService
 from app.pipeline.validation import build_timeline
+from app.pipeline.weights import (
+    COURSE_WEIGHTS,
+    PLACE_WEIGHTS,
+    CourseWeights,
+    ScoreWeights,
+)
 from app.schemas import Place, PlanConstraints, TimelineItem
 
 # ── 카테고리 분류 ────────────────────────────────────────────────
@@ -45,72 +51,76 @@ def score_place(
     self_rating: float | None = None,
     context_pop: float = 0.0,
     cold_start: bool = False,
+    weights: ScoreWeights | None = None,
 ) -> float:
     prefs = prefs or {}
+    w = weights or PLACE_WEIGHTS
     score = 0.0
 
     # 평점: 자체 원탭 별점이 있으면 외부 별점과 블렌드(자체 우선), 없으면 외부만
     ext = (place.rating / 5.0) if place.rating is not None else None
     own = (self_rating / 5.0) if self_rating is not None else None
     if own is not None and ext is not None:
-        score += 0.4 * (0.6 * own + 0.4 * ext)
+        score += w.rating * (
+            w.self_rating_share * own + (1 - w.self_rating_share) * ext
+        )
     elif own is not None:
-        score += 0.4 * own
+        score += w.rating * own
     elif ext is not None:
-        score += 0.4 * ext
+        score += w.rating * ext
 
     # 콜드스타트 폴백(활용): 행동 신호가 전무하면 외부 평점에 더 의존(폴백 체인).
     # 신호가 쌓이면 자동으로 가중이 사라져 행동 기반으로 이행.
     if cold_start and ext is not None:
-        score += 0.2 * ext
+        score += w.cold_start_rating * ext
 
     # 자체 정량 신호: 인기(코스 채택·북마크). 이미 0~1 로 정규화되어 들어옴
-    score += 0.25 * popularity
+    score += w.popularity * popularity
 
     # 시간대 컨텍스트(#12): 요청 시간대에 자주 채택된 장소 가점(0~1 정규화)
-    score += 0.15 * context_pop
+    score += w.context_pop * context_pop
 
     # 키워드/무드 매칭 (카테고리·이름에 등장)
     haystack = f"{place.category or ''} {place.name}".lower()
     keywords = [k.lower() for k in constraints.keywords]
     if keywords:
         matched = sum(1 for k in keywords if k in haystack)
-        score += 0.3 * (matched / len(keywords))
+        score += w.keyword * (matched / len(keywords))
 
     # 예산 적합 (저렴할수록 여유 → 가점, 가격 미상은 중립)
     if constraints.budget_max and place.price is not None:
         share = place.price / max(1, constraints.budget_max)
-        score += 0.2 * max(0.0, 1.0 - share)
+        score += w.budget * max(0.0, 1.0 - share)
 
     # 온보딩 선호 지역/무드 일치
     if prefs.get("mood") and prefs["mood"].lower() in haystack:
-        score += 0.1
+        score += w.pref_mood
 
     # 행동 선호(#13): 사용자가 실제 자주 채택한 카테고리면 가점(선언보다 행동 신뢰)
     behavior_cats = prefs.get("behavior_cats") or []
     if behavior_cats and classify(place) in behavior_cats:
-        score += 0.15
+        score += w.behavior_cat
 
     # 동행유형 컨텍스트: 상황에 맞는 장소 특성 가점
     comp_kw = _COMPANION_KEYWORDS.get(constraints.companion or "", ())
     if comp_kw and any(k in haystack for k in comp_kw):
-        score += 0.15
+        score += w.companion
 
     # 제외 조건: 사용자가 빼달라고 한 성격이면 크게 감점(하드에 가까운 소프트 제약)
     if any(k.lower() in haystack for k in constraints.exclude_keywords):
-        score -= 0.5
+        score -= w.exclude_penalty
 
     # 우천 대체: 야외 성격은 감점, 실내 성격은 가점
     if constraints.prefer_indoor:
         if any(k in haystack for k in _OUTDOOR_KEYWORDS):
-            score -= 0.4
+            score -= w.outdoor_penalty
         if any(k in haystack for k in _INDOOR_KEYWORDS):
-            score += 0.15
+            score += w.indoor_bonus
 
     # 인원수 컨텍스트: 대인원은 단체석, 소수는 조용한 자리 쪽이 실패가 적다
     party_kw = _party_keywords(constraints.party_size)
     if party_kw and any(k in haystack for k in party_kw):
-        score += 0.1
+        score += w.party
     return score
 
 
@@ -315,7 +325,10 @@ def _cf_pick(ranked: list[Place], slots: list[str]) -> list[Place]:
 
 
 # ── 코스 목적함수 (D) ────────────────────────────────────────────
-def course_score(timeline: list[TimelineItem]) -> float:
+def course_score(
+    timeline: list[TimelineItem], weights: CourseWeights | None = None
+) -> float:
+    cw = weights or COURSE_WEIGHTS
     if not timeline:
         return float("-inf")
     ratings = [it.place.rating for it in timeline if it.place.rating is not None]
@@ -329,11 +342,11 @@ def course_score(timeline: list[TimelineItem]) -> float:
 
     seq_pref = sequence_store.sequence_score([classify(it.place) for it in timeline])
     return (
-        len(timeline) * 1.0          # 완성도(장소 수)
-        + avg_rating * 0.5           # 평균 평점
-        + diversity * 0.3            # 카테고리 다양성
-        + _seq_norm(seq_pref)        # 선호 순서 적합
-        - total_travel * 0.02        # 총 이동 페널티
+        len(timeline) * cw.length            # 완성도(장소 수)
+        + avg_rating * cw.avg_rating         # 평균 평점
+        + diversity * cw.diversity           # 카테고리 다양성
+        + _seq_norm(seq_pref)                # 선호 순서 적합
+        - total_travel * cw.travel_penalty   # 총 이동 페널티
     )
 
 
