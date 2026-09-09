@@ -157,12 +157,29 @@ SLOT_HOURS = 2  # 한 칸(방문+이동)에 대략 2시간
 
 
 # ── 카테고리 시퀀스 템플릿 (B) ───────────────────────────────────
+def keyword_slot(constraints: PlanConstraints) -> str | None:
+    """요청 키워드가 특정 성격을 콕 집었으면 그 슬롯을 돌려준다.
+
+    "카페 한 곳"인데 식사 시간대라고 식당을 넣으면 요청과 어긋난다.
+    """
+    text = " ".join(constraints.keywords).lower()
+    if not text:
+        return None
+    for slot, kws in _SLOT_KEYWORDS.items():
+        if any(k in text for k in kws):
+            return slot
+    return None
+
+
 def desired_slots(constraints: PlanConstraints) -> list[str]:
     dur = constraints.duration_min or 180
     n = max(2, min(4, dur // 90))
     if constraints.stop_count:  # "2차", "세 군데" 처럼 개수를 직접 말했으면 그 값을 따른다
         n = max(1, min(4, constraints.stop_count))
-        if n == 1:  # "한 곳만" — 식사 시간대면 식당, 아니면 카페 한 칸
+        if n == 1:  # "한 곳만" — 요청 키워드 우선, 없으면 식사 시간대 기준
+            wanted = keyword_slot(constraints)
+            if wanted:
+                return [wanted]
             hour = constraints.start_time.hour if constraints.start_time else 12
             return ["meal" if _is_mealtime(hour) else "cafe"]
     evening = constraints.start_time is not None and constraints.start_time.hour >= 18
