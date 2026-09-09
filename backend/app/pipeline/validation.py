@@ -44,6 +44,15 @@ def stay_minutes(place: Place, party_size: int | None = None) -> int:
     return base
 
 
+# 추정가로 예산을 볼 때 허용하는 여유폭(카테고리 평균의 오차 흡수).
+ESTIMATE_SLACK = 1.2
+
+
+def _budget_limit(budget_max: int, place: Place) -> float:
+    """이 장소를 판단할 때 적용할 예산 상한."""
+    return budget_max * ESTIMATE_SLACK if place.price_estimated else budget_max
+
+
 def _is_overnight(place: Place) -> bool:
     """새벽에 닫는 영업시간(예: 18:00~02:00)인지."""
     return bool(place.open_time and place.close_time and place.close_time <= place.open_time)
@@ -124,11 +133,13 @@ async def build_timeline(
     spent = 0  # 누적 예상 비용(예산 하드 제약)
 
     for place in places:
-        # 예산 하드 제약: 누적 비용이 상한을 넘으면 폐기 (가격 미상 장소는 통과)
+        # 예산 하드 제약: 누적 비용이 상한을 넘으면 폐기 (가격 미상 장소는 통과).
+        # 추정가는 카테고리 평균일 뿐이라 그대로 자르면 멀쩡한 가게가 떨어진다 →
+        # 추정가로 판단할 때만 여유폭을 준다. 실제 가격은 종전대로 엄격히 본다.
         if (
             constraints.budget_max is not None
             and place.price is not None
-            and spent + place.price > constraints.budget_max
+            and spent + place.price > _budget_limit(constraints.budget_max, place)
         ):
             continue
 
