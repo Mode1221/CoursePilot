@@ -201,7 +201,8 @@ def _replace_excluded(slots: list[str], excluded: set[str]) -> list[str]:
 
 def desired_slots(constraints: PlanConstraints) -> list[str]:
     dur = constraints.duration_min or 180
-    n = max(2, min(4, dur // 90))
+    # 하루를 통으로 비운 요청(8~9시간)에 4칸만 만들면 오후에 코스가 끝나 버린다
+    n = max(2, min(MAX_STOPS, dur // 90))
     if constraints.stop_count:  # "2차", "세 군데" 처럼 개수를 직접 말했으면 그 값을 따른다
         # 하루 종일 코스는 5~6곳도 요청한다 — 4곳으로 잘라 요청을 무시하지 않는다
         n = max(1, min(MAX_STOPS, constraints.stop_count))
@@ -251,7 +252,21 @@ def desired_slots(constraints: PlanConstraints) -> list[str]:
         6: ["meal", "activity", "cafe", "meal", "activity", last],
     }[n]
     slots = _shift_meal_to_mealtime(base, constraints.start_time)
-    return _replace_excluded(_lead_with_keyword(slots, constraints), excluded_slots(constraints))
+    slots = _dedupe_adjacent(_lead_with_keyword(slots, constraints))
+    return _replace_excluded(slots, excluded_slots(constraints))
+
+
+def _dedupe_adjacent(slots: list[str]) -> list[str]:
+    """같은 성격이 연달아 오지 않게 한다(식사 → 식사처럼 붙으면 코스가 단조롭다)."""
+    alternatives = ["cafe", "activity", "meal", "bar"]
+    out: list[str] = []
+    for slot in slots:
+        if out and out[-1] == slot:
+            nxt = next((a for a in alternatives if a != slot and (len(out) < 2 or out[-2] != a)), slot)
+            out.append(nxt)
+        else:
+            out.append(slot)
+    return out
 
 
 def _lead_with_keyword(slots: list[str], constraints: PlanConstraints) -> list[str]:
