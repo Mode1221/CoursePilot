@@ -34,6 +34,12 @@ def file_name_for(url: str, index: int) -> str:
     return cleaned
 
 
+def _record(ok: bool) -> None:
+    from app.metrics import metrics_store
+
+    metrics_store.record_external("localdata.fetch", ok=ok)
+
+
 async def fetch_all(
     urls: list[str] | None = None, target_dir: str | None = None
 ) -> FetchReport:
@@ -54,8 +60,10 @@ async def fetch_all(
                     raise ValueError("응답이 너무 짧다(오류 페이지로 보임)")
                 (path / file_name_for(url, index)).write_bytes(resp.content)
             except Exception:
+                _record(ok=False)
                 report.failed.append(url)
                 continue
+            _record(ok=True)
             report.saved.append(url)
     if report.saved:
         # 새 파일을 받았으면 다음 조회부터 다시 읽도록 캐시를 비운다.

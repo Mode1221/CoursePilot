@@ -81,14 +81,19 @@ class TourApiClient:
 
     async def enrich(self, place: Place) -> Place:
         """Google 에 영업시간이 없는 관광·문화시설을 공공 데이터로 메운다."""
+        from app.metrics import metrics_store
+
         try:
             item = await self.find(place.name)
             if not item:
+                metrics_store.record_external("tourapi.enrich", ok=True)
                 return place
             place.tour_listed = True
             content_type = str(item.get("contenttypeid") or "")
             intro = await self.intro(str(item.get("contentid")), content_type)
+            metrics_store.record_external("tourapi.enrich", ok=True)
         except Exception:
+            metrics_store.record_external("tourapi.enrich", ok=False)
             return place  # 보강 실패는 무영향
         fields = CONTENT_TYPE_INTRO_FIELDS.get(content_type)
         if not intro or not fields:

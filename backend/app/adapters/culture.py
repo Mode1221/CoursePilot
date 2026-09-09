@@ -82,11 +82,15 @@ class CultureClient:
             "rows": rows,
             "signgucode": area_code,
         }
+        from app.metrics import metrics_store
+
         try:
             resp = await self._client.get(_KOPIS_URL, params=params)
             resp.raise_for_status()
             items = _xml_items(resp.text)
+            metrics_store.record_external("kopis.performances", ok=True)
         except Exception:
+            metrics_store.record_external("kopis.performances", ok=False)
             return []  # 일정 조회 실패는 코스 생성을 막지 않는다
         found = [to_performance(item) for item in items]
         return [p for p in found if p and p.runs_on(day)]
