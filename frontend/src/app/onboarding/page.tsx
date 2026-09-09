@@ -49,6 +49,27 @@ export default function Onboarding() {
     load();
   }, [load]);
 
+  // 이미 가입한 사용자가 설정을 다시 열면 저장된 값을 채운다
+  // (빈 폼으로 저장하면 기존 선호가 통째로 지워졌다)
+  useEffect(() => {
+    if (!userId) return;
+    let cancelled = false;
+    api
+      .getPreferences(userId)
+      .then((p) => {
+        if (cancelled) return;
+        setMood(p.mood ?? "");
+        setRegion(p.region ?? "");
+        setTransport(p.transport ?? "");
+        setBudget(p.budget ?? "");
+        setDiet(p.diet ?? []);
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, [userId]);
+
   async function sendCode() {
     if (sending) return;
     setError(null);

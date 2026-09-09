@@ -227,6 +227,19 @@ async def set_preferences(
     return {"ok": True}
 
 
+@api.get("/users/{user_id}/preferences", response_model=Preferences)
+async def get_preferences(
+    user_id: str, x_user_id: str | None = Header(default=None)
+) -> Preferences:
+    """저장된 선호 프로필. 선호 설정 화면을 다시 열 때 기존 값을 보여주기 위함 —
+    조회 수단이 없어 빈 폼으로 저장하면 기존 값이 통째로 지워졌다."""
+    _require_self(user_id, x_user_id)
+    user = user_store.get(user_id)
+    if user is None:
+        raise HTTPException(status_code=404, detail="user not found")
+    return user.preferences
+
+
 @api.get("/users/{user_id}/credits")
 async def get_credits(user_id: str, x_user_id: str | None = Header(default=None)) -> dict:
     _require_self(user_id, x_user_id)

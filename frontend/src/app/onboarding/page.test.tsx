@@ -11,6 +11,7 @@ vi.mock("@/services/api", () => ({
   api: {
     signup: vi.fn(),
     setPreferences: vi.fn(),
+    getPreferences: vi.fn(),
     requestSmsCode: vi.fn(),
     verifySmsCode: vi.fn(),
   },
@@ -26,6 +27,13 @@ describe("온보딩", () => {
     push.mockReset();
     vi.mocked(api.signup).mockReset();
     vi.mocked(api.setPreferences).mockReset();
+    vi.mocked(api.getPreferences).mockResolvedValue({
+      mood: null,
+      region: null,
+      transport: null,
+      budget: null,
+      diet: [],
+    });
     vi.mocked(api.requestSmsCode).mockReset();
     vi.mocked(api.verifySmsCode).mockReset();
     vi.mocked(api.requestSmsCode).mockResolvedValue({ sent: true, dev_code: "123456" });
@@ -78,6 +86,26 @@ describe("온보딩", () => {
       "u1",
       expect.objectContaining({ region: "성수동" }),
     );
+  });
+
+  it("기존 선호가 있으면 폼에 채워진다", async () => {
+    useUserStore.setState({ userId: "u9" });
+    vi.mocked(api.getPreferences).mockResolvedValue({
+      mood: "활기찬",
+      region: "연남동",
+      transport: "차량",
+      budget: "4~6만원",
+      diet: ["채식"],
+    });
+
+    render(<Onboarding />);
+
+    await waitFor(() =>
+      expect((screen.getByLabelText("자주 가는 지역") as HTMLInputElement).value).toBe("연남동"),
+    );
+    expect((screen.getByLabelText("1인 예산대") as HTMLSelectElement).value).toBe("4~6만원");
+    expect((screen.getByLabelText("채식") as HTMLInputElement).checked).toBe(true);
+    useUserStore.setState({ userId: null });
   });
 
   it("예산·제외 조건까지 5문항을 저장한다", async () => {

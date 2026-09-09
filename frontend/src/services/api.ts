@@ -106,6 +106,15 @@ export const api = {
       body: { place_id: placeId, place_name: placeName },
     }),
 
+  getPreferences: (userId: string) =>
+    request<{
+      mood: string | null;
+      budget: string | null;
+      region: string | null;
+      diet: string[];
+      transport: string | null;
+    }>(`/users/${userId}/preferences`, { userId }),
+
   setPreferences: (userId: string, prefs: Record<string, unknown>) =>
     request<void>(`/users/${userId}/preferences`, { method: "PUT", body: prefs, userId }),
 
