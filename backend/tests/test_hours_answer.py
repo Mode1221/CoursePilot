@@ -58,3 +58,24 @@ def test_브레이크_타임도_함께_말한다():
 def test_브레이크가_없으면_언급하지_않는다():
     course = _course(_place("성수커피", open_time=time(10, 0), close_time=time(22, 0)))
     assert "브레이크" not in course_answer(course, "영업시간 알려줘")
+
+
+def _checked(days_ago: int) -> Place:
+    from datetime import UTC, datetime, timedelta
+
+    return _place(
+        "성수커피",
+        open_time=time(10, 0),
+        close_time=time(22, 0),
+        hours_checked_at=datetime.now(UTC) - timedelta(days=days_ago),
+    )
+
+
+def test_오래된_확인은_언제_확인했는지_밝힌다():
+    answer = course_answer(_course(_checked(12)), "영업시간 알려줘")
+    assert "12일 전 확인" in answer
+
+
+def test_최근_확인은_굳이_말하지_않는다():
+    answer = course_answer(_course(_checked(1)), "영업시간 알려줘")
+    assert "확인" not in answer.replace("확인하지", "")

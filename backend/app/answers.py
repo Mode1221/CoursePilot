@@ -61,6 +61,22 @@ def _subject_particle(word: str) -> str:
     return "이" if _has_final_consonant(word) else "가"
 
 
+# 영업시간은 최대 30일 캐시를 쓴다. 이보다 오래된 값은 "언제 확인했는지"를
+# 함께 말해 줘야 사용자가 스스로 판단할 수 있다.
+STALE_HINT_DAYS = 7
+
+
+def _checked_days_ago(place) -> int | None:
+    from datetime import UTC, datetime
+
+    checked = place.hours_checked_at
+    if checked is None:
+        return None
+    if checked.tzinfo is None:
+        checked = checked.replace(tzinfo=UTC)
+    return max(0, (datetime.now(UTC) - checked).days)
+
+
 def hours_answer(course: Course) -> str:
     """영업시간 질문: 확인된 곳은 시간을, 확인 못 한 곳은 그 사실을 말한다."""
     known, unknown = [], []
@@ -77,6 +93,9 @@ def hours_answer(course: Course) -> str:
                     f"(브레이크 {place.break_start.strftime('%H:%M')}~"
                     f"{place.break_end.strftime('%H:%M')})"
                 )
+            days = _checked_days_ago(place)
+            if days is not None and days >= STALE_HINT_DAYS:
+                line += f" ({days}일 전 확인)"
             known.append(line)
         else:
             unknown.append(place.name)
