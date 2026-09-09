@@ -92,6 +92,8 @@ _SOFT_KEYWORDS = [
     "한정식", "노포", "서점", "책", "국밥", "라멘", "떡볶이", "전통주", "루프탑바", "전망",
     # 동반 조건이 붙는 요청의 검색어
     "키즈존", "놀이방", "유아의자", "엘리베이터", "좌식",
+    # 차수 요청에서 자주 나오는 음식 종류("1차 고기 2차 맥주")
+    "고기", "삼겹살", "곱창", "치킨", "피자", "국밥", "초밥", "맥주", "막걸리", "노래방",
 ]
 
 # 제외 표현에 붙어 오는 조사 — "술은 빼고" 의 "술은" 을 "술" 로 정규화한다
@@ -398,10 +400,12 @@ def parse_constraints(text: str, today: date | None = None) -> PlanConstraints:
         if wm:
             c.budget_max = int(wm.group(1))
 
-    # 방문 개수: "2차", "세 군데" 등
-    sm = _STOP_NUM_RE.search(text)
-    if sm:
-        c.stop_count = max(1, min(int(sm.group(1)), 6))
+    # 방문 개수: "2차", "세 군데" 등.
+    # "1차 고기 2차 술"처럼 차수를 늘어놓으면 마지막 차수가 곧 장소 수다 —
+    # 첫 매치만 보면 2차까지 말한 요청을 1곳짜리 코스로 만든다.
+    numbers = [int(n) for n in _STOP_NUM_RE.findall(text)]
+    if numbers:
+        c.stop_count = max(1, min(max(numbers), 6))
     else:
         c.stop_count = next((n for rx, n in _STOP_WORD_RES if rx.search(text)), None)
 
