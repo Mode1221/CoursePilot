@@ -77,6 +77,11 @@ def _weekday_period(hours: dict | None, weekday: int) -> tuple[time | None, time
     return None, None
 
 
+def has_periods(hours: dict | None) -> bool:
+    """영업시간 정보가 아예 없는 것과, 있는데 그 요일만 없는 것을 구분하기 위한 것."""
+    return bool((hours or {}).get("periods"))
+
+
 def _consume(name: str) -> bool:
     """무료 한도가 남아 있으면 1콜을 차감하고 True. 소진되면 호출하지 않는다."""
     from app.quota import quota_store
@@ -184,6 +189,11 @@ class GooglePlacesClient:
         if open_time is not None:
             place.open_time = open_time
             place.close_time = close_time
+            place.closed_that_day = False
+            place.hours_unverified = False
+        elif has_periods(hours):
+            # 영업시간표는 있는데 그 요일 구간이 없다 = 정기휴무. "모름"이 아니다.
+            place.closed_that_day = True
             place.hours_unverified = False
         else:
             # Google 에 영업시간이 없는 곳 → 상위에서 LLM 웹검색 폴백 + "확인 필요"
@@ -213,10 +223,13 @@ class GooglePlacesClient:
         return place
 
 
-async def refresh_final_hours(places: list[Place]) -> list[Place]:
+async def refresh_final_hours(
+    places: list[Place], *, weekday: int | None = None
+) -> list[Place]:
     """확정된 코스의 장소들만 TTL 확인 후 갱신(코스당 평균 2콜).
 
     후보 전체가 아니라 확정분에만 쓴다 — Pro 무료 한도(월 5,000)를 지키는 핵심.
+    weekday 는 코스 날짜의 요일(월=0). 없으면 오늘 기준.
     """
     client = get_places_client()
     if not client.enabled or not places:
@@ -225,7 +238,8 @@ async def refresh_final_hours(places: list[Place]) -> list[Place]:
     if not targets:
         return places
     await asyncio.gather(
-        *(client.refresh_hours(p) for p in targets), return_exceptions=True
+        *(client.refresh_hours(p, weekday=weekday) for p in targets),
+        return_exceptions=True,
     )
     return places
 
@@ -236,8 +250,8 @@ def is_permanently_closed(place: Place) -> bool:
 
 
 def is_closed_now(place: Place) -> bool:
-    """지금 방문할 수 없는 상태(영구 폐업 또는 일시 휴업)."""
-    return place.business_status in UNVISITABLE_STATUSES
+    """그날 방문할 수 없는 상태(영구 폐업·일시 휴업·정기휴무)."""
+    return place.business_status in UNVISITABLE_STATUSES or place.closed_that_day
 
 
 @lru_cache(maxsize=1)
