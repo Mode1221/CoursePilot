@@ -44,6 +44,7 @@ class CourseWeights:
     avg_rating: float = 0.5
     diversity: float = 0.3
     travel_penalty: float = 0.02  # 총 이동 시간(분)당 감점
+    repeat_penalty: float = 0.4  # 같은 성격이 연달아 붙을 때마다 감점
 
     def replace(self, **kwargs: float) -> CourseWeights:
         return replace(self, **kwargs)

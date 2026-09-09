@@ -438,7 +438,10 @@ def course_score(
     total_travel = sum(
         it.travel_to_next.duration_min for it in timeline if it.travel_to_next
     )
-    diversity = len({classify(it.place) for it in timeline})
+    kinds = [classify(it.place) for it in timeline]
+    diversity = len(set(kinds))
+    # 같은 성격이 연달아 붙으면(식사 → 식사) 코스가 단조로워진다
+    repeats = sum(1 for a, b in zip(kinds, kinds[1:], strict=False) if a == b)
     # 재정렬 패턴(#7): 학습된 선호 순서(카테고리 전이)에 가점
     from app.sequence import sequence_store
 
@@ -449,6 +452,7 @@ def course_score(
         + diversity * cw.diversity           # 카테고리 다양성
         + _seq_norm(seq_pref)                # 선호 순서 적합
         - total_travel * cw.travel_penalty   # 총 이동 페널티
+        - repeats * cw.repeat_penalty        # 같은 성격 연속 페널티
     )
 
 
