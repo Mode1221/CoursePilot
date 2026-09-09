@@ -68,6 +68,8 @@ class UserStore:
 
     def grant_credits(self, user_id: str, amount: int) -> User | None:
         """레퍼럴 등으로 무료 크레딧 추가 지급 (9-4). 한도 자체를 늘린다."""
+        if is_ready():
+            return self._add_locked(user_id, credits_limit=amount)
         user = self.get(user_id)
         if user is None:
             return None
@@ -158,11 +160,27 @@ class UserStore:
 
     def purchase_points(self, user_id: str, amount: int) -> User | None:
         """포인트 구매/충전 (9-2). 결제 성공 후 호출 가정. 이월된다."""
+        if is_ready():
+            return self._add_locked(user_id, points=amount)
         user = self.get(user_id)
         if user is None:
             return None
         user.points += amount
         return self._save(user)
+
+    def _add_locked(self, user_id: str, *, points: int = 0, credits_limit: int = 0) -> User | None:
+        """행 잠금으로 가산 → 동시 충전/지급이 유실되지 않는다."""
+        from app.db import SessionLocal
+        from app.models import UserModel
+
+        with SessionLocal() as s:
+            row = s.get(UserModel, user_id, with_for_update=True)
+            if row is None:
+                return None
+            row.points += points
+            row.credits_limit += credits_limit
+            s.commit()
+            return self._to_user(row)
 
     def _consume_credit_db(self, user_id: str) -> User:
         """행 잠금으로 원자적 차감 → 동시 요청의 초과 사용 방지."""
