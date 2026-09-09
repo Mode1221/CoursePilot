@@ -909,9 +909,14 @@ async def complete_course(course_id: str) -> dict:
     if course is None:
         raise HTTPException(status_code=404, detail="코스를 찾을 수 없어요")
     place_ids = [it.place.id for it in course.items]
+    if course.completed:
+        # 버튼을 여러 번 눌러도 신호가 배로 쌓이지 않게 한 번만 반영한다
+        return {"ok": True, "places": len(place_ids), "already": True}
     popularity_store.bump_many(place_ids, weight=COMPLETION_WEIGHT)
     feedback_store.log(course_id, "completed", detail=f"{len(place_ids)}곳")
-    return {"ok": True, "places": len(place_ids)}
+    course.completed = True
+    store.save(course)
+    return {"ok": True, "places": len(place_ids), "already": False}
 
 
 SATISFACTION_WEIGHT = 2  # 완료 후 만족(👍)/불만족(👎) 원탭 평가 가중

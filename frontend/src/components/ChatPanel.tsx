@@ -46,6 +46,7 @@ export default function ChatPanel({ courseId }: { courseId: string }) {
   const [notice, setNotice] = useState<string | null>(null);
   const [confirmRelax, setConfirmRelax] = useState(false);
   const [completed, setCompleted] = useState(false);
+  const courseCompleted = useCourseStore((s) => s.course?.completed ?? false);
   const locked = useCourseStore((s) => s.locked);
   const stage = useCourseStore((s) => s.stage);
   const messages = useCourseStore((s) => s.messages);
@@ -266,7 +267,7 @@ export default function ChatPanel({ courseId }: { courseId: string }) {
           </div>
         )}
 
-        {completed && (
+        {(completed || courseCompleted) && (
           <div style={{ display: "flex", gap: "var(--sp-2)" }}>
             <Button size="sm" onClick={() => rateSatisfaction(true)}>👍 만족</Button>
             <Button size="sm" onClick={() => rateSatisfaction(false)}>👎 아쉬움</Button>

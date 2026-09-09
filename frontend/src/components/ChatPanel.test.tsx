@@ -74,4 +74,18 @@ describe("ChatPanel", () => {
     expect((screen.getByLabelText("조건 입력") as HTMLInputElement).disabled).toBe(true);
     expect(screen.getByText("참여자는 수동 편집만 가능합니다")).toBeDefined();
   });
+  it("이미 완주한 코스는 새로고침 후에도 만족도 버튼을 보여준다", () => {
+    useCourseStore.setState({
+      course: {
+        id: "c1",
+        title: "성수 코스",
+        items: [],
+        locked: false,
+        completed: true,
+      },
+    });
+    render(<ChatPanel courseId="c1" />);
+    expect(screen.getByText("👍 만족")).toBeTruthy();
+  });
+
 });

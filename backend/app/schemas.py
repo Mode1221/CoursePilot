@@ -60,6 +60,7 @@ class Course(BaseModel):
     plan_date: date | None = None  # 모임 날짜(캘린더 내보내기 기준일)
     party_size: int | None = None  # 인원수(요약·공유 텍스트 표시용)
     locked: bool = False
+    completed: bool = False  # "다녀왔어요" 완주 신호를 이미 받은 코스
     predicted_score: float | None = None  # 생성 시 코스 목적함수 점수(#17 만족도 대조용)
 
 

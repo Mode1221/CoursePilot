@@ -46,4 +46,5 @@ export interface Course {
   party_size?: number | null;
   items: TimelineItem[];
   locked: boolean;
+  completed?: boolean; // "다녀왔어요" 를 이미 누른 코스
 }
