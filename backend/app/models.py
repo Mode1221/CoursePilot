@@ -165,6 +165,17 @@ class BookmarkModel(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
 
 
+class PaymentModel(Base):
+    """처리한 결제 원장. imp_uid 유니크로 같은 결제의 중복 지급을 막는다."""
+
+    __tablename__ = "payments"
+
+    imp_uid: Mapped[str] = mapped_column(String, primary_key=True)
+    user_id: Mapped[str] = mapped_column(String, index=True)
+    points: Mapped[int] = mapped_column(Integer)
+    created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
+
+
 class ReviewModel(Base):
     """RAG 용 리뷰. 협찬 필터링 후 임베딩 저장 (8장)."""
 

@@ -51,7 +51,7 @@
 
 ### 코어
 - `main.py` 엔드포인트, `models.py` ORM, `schemas.py` 도메인, `store.py` 코스 저장.
-- `users.py` 회원·크레딧(차감·환불 모두 행 잠금), `auth.py` SMS 인증(시도·발송 제한), `payment_ledger.py` 결제 리플레이 차단, `bookmarks.py`, `chat.py`.
+- `users.py` 회원·크레딧(차감·환불 모두 행 잠금), `auth.py` SMS 인증(시도·발송 제한), `payment_ledger.py` 결제 원장(리플레이 차단, DB/인메모리 폴백), `bookmarks.py`, `chat.py`.
 - `db.py` 세션/폴백, `queue.py` 액션 큐, `realtime.py` Socket.IO, `config.py` env 설정.
 - `middleware.py` — rate limit + 요청 로깅(요청마다 `X-Request-Id` 발급·응답 반환, 2초 이상은 warning).
 - `metrics.py` — 라우트별 지연/에러, 외부 연동 폴백 비율(`externals`), 임계 초과 `alerts`. `GET /admin/metrics`(ADMIN_TOKEN).
