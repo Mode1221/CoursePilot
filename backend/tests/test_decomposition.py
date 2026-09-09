@@ -24,3 +24,19 @@ def test_마커_없는_이른_시각은_저녁으로_본다():
     assert parse_constraints("오전 7시 모임").start_time == time(7, 0)
     # 8시 이상은 그대로(오전 가능성이 높다)
     assert parse_constraints("8시 시작").start_time == time(8, 0)
+
+
+def test_지명이_아닌_단어를_지역으로_잡지_않는다():
+    from app.pipeline.decomposition import parse_constraints
+
+    assert parse_constraints("반려동물 동반 가능한 카페 망원").region == "망원"
+    assert parse_constraints("성수동에서 만나자").region == "성수동"
+    assert parse_constraints("종로구 맛집").region == "종로구"
+
+
+def test_다른_말에_섞인_한_곳을_개수로_보지_않는다():
+    from app.pipeline.decomposition import parse_constraints
+
+    assert parse_constraints("성수동 카페 두 곳 조용한 곳으로").stop_count == 2
+    assert parse_constraints("조용한 곳으로 추천해줘").stop_count is None
+    assert parse_constraints("한 곳만 갈래").stop_count == 1

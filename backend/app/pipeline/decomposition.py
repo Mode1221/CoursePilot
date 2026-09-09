@@ -46,7 +46,13 @@ _START_PLACE_RE = re.compile(
     r"([가-힣A-Za-z0-9]{2,12}?)\s*에서\s*(?:출발|만나|모여|시작)"
 )
 _STOP_NUM_RE = re.compile(r"(\d)\s*(?:차|군데|곳)")
-_STOP_WORDS = {"한 곳": 1, "한곳": 1, "두 곳": 2, "두곳": 2, "두 군데": 2, "세 곳": 3, "세곳": 3, "세 군데": 3, "네 곳": 4, "네곳": 4}
+# 앞에 다른 한글이 붙으면 개수 표현이 아니다("조용한 곳"의 "한 곳")
+_STOP_WORD_RES = [
+    (re.compile(r"(?<![가-힣])" + pattern), count)
+    for pattern, count in [
+        (r"한\s*곳", 1), (r"두\s*(?:곳|군데)", 2), (r"세\s*(?:곳|군데)", 3), (r"네\s*(?:곳|군데)", 4),
+    ]
+]
 _PARTY_WORDS = {"혼자": 1, "둘이": 2, "두명": 2, "셋이": 3, "세명": 3, "넷이": 4, "네명": 4}
 # 예산이 "총액"임을 알려주는 표현 (1인 기준으로 나눠서 쓴다)
 _TOTAL_BUDGET_WORDS = ("총", "다 해서", "다해서", "전부", "합쳐서", "모두")
@@ -159,7 +165,14 @@ def parse_constraints(text: str, today: date | None = None) -> PlanConstraints:
     c.plan_date = _parse_date(text, today or date.today())
 
     # 지역: "성수동", "강남역" 등 (동/역/구 접미사) → 없으면 접미사 없는 지명 사전
-    region_m = re.search(r"([가-힣]+(?:동|역|구|읍|면))", text)
+    # 접미사 뒤에 한글이 이어지면 지명이 아니다("반려동물"의 "반려동")
+    # 접미사 뒤에 한글이 이어지면 지명이 아니다("반려동물"의 "반려동").
+    # 다만 조사가 붙는 경우("성수동에서")는 지명으로 인정한다.
+    region_m = re.search(
+        r"([가-힣]{1,5}?(?:동|역|구|읍|면))"
+        r"(?=$|[^가-힣]|에|으로|로|까지|부터|은|는|이|가|의|랑|와|과)",
+        text,
+    )
     if region_m:
         c.region = region_m.group(1)
     else:
@@ -250,7 +263,7 @@ def parse_constraints(text: str, today: date | None = None) -> PlanConstraints:
     if sm:
         c.stop_count = max(1, min(int(sm.group(1)), 6))
     else:
-        c.stop_count = next((n for w, n in _STOP_WORDS.items() if w in text), None)
+        c.stop_count = next((n for rx, n in _STOP_WORD_RES if rx.search(text)), None)
 
     # 인원수
     pm = _PARTY_RE.search(text)
