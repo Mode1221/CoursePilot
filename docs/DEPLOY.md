@@ -96,3 +96,26 @@ curl -X POST http://localhost:8000/courses # 코스 생성
 - Socket.IO는 WebSocket 사용 — 리버스 프록시(Nginx 등)에서 `Upgrade` 헤더 전달 필요.
 - 다중 백엔드 인스턴스로 확장 시 Socket.IO는 메시지 브로커(예: Redis) 어댑터가 필요(현재 단일 프로세스 기준).
 - 크레딧 원자적 차감은 DB 행 잠금(`FOR UPDATE`)에 의존 — 인메모리 폴백은 단일 프로세스에서만 정확.
+
+## 장소 데이터 배치 (크론)
+장소 DB 는 검색 API 로 즉석에서 만드는 대신 배치로 쌓고 주기적으로 갱신한다.
+유료 콜은 무료 한도 안에서 페이싱되며, 한도를 넘기면 호출 자체가 차단된다(`app/quota.py`).
+
+```cron
+# 폐업 대장(LOCALDATA) 내려받기 — 주 1회
+0 3 * * 1 cd /srv/coursepilot/backend && python scripts/fetch_localdata.py
+
+# 상권 수집·보강 — 매일(영업시간 160건/일, 평점 11건/일로 나눠 채운다)
+0 4 * * * cd /srv/coursepilot/backend && python scripts/build_places.py
+
+# 저장된 장소 갱신 — 매일(폐업 전체 / 영업시간 30일 / 평점 90일 TTL)
+30 4 * * * cd /srv/coursepilot/backend && python scripts/refresh_places.py
+```
+
+- 실행이 겹치면 뒤에 뜬 쪽이 종료 코드 1 로 빠진다(`batch_lock`). 크론 중복은 걱정하지 않아도 된다.
+- 초기 구축은 며칠 걸린다 — 영업시간·평점을 하루 할당량씩 채우는 것이 설계 전제다.
+- 사용량은 `GET /admin/metrics` 의 `quotas` 로 확인하고, 80%·소진 시점에는 `ALERT_WEBHOOK_URL` 로 알림이 간다.
+
+### 키 주의
+- Google Cloud 콘솔에서 **키 제한(IP/HTTP 리퍼러)과 일일 할당량 상한**을 반드시 설정한다. 코드 쪽 한도는 인스턴스 기준이라 최후 방어선이 아니다.
+- 네이버 경로는 NCP 전용 키(`NCP_API_KEY_ID/KEY`)를 쓴다. 개발자센터 키(`NAVER_CLIENT_ID/SECRET`)는 지역·블로그 검색용이다.
