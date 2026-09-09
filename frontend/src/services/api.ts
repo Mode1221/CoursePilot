@@ -146,8 +146,12 @@ export const api = {
   relatedPlaces: (placeId: string) =>
     request<import("@/types").Place[]>(`/places/${placeId}/related`),
 
-  revisit: (placeId: string) =>
-    request<{ ok: boolean }>(`/places/${placeId}/revisit`, { method: "POST" }),
+  // 재방문 의사는 사람·장소당 한 번만 신호로 세므로 사용자 id 를 함께 보낸다
+  revisit: (placeId: string, userId?: string) =>
+    request<{ ok: boolean; counted: boolean }>(`/places/${placeId}/revisit`, {
+      method: "POST",
+      userId,
+    }),
 
   feedback: (courseId: string, kind: string, detail = "") =>
     request<{ ok: boolean }>(`/courses/${courseId}/feedback`, {

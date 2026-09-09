@@ -814,13 +814,22 @@ REVISIT_WEIGHT = 2  # 재방문 의사는 장소 단위 강한 긍정(또 가고
 
 
 @api.post("/places/{place_id}/revisit")
-async def mark_revisit(place_id: str) -> dict:
+async def mark_revisit(
+    place_id: str, x_user_id: str | None = Header(default=None)
+) -> dict:
     """재방문 의사 토글 (data #10). "또 가고 싶어요" → 장소 인기 강한 가점.
 
-    장소 단위 명시 신호(원탭). 인증 불필요.
+    한 사람이 한 장소에 한 번만 의미가 있는 명시 신호라, 사용자·장소 단위로
+    중복을 막는다. 로그인하지 않으면 신호로 세지 않는다(반복 호출로 부풀리기 방지).
     """
+    from app.revisits import revisit_store
+
+    if not x_user_id:
+        return {"ok": True, "counted": False}
+    if not revisit_store.mark(x_user_id, place_id):
+        return {"ok": True, "counted": False}
     popularity_store.bump(place_id, weight=REVISIT_WEIGHT)
-    return {"ok": True}
+    return {"ok": True, "counted": True}
 
 
 class FeedbackRequest(BaseModel):
