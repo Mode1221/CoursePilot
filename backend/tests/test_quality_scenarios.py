@@ -89,3 +89,27 @@ def test_같은_성격이_연달아_오지_않는다():
     for text in ("성수동 오후 2시부터 밤 11시까지", "성수동 하루종일", "성수동 6시간"):
         slots = desired_slots(parse_constraints(text))
         assert all(a != b for a, b in zip(slots, slots[1:], strict=False)), text
+
+
+def test_코스_점수는_같은_성격_연속을_감점한다():
+    from datetime import time as dtime
+
+    from app.pipeline.planner import course_score
+    from app.schemas import Place, TimelineItem
+
+    def _item(pid: str, category: str) -> TimelineItem:
+        return TimelineItem(
+            place=Place(id=pid, name=pid, category=category, lat=37.5, lng=127.0, rating=4.0),
+            arrive=dtime(12, 0),
+            depart=dtime(13, 0),
+        )
+
+    varied = [_item("a", "restaurant"), _item("b", "cafe")]
+    repeated = [_item("a", "restaurant"), _item("b", "restaurant")]
+    assert course_score(varied) > course_score(repeated)
+
+
+async def test_긴_코스에_같은_성격이_연달아_오지_않는다():
+    result = await generate_course("성수동 오후 2시부터 밤 11시까지", MockMapService())
+    kinds = [classify(it.place) for it in result.timeline]
+    assert all(a != b for a, b in zip(kinds, kinds[1:], strict=False)), kinds
