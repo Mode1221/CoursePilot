@@ -27,6 +27,7 @@ class ScoreWeights:
     outdoor_penalty: float = 0.4  # 우천 시 야외 감점
     indoor_bonus: float = 0.15  # 우천 시 실내 가점
     party: float = 0.1  # 인원수 적합
+    late_night: float = 0.3  # 심야 요청에 실제로 늦게까지 여는 곳
     fact_tag: float = 0.2  # 요청 조건과 사실 태그(단체석·주차 등) 일치
     longevity: float = 0.2  # 업력(오래 버틴 가게일수록 실패가 적다)
     closure_penalty: float = 0.15  # 인근 폐업률(상권이 죽어가면 감점)
