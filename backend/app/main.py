@@ -908,6 +908,7 @@ _FACT_QUESTIONS: tuple[tuple[str, tuple[str, ...]], ...] = (
     ("예약", ("예약",)),
 )
 _COST_WORDS = ("얼마", "비용", "가격", "예산")
+_HOURS_WORDS = ("영업시간", "몇 시까지", "몇시까지", "문 닫", "문닫", "언제까지 해", "브레이크")
 _TIME_WORDS = ("몇 시", "언제", "얼마나 걸", "소요", "끝나")
 
 
@@ -948,6 +949,27 @@ def _subject_particle(word: str) -> str:
     return "이" if _has_final_consonant(word) else "가"
 
 
+def _hours_answer(course: Course) -> str:
+    """영업시간 질문: 확인된 곳은 시간을, 확인 못 한 곳은 그 사실을 말한다."""
+    known, unknown = [], []
+    for item in course.items:
+        place = item.place
+        if place.open_time and place.close_time and not place.hours_unverified:
+            known.append(
+                f"{place.name} {place.open_time.strftime('%H:%M')}~"
+                f"{place.close_time.strftime('%H:%M')}"
+            )
+        else:
+            unknown.append(place.name)
+    parts = []
+    if known:
+        parts.append(", ".join(known))
+    if unknown:
+        names = ", ".join(unknown)
+        parts.append(f"{names}{_topic_particle(names)} 영업시간을 확인하지 못했어요")
+    return ". ".join(parts) + "." if parts else "영업시간 정보가 없어요."
+
+
 def _cost_answer(course: Course) -> str:
     """비용 질문: 아는 것만 더하고, 추정이 섞였는지 밝힌다."""
     priced = [it.place for it in course.items if it.place.price is not None]
@@ -965,6 +987,8 @@ def _course_answer(course: Course, text: str = "") -> str:
     fact = _fact_answer(course, text)
     if fact:
         return fact
+    if any(w in text for w in _HOURS_WORDS):
+        return _hours_answer(course)
     # "얼마나 걸려"는 비용이 아니라 시간을 묻는 말이다 — 시간 표현을 먼저 본다.
     if any(w in text for w in _TIME_WORDS):
         return _course_answer_summary(course)
