@@ -123,6 +123,16 @@ class SafeMapService(MapService):
             return await self._fallback.get_route(origin, dest, mode)
 
 
+def _with_prices(places: list[Place]) -> list[Place]:
+    """가격을 주지 않는 검색 API 를 위해 카테고리 기반 추정치를 채운다."""
+    try:
+        from app.pipeline.price_estimate import fill_estimated_prices
+
+        return fill_estimated_prices(places)
+    except Exception:
+        return places
+
+
 def _unvisitable(place: Place) -> bool:
     from app.adapters.google import is_closed_now
 
@@ -150,7 +160,7 @@ class ClosedFilterMapService(MapService):
             registry = get_localdata_registry()
             registry.reload_if_stale()
             if not registry.loaded:
-                return places
+                return _with_prices(places)
             kept: list[Place] = []
             for place in places:
                 record = registry.find(place.name, place.address)
@@ -159,7 +169,7 @@ class ClosedFilterMapService(MapService):
                 if record and record.opened_on and place.opened_on is None:
                     place.opened_on = record.opened_on
                 kept.append(place)
-            return kept
+            return _with_prices(kept)
         except Exception:
             return places  # 필터 실패는 무영향
 
