@@ -128,6 +128,7 @@ export const api = {
       region: string | null;
       diet: string[];
       transport: string | null;
+      must_haves: string[];
     }>(`/users/${userId}/preferences`, { userId }),
 
   setPreferences: (userId: string, prefs: Record<string, unknown>) =>

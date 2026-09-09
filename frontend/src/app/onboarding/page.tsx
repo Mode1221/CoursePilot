@@ -27,6 +27,8 @@ const PHONE_RE = /^01[016789]-?\d{3,4}-?\d{4}$/;
 const BUDGET_OPTIONS = ["2만원 이하", "2~4만원", "4~6만원", "6만원 이상"];
 // 검색 키워드로 그대로 전달되는 제약(식이·동반 조건)
 const DIET_OPTIONS = ["비건", "채식", "노키즈", "반려동물"];
+// 매번 말하기 번거로운 상시 조건 — 요청마다 검색 조건으로 자동 반영된다
+const MUST_HAVE_OPTIONS = ["주차", "반려동물", "단체석", "유아의자", "휠체어"];
 
 // 온보딩 선호 사전조사 (9-6). 5문항, 모두 건너뛰기 가능.
 export default function Onboarding() {
@@ -38,6 +40,7 @@ export default function Onboarding() {
   const [transport, setTransport] = useState("");
   const [budget, setBudget] = useState("");
   const [diet, setDiet] = useState<string[]>([]);
+  const [mustHaves, setMustHaves] = useState<string[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [code, setCode] = useState("");
@@ -63,6 +66,7 @@ export default function Onboarding() {
         setTransport(p.transport ?? "");
         setBudget(p.budget ?? "");
         setDiet(p.diet ?? []);
+        setMustHaves(p.must_haves ?? []);
       })
       .catch(() => {});
     return () => {
@@ -141,6 +145,7 @@ export default function Onboarding() {
         transport: transport || null,
         budget: budget || null,
         diet,
+        must_haves: mustHaves,
       });
       toast("설정을 저장했어요.", "success");
       router.push("/");
@@ -244,6 +249,31 @@ export default function Onboarding() {
             ))}
           </select>
         </label>
+
+        <fieldset
+          style={{ border: "none", padding: 0, margin: 0, fontSize: "var(--fs-sm)", color: "var(--text-muted)" }}
+        >
+          <legend style={{ padding: 0 }}>항상 필요한 것 (복수 선택)</legend>
+          <div style={{ display: "flex", flexWrap: "wrap", gap: "var(--sp-2)", marginTop: "var(--sp-2)" }}>
+            {MUST_HAVE_OPTIONS.map((m) => (
+              <label
+                key={m}
+                style={{ display: "flex", alignItems: "center", gap: 4, color: "var(--text)" }}
+              >
+                <input
+                  type="checkbox"
+                  checked={mustHaves.includes(m)}
+                  onChange={() =>
+                    setMustHaves((prev) =>
+                      prev.includes(m) ? prev.filter((x) => x !== m) : [...prev, m],
+                    )
+                  }
+                />
+                {m}
+              </label>
+            ))}
+          </div>
+        </fieldset>
 
         <fieldset
           style={{ border: "none", padding: 0, margin: 0, fontSize: "var(--fs-sm)", color: "var(--text-muted)" }}

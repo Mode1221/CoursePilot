@@ -29,6 +29,7 @@ describe("마이페이지", () => {
       transport: null,
       budget: null,
       diet: [],
+      must_haves: [],
     });
     vi.mocked(api.duplicateCourse).mockResolvedValue({
       ...COURSE,
@@ -67,6 +68,7 @@ describe("마이페이지", () => {
       transport: "도보",
       budget: "2~4만원",
       diet: ["비건"],
+      must_haves: [],
     });
     render(<MyPage />);
     await waitFor(() =>

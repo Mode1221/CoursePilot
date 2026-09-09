@@ -28,7 +28,8 @@ def test_저장한_선호를_돌려준다():
     }
     client.put(f"/users/{uid}/preferences", headers={"X-User-Id": uid}, json=prefs)
     got = client.get(f"/users/{uid}/preferences", headers={"X-User-Id": uid}).json()
-    assert got == prefs
+    assert {k: got[k] for k in prefs} == prefs
+    assert got["must_haves"] == []  # 상시 조건은 기본 비어 있다
 
 
 def test_저장_전에는_빈_프로필():

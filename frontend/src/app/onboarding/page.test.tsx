@@ -33,6 +33,7 @@ describe("온보딩", () => {
       transport: null,
       budget: null,
       diet: [],
+      must_haves: [],
     });
     vi.mocked(api.requestSmsCode).mockReset();
     vi.mocked(api.verifySmsCode).mockReset();
@@ -96,6 +97,7 @@ describe("온보딩", () => {
       transport: "차량",
       budget: "4~6만원",
       diet: ["채식"],
+      must_haves: [],
     });
 
     render(<Onboarding />);
@@ -128,7 +130,24 @@ describe("온보딩", () => {
       transport: "차량",
       budget: "2~4만원",
       diet: ["비건"],
+      must_haves: [],
     });
+  });
+
+  it("항상 필요한 것을 저장한다", async () => {
+    vi.mocked(api.signup).mockResolvedValue({ user_id: "u1", credits_left: 5 });
+    vi.mocked(api.setPreferences).mockResolvedValue(undefined);
+
+    render(<Onboarding />);
+    await verifyPhone();
+    fireEvent.click(screen.getByLabelText("주차"));
+    fireEvent.click(screen.getByText("저장"));
+
+    await waitFor(() => expect(push).toHaveBeenCalledWith("/"));
+    expect(api.setPreferences).toHaveBeenCalledWith(
+      "u1",
+      expect.objectContaining({ must_haves: ["주차"] }),
+    );
   });
 
   it("체크박스를 다시 누르면 제외 조건이 빠진다", async () => {
