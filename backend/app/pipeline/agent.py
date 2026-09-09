@@ -161,7 +161,7 @@ def _apply_preferences(constraints: PlanConstraints, prefs: dict) -> None:
 
 MAX_QUERY_KEYWORDS = 3  # 지역 + 키워드 3개까지만 검색 질의로 전달
 CANDIDATES_PER_SLOT = 6  # 칸마다 이 정도 후보가 있어야 카테고리·영업시간 필터를 견딘다
-MAX_CANDIDATES = 30
+MAX_CANDIDATES = 40  # 6칸 코스(칸당 6후보)까지 채울 수 있는 상한
 
 
 async def _attempt(

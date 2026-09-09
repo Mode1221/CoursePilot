@@ -23,7 +23,7 @@ _DIRECTIONS_URL = "https://naveropenapi.apigw.ntruss.com/map-direction/v1/drivin
 
 MAX_DISPLAY = 5  # 네이버 지역검색 API 의 한 번 호출 상한
 # 후보를 넓히기 위한 보조 질의어(코스 카테고리와 대응)
-_FALLBACK_TERMS = ("맛집", "카페", "술집", "전시", "산책")
+_FALLBACK_TERMS = ("맛집", "카페", "술집", "전시", "산책", "베이커리", "공원", "소품샵")
 
 
 def _build_queries(region: str, keywords: list[str], limit: int) -> list[str]:
