@@ -126,3 +126,42 @@ def test_한도가_없는_API는_알리지_않는다(monkeypatch, store):
     monkeypatch.setattr("app.quota._notify", lambda kind, target, text: sent.append(text))
     store.record("kakao.search", 1_000_000)
     assert sent == []
+
+
+def test_DB가_있으면_사용량을_영속화한다(monkeypatch, tmp_path):
+    """재시작으로 카운터가 되살아나면 무료 한도를 넘겨 과금된다."""
+    from sqlalchemy import create_engine
+    from sqlalchemy.orm import sessionmaker
+
+    from app.models import Base
+
+    engine = create_engine(f"sqlite:///{tmp_path/'q.db'}")
+    Base.metadata.create_all(engine)
+    Session = sessionmaker(engine)
+    monkeypatch.setattr("app.db.SessionLocal", Session, raising=False)
+    monkeypatch.setattr(QuotaStore, "_db_ready", staticmethod(lambda: True))
+
+    store = QuotaStore()
+    store.record("google.hours", 40)
+    assert store.used("google.hours") == 40
+
+    # 새 프로세스처럼 완전히 새 인스턴스로 읽어도 사용량이 남아 있어야 한다
+    assert QuotaStore().used("google.hours") == 40
+    assert QuotaStore().remaining("google.hours") == MONTHLY_FREE_LIMITS["google.hours"] - 40
+
+
+def test_DB에서도_달이_바뀌면_0부터(monkeypatch, tmp_path):
+    from sqlalchemy import create_engine
+    from sqlalchemy.orm import sessionmaker
+
+    from app.models import Base
+
+    engine = create_engine(f"sqlite:///{tmp_path/'q2.db'}")
+    Base.metadata.create_all(engine)
+    monkeypatch.setattr("app.db.SessionLocal", sessionmaker(engine), raising=False)
+    monkeypatch.setattr(QuotaStore, "_db_ready", staticmethod(lambda: True))
+
+    store = QuotaStore()
+    store.record("google.hours", 10, now=JAN)
+    assert store.used("google.hours", now=JAN) == 10
+    assert store.used("google.hours", now=FEB) == 0
