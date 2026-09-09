@@ -68,6 +68,7 @@ export default function PlanPage({ params }: { params: { id: string } }) {
 
     return () => {
       cancelled = true;
+      socket.emit("leave", { course_id: id }); // 떠난 코스의 브로드캐스트를 계속 받지 않는다
       socket.off("state");
       socket.off("locked");
       socket.off("unlocked");

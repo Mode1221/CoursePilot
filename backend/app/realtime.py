@@ -44,6 +44,19 @@ async def join(sid, data):
         await sio.emit("joined", {"course_id": course_id}, to=sid)
 
 
+@sio.event
+async def leave(sid, data):
+    """코스 화면을 떠나면 room 에서 나간다.
+
+    나가지 않으면 다른 코스로 이동한 뒤에도 이전 코스의 브로드캐스트가 계속
+    전달되어 대역폭과 서버 메모리를 낭비한다.
+    """
+    course_id = data.get("course_id")
+    if course_id:
+        await sio.leave_room(sid, course_id)
+        await sio.emit("left", {"course_id": course_id}, to=sid)
+
+
 async def broadcast_state(course_id: str, course_dict: dict) -> None:
     await sio.emit("state", course_dict, room=course_id)
 
