@@ -33,8 +33,9 @@ _TARGET_RE = re.compile(r"([가-힣A-Za-z]+?)(?:으로|로)\s*(?:바꿔|교체|�
 
 @dataclass
 class EditCommand:
-    action: str  # "replace" | "remove" | "add" | "reorder" | "none"
+    action: str  # "replace" | "remove" | "add" | "reorder" | "swap" | "none"
     index: int = -1  # 0-based
+    index2: int = -1  # swap 의 두 번째 대상(0-based)
     keyword: str = ""
     match: str = ""  # 순서 대신 이름/카테고리로 지목한 경우("카페 빼줘")
 
@@ -66,6 +67,10 @@ def _find_category(text: str) -> tuple[str, str]:
 def parse_edit(text: str) -> EditCommand:
     # 순서 재배치는 대상 지목이 필요 없다(코스 전체가 대상)
     if _REORDER_RE.search(text):
+        # "첫번째랑 두번째 순서 바꿔"처럼 두 곳을 콕 집었으면 그 둘만 맞바꾼다
+        picked = _find_indices(text)
+        if len(picked) >= 2:
+            return EditCommand(action="swap", index=picked[0], index2=picked[1])
         return EditCommand(action="reorder")
     idx = _find_index(text)
     match = ""
@@ -94,6 +99,23 @@ def parse_edit(text: str) -> EditCommand:
 LAST_INDEX = -2
 
 
+def _find_indices(text: str) -> list[int]:
+    """문장에 등장한 순번을 나온 순서대로 모은다("첫번째랑 두번째" → [0, 1])."""
+    found: list[tuple[int, int]] = []
+    for m in re.finditer(r"(\d+)\s*번(?:째)?", text):
+        found.append((m.start(), int(m.group(1)) - 1))
+    for word, n in _ORDINALS.items():
+        for m in re.finditer(word + r"\s*번(?:째)?", text):
+            found.append((m.start(), n - 1))
+    if "마지막" in text:
+        found.append((text.index("마지막"), LAST_INDEX))
+    ordered: list[int] = []
+    for _, idx in sorted(found):
+        if idx not in ordered:
+            ordered.append(idx)
+    return ordered
+
+
 def _find_index(text: str) -> int:
     # "3번째" / "3번" 처럼 숫자
     m = re.search(r"(\d+)\s*번(?:째)?", text)
@@ -115,6 +137,8 @@ async def apply_edit(
 ) -> list[TimelineItem]:
     """편집 명령을 적용해 갱신된 타임라인을 반환. 전체 동선 재계산."""
     items = list(course.items)
+    if cmd.action == "swap":
+        return await _apply_swap(items, cmd, map_service)
     if cmd.action == "reorder":
         return await _apply_reorder(items, map_service)
     if cmd.action == "add":
@@ -153,6 +177,22 @@ async def apply_edit(
     start = items[0].arrive if items and items[0].arrive else DEFAULT_START_TIME
     mode = _infer_mode(items)
     return await recompute([it.place for it in items], start, mode, map_service)
+
+
+async def _apply_swap(
+    items: list[TimelineItem], cmd: EditCommand, map_service: MapService
+) -> list[TimelineItem]:
+    """지목한 두 자리를 맞바꾼다."""
+    def _resolve(i: int) -> int:
+        return len(items) - 1 if i == LAST_INDEX else i
+
+    a, b = _resolve(cmd.index), _resolve(cmd.index2)
+    if not (0 <= a < len(items) and 0 <= b < len(items)) or a == b:
+        return items
+    places = [it.place for it in items]
+    places[a], places[b] = places[b], places[a]
+    start = items[0].arrive or DEFAULT_START_TIME
+    return await recompute(places, start, _infer_mode(items), map_service)
 
 
 async def _apply_reorder(
