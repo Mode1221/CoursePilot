@@ -64,7 +64,7 @@ describe("PlaceDetailModal", () => {
     relatedPlaces.mockResolvedValue([]);
     const { getByText } = render(<PlaceDetailModal place={place} onClose={vi.fn()} />);
     fireEvent.click(getByText("또 가고 싶어요"));
-    expect(revisit).toHaveBeenCalledWith("p1");
+    expect(revisit).toHaveBeenCalledWith("p1", undefined);
   });
 
   it("리뷰 애스펙트를 좋은 점/주의할 점 뱃지로 보여준다", async () => {

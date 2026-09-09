@@ -166,8 +166,10 @@ def test_satisfaction_signal(client):
 def test_revisit_signal(client):
     from app.popularity import popularity_store
 
+    uid = _signup(client)
     before = popularity_store.scores(["place-revisit"])["place-revisit"]
-    assert client.post("/places/place-revisit/revisit").status_code == 200
+    res = client.post("/places/place-revisit/revisit", headers={"X-User-Id": uid})
+    assert res.status_code == 200 and res.json()["counted"] is True
     after = popularity_store.scores(["place-revisit"])["place-revisit"]
     assert after - before > 1.5  # 재방문 의사 강한 가점
 

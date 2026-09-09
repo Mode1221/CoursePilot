@@ -6,6 +6,7 @@ import { Badge, Button, Skeleton } from "@/components/ui";
 import { naverMapUrl } from "@/services/mapLink";
 import { api } from "@/services/api";
 import { useCourseStore } from "@/store/courseStore";
+import { useUserStore } from "@/store/userStore";
 import { toast } from "@/store/toastStore";
 import type { Place } from "@/types";
 
@@ -26,6 +27,7 @@ export default function PlaceDetailModal({
   const [aspects, setAspects] = useState<{ pros: string[]; cons: string[] }>({ pros: [], cons: [] });
   const [myStars, setMyStars] = useState<number | null>(null);
   const [revisit, setRevisit] = useState(false);
+  const userId = useUserStore((s) => s.userId);
   const [related, setRelated] = useState<Place[]>([]);
   const closeRef = useRef<HTMLButtonElement>(null);
   const dialogRef = useRef<HTMLDivElement>(null);
@@ -231,7 +233,7 @@ export default function PlaceDetailModal({
           onClick={() => {
             if (revisit) return;
             setRevisit(true);
-            api.revisit(place.id).catch(() => {
+            api.revisit(place.id, userId ?? undefined).catch(() => {
               setRevisit(false);
               toast("기록을 저장하지 못했어요.", "error");
             });
