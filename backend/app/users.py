@@ -167,23 +167,32 @@ class UserStore:
             prefs = [u.preferences for u in list(self._mem.values())[:limit]]
 
         total = len(prefs)
-        filled = {"mood": 0, "region": 0, "transport": 0, "budget": 0, "diet": 0}
+        filled = {"mood": 0, "region": 0, "transport": 0, "budget": 0, "diet": 0, "must_haves": 0}
         budgets: dict[str, int] = {}
         moods: dict[str, int] = {}
         diets: dict[str, int] = {}
+        must_haves: dict[str, int] = {}
         for pref in prefs:
             for field in ("mood", "region", "transport", "budget"):
                 if getattr(pref, field):
                     filled[field] += 1
             if pref.diet:
                 filled["diet"] += 1
+            if pref.must_haves:
+                filled["must_haves"] += 1
+                for item in pref.must_haves:
+                    must_haves[item] = must_haves.get(item, 0) + 1
             if pref.budget:
                 budgets[pref.budget] = budgets.get(pref.budget, 0) + 1
             if pref.mood:
                 moods[pref.mood] = moods.get(pref.mood, 0) + 1
             for d in pref.diet:
                 diets[d] = diets.get(d, 0) + 1
-        any_filled = sum(1 for p in prefs if p.mood or p.region or p.transport or p.budget or p.diet)
+        any_filled = sum(
+            1
+            for p in prefs
+            if p.mood or p.region or p.transport or p.budget or p.diet or p.must_haves
+        )
         return {
             "users": total,
             "answered_any": any_filled,
@@ -192,6 +201,8 @@ class UserStore:
             "budget_distribution": budgets,
             "mood_distribution": moods,
             "diet_distribution": diets,
+            # 상시 조건은 무엇을 자주 켜는지가 곧 기능 우선순위 힌트다
+            "must_have_distribution": must_haves,
         }
 
     def set_preferences(self, user_id: str, prefs: Preferences) -> User | None:
