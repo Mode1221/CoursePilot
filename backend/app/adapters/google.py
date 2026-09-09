@@ -68,13 +68,40 @@ def _parse_hm(point: dict | None) -> time | None:
     return time(int(hour) % 24, int(minute or 0))
 
 
-def _weekday_period(hours: dict | None, weekday: int) -> tuple[time | None, time | None]:
-    """요일(월=0)의 첫 영업 구간. Google 은 일=0 기준이라 변환한다."""
+def _weekday_periods(hours: dict | None, weekday: int) -> list[tuple[time, time | None]]:
+    """요일(월=0)의 영업 구간들. Google 은 일=0 기준이라 변환한다."""
     google_day = (weekday + 1) % 7
+    found: list[tuple[time, time | None]] = []
     for period in (hours or {}).get("periods") or []:
-        if (period.get("open") or {}).get("day") == google_day:
-            return _parse_hm(period.get("open")), _parse_hm(period.get("close"))
-    return None, None
+        if (period.get("open") or {}).get("day") != google_day:
+            continue
+        opened = _parse_hm(period.get("open"))
+        if opened is not None:
+            found.append((opened, _parse_hm(period.get("close"))))
+    return sorted(found, key=lambda pair: pair[0])
+
+
+def _weekday_period(hours: dict | None, weekday: int) -> tuple[time | None, time | None]:
+    """하루 전체의 영업 구간(첫 개점~마지막 마감).
+
+    브레이크가 있는 가게는 하루에 구간이 둘로 나뉘어 온다. 첫 구간만 보면
+    "11:00~15:00"으로 읽혀 저녁 영업을 통째로 놓친다.
+    """
+    periods = _weekday_periods(hours, weekday)
+    if not periods:
+        return None, None
+    return periods[0][0], periods[-1][1]
+
+
+def _weekday_break(hours: dict | None, weekday: int) -> tuple[time | None, time | None]:
+    """구간이 둘로 나뉘어 있으면 그 사이가 브레이크다."""
+    periods = _weekday_periods(hours, weekday)
+    if len(periods) < 2:
+        return None, None
+    first_close, second_open = periods[0][1], periods[1][0]
+    if first_close is None or first_close >= second_open:
+        return None, None
+    return first_close, second_open
 
 
 def has_periods(hours: dict | None) -> bool:
@@ -189,6 +216,7 @@ class GooglePlacesClient:
         if open_time is not None:
             place.open_time = open_time
             place.close_time = close_time
+            place.break_start, place.break_end = _weekday_break(hours, day)
             place.closed_that_day = False
             place.hours_unverified = False
         elif has_periods(hours):

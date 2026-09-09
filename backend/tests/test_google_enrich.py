@@ -189,3 +189,26 @@ async def test_확정_갱신은_코스_요일을_넘긴다(monkeypatch):
     monkeypatch.setattr("app.adapters.google.get_places_client", lambda: client)
     await refresh_final_hours([_place()], weekday=5)
     assert seen == [5]
+
+
+BREAK_PAYLOAD = {
+    "businessStatus": "OPERATIONAL",
+    "regularOpeningHours": {
+        "periods": [
+            # 월요일 11:00~15:00, 17:00~22:00 (브레이크 있는 가게)
+            {"open": {"day": 1, "hour": 11, "minute": 0}, "close": {"day": 1, "hour": 15, "minute": 0}},
+            {"open": {"day": 1, "hour": 17, "minute": 0}, "close": {"day": 1, "hour": 22, "minute": 0}},
+        ]
+    },
+}
+
+
+async def test_브레이크가_있으면_하루_전체를_영업시간으로_본다():
+    place = await _FakeClient(hours=BREAK_PAYLOAD).refresh_hours(_place(), weekday=0)
+    assert (place.open_time, place.close_time) == (time(11, 0), time(22, 0))
+    assert (place.break_start, place.break_end) == (time(15, 0), time(17, 0))
+
+
+async def test_구간이_하나면_브레이크는_없다():
+    place = await _FakeClient().refresh_hours(_place(), weekday=0)
+    assert place.break_start is None and place.break_end is None
