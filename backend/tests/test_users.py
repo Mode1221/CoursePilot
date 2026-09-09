@@ -109,3 +109,15 @@ def test_포인트_충전과_레퍼럴_지급이_누적된다():
     assert granted.points == 5
     assert granted.credits_limit == 7  # 기본 5 + 2
     assert store.purchase_points("없는유저", 5) is None
+
+
+def test_선호_저장은_크레딧을_건드리지_않는다():
+    from app.users import Preferences, UserStore
+
+    store = UserStore()
+    user = store.create("01077778888")
+    store.consume_credit(user.id)
+    updated = store.set_preferences(user.id, Preferences(region="성수동"))
+    assert updated.credits_used == 1
+    assert updated.preferences.region == "성수동"
+    assert store.set_preferences("없는유저", Preferences()) is None

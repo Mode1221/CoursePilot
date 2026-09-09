@@ -132,6 +132,18 @@ class UserStore:
         return self._mem.get(user_id)
 
     def set_preferences(self, user_id: str, prefs: Preferences) -> User | None:
+        if is_ready():
+            # 전체 저장(_save)은 그 사이 바뀐 크레딧까지 되돌릴 수 있다 → 선호만 갱신
+            from app.db import SessionLocal
+            from app.models import UserModel
+
+            with SessionLocal() as s:
+                row = s.get(UserModel, user_id, with_for_update=True)
+                if row is None:
+                    return None
+                row.preferences = prefs.model_dump()
+                s.commit()
+                return self._to_user(row)
         user = self.get(user_id)
         if user is None:
             return None
