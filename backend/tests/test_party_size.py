@@ -24,3 +24,22 @@ def test_per_person_budget_kept():
 
 def test_no_party_size_when_absent():
     assert parse_constraints("30분 걸어서 성수동").party_size is None
+
+
+async def test_대인원이면_단체석을_검색어에_넣는다():
+    from app.adapters.map_service import MockMapService
+    from app.pipeline.agent import generate_course
+
+    big = await generate_course("강남 6명 저녁", MockMapService())
+    assert "단체석" in big.constraints.keywords
+
+    small = await generate_course("강남 2명 저녁", MockMapService())
+    assert "단체석" not in small.constraints.keywords
+
+
+async def test_이미_말했으면_중복으로_넣지_않는다():
+    from app.adapters.map_service import MockMapService
+    from app.pipeline.agent import generate_course
+
+    r = await generate_course("강남 8명 회식 룸 있는 곳", MockMapService())
+    assert r.constraints.keywords == ["룸"]
