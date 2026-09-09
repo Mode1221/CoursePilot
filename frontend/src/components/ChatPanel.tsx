@@ -218,6 +218,8 @@ export default function ChatPanel({ courseId }: { courseId: string }) {
           </div>
         )}
 
+        {/* 새 AI 답변이 도착하면 스크린리더에도 읽히도록 라이브 영역으로 둔다 */}
+        <div aria-live="polite" style={{ display: "contents" }}>
         {messages.map((m, i) => (
           <div
             key={i}
@@ -235,9 +237,15 @@ export default function ChatPanel({ courseId }: { courseId: string }) {
             {m.text}
           </div>
         ))}
+        </div>
 
         {locked && (
-          <div className="cp-enter" style={{ display: "flex", alignItems: "center", gap: "var(--sp-2)" }}>
+          <div
+            className="cp-enter"
+            role="status"
+            aria-live="polite"
+            style={{ display: "flex", alignItems: "center", gap: "var(--sp-2)" }}
+          >
             <Badge tone="brand">AI 작업 중</Badge>
             <span style={{ fontSize: "var(--fs-sm)", color: "var(--text-muted)" }}>
               {stageLabel(stage)} · 편집이 잠깁니다
@@ -246,7 +254,12 @@ export default function ChatPanel({ courseId }: { courseId: string }) {
         )}
 
         {notice && (
-          <p className="cp-enter" style={{ color: "var(--warn)", fontSize: "var(--fs-sm)", margin: 0 }}>
+          <p
+            className="cp-enter"
+            role="status"
+            aria-live="polite"
+            style={{ color: "var(--warn)", fontSize: "var(--fs-sm)", margin: 0 }}
+          >
             {notice}
           </p>
         )}
