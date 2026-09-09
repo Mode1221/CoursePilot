@@ -810,7 +810,23 @@ def _ai_reply(
 ) -> str:
     n = len(course.items)
     if needs_confirmation:
-        return "조건에 맞는 장소가 부족합니다. 조건을 완화할까요?"
+        # 왜 부족한지 짚어 줘야 무엇을 바꿀지 알 수 있다("완화할까요?"만으로는 막막하다)
+        hour = constraints.start_time.hour if constraints and constraints.start_time else None
+        if n == 0 and hour is not None and (hour >= 23 or hour < 6):
+            return (
+                f"{hour}시에는 문 연 곳을 찾기 어려워요. "
+                "시간을 조금 당기거나 다른 지역으로 바꿔 볼까요?"
+            )
+        if n == 0 and constraints is not None and constraints.budget_max:
+            budget = constraints.budget_max
+            amount = f"{budget // 10000}만원" if budget >= 10000 else f"{budget:,}원"
+            return (
+                f"1인 {amount} 안에서 맞는 곳을 찾지 못했어요. "
+                "예산을 올리거나 조건을 완화할까요?"
+            )
+        if n == 0:
+            return "조건에 맞는 장소를 찾지 못했어요. 지역이나 시간을 바꿔 볼까요?"
+        return f"{n}곳까지만 찾았어요. 조건을 완화할까요?"
     # 무엇을 알아들었는지 먼저 되짚어 준다(잘못 알아들었으면 바로 정정 가능)
     parts: list[str] = []
     if course.plan_date:
