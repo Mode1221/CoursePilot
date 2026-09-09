@@ -708,6 +708,8 @@ async def generate(
             # 없는 순번·카테고리를 지목하면 아무것도 바뀌지 않는다 → 알리고 크레딧도 돌려준다
             user_store.refund_credit(x_user_id)
             ai_text = "요청하신 자리를 찾지 못했어요. 순번(예: 2번째)이나 장소 종류로 다시 말씀해 주세요."
+        elif is_edit and edit_cmd.action in ("replace", "remove", "add"):
+            ai_text = _edit_reply(course, edit_cmd.action, old_ids, new_ids)
         elif is_edit and edit_cmd.action in ("reorder", "swap"):
             # 순서만 바꾼 경우엔 "N곳으로 구성했어요" 대신 무엇이 달라졌는지 말한다
             total = sum(
@@ -733,6 +735,22 @@ async def generate(
         )
 
     return await queues.run(course_id, action)
+
+
+def _edit_reply(course: Course, action: str, old_ids: list[str], new_ids: list[str]) -> str:
+    """편집 결과를 무엇이 바뀌었는지로 알린다("3곳으로 구성했어요"는 편집엔 무의미)."""
+    names = {it.place.id: it.place.name for it in course.items}
+    added = [pid for pid in new_ids if pid not in old_ids]
+    removed = [pid for pid in old_ids if pid not in new_ids]
+    n = len(course.items)
+    if action == "add" and added:
+        return f"'{names.get(added[0], '새 장소')}'를 마지막에 추가했어요. 이제 {n}곳이에요."
+    if action == "remove" and removed:
+        return f"한 곳을 뺐어요. 이제 {n}곳이에요."
+    if action == "replace" and added:
+        order = new_ids.index(added[0]) + 1
+        return f"{order}번째를 '{names.get(added[0], '다른 곳')}'으로 바꿨어요."
+    return f"수정했어요. 이제 {n}곳이에요."
 
 
 def _ai_reply(
