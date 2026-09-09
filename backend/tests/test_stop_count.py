@@ -28,3 +28,13 @@ def test_한_곳만_요청하면_한_칸이다():
 
     assert desired_slots(PlanConstraints(stop_count=1, start_time=time(19, 0))) == ["meal"]
     assert desired_slots(PlanConstraints(stop_count=1, start_time=time(15, 0))) == ["cafe"]
+
+
+def test_한_곳_요청은_키워드_성격을_따른다():
+    from app.pipeline.planner import desired_slots
+
+    assert desired_slots(parse_constraints("강남 카페 한 곳 저녁 7시")) == ["cafe"]
+    assert desired_slots(parse_constraints("성수동 술집 한 곳")) == ["bar"]
+    assert desired_slots(parse_constraints("성수동 전시 한 곳")) == ["activity"]
+    # 키워드가 없으면 기존대로 시간대 기준
+    assert desired_slots(parse_constraints("강남 한 곳만 저녁 7시")) == ["meal"]
