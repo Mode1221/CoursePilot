@@ -133,6 +133,11 @@ export default function PlaceDetailModal({
             영업 {place.open_time?.slice(0, 5)}~{place.close_time?.slice(0, 5)}
           </div>
         )}
+        {place.hours_unverified && (
+          <div style={{ fontSize: "var(--fs-sm)", color: "var(--text-muted)" }}>
+            영업시간 확인 필요 — 방문 전 확인해 주세요
+          </div>
+        )}
         <h4>리뷰 요약</h4>
         {summary === "불러오는 중…" ? (
           <div style={{ display: "grid", gap: "var(--sp-2)" }}>

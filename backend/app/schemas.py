@@ -1,7 +1,7 @@
 """코스/장소/타임라인 도메인 스키마."""
 from __future__ import annotations
 
-from datetime import date, time
+from datetime import date, datetime, time
 from enum import Enum
 
 from pydantic import BaseModel, Field
@@ -24,7 +24,14 @@ class Place(BaseModel):
     lng: float
     rating: float | None = None
     price: int | None = None  # 1인 예상 비용(원). 없으면 예산 검증에서 제외
+    rating_count: int | None = None  # 집계 평점의 표본 수(N<30 이면 신뢰하지 않음)
     opened_on: date | None = None  # 인허가일자(LOCALDATA). 업력 스코어링용
+    google_place_id: str | None = None
+    business_status: str | None = None  # OPERATIONAL | CLOSED_TEMPORARILY | CLOSED_PERMANENTLY
+    # Google 콘텐츠는 캐시 기한이 있다(영업시간 30일 / 평점 90일).
+    hours_checked_at: datetime | None = None
+    rating_checked_at: datetime | None = None
+    hours_unverified: bool = False  # 영업시간을 확인하지 못함 → 사용자에게 "확인 필요" 표시
     open_time: time | None = None
     close_time: time | None = None
     break_start: time | None = None

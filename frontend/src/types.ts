@@ -21,6 +21,7 @@ export interface Place {
   close_time?: string | null;
   break_start?: string | null;
   break_end?: string | null;
+  hours_unverified?: boolean | null; // 영업시간을 외부에서 확인하지 못함
 }
 
 export interface Route {

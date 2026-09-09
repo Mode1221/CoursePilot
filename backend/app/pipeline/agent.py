@@ -87,6 +87,7 @@ async def generate_course(
     enough = _min_valid(constraints)
     if len(timeline) >= enough and not force_relax:
         await progress("done")
+        await _verify_hours(timeline)
         # 개수를 직접 말한 요청("5곳")에 못 미치면, 완화 없이 끝내더라도
         # 그 사실을 알리고 완화 여부를 물어본다(조용히 4곳만 주지 않는다).
         return PlanResult(
@@ -126,12 +127,27 @@ async def generate_course(
     relaxed = len(timeline) > base_len
     needs_confirmation = len(timeline) < _min_usable(constraints)
     await progress("done")
+    await _verify_hours(timeline)
     return PlanResult(
         relaxed_c if relaxed else constraints,
         timeline,
         relaxed=relaxed,
         needs_confirmation=needs_confirmation,
     )
+
+
+async def _verify_hours(timeline: list[TimelineItem]) -> None:
+    """확정된 장소의 영업시간만 TTL 확인 후 갱신한다.
+
+    후보 전체를 물으면 Google Pro 무료 한도(월 5,000)를 하루에 태운다.
+    코스에 남은 3~5곳만, 그것도 30일 지난 것만 갱신한다. 실패해도 코스는 그대로다.
+    """
+    try:
+        from app.adapters.google import refresh_final_hours
+
+        await refresh_final_hours([item.place for item in timeline])
+    except Exception:
+        pass
 
 
 # 온보딩 예산 문항 → 1인 예산 상한(원). 문항 값과 1:1 대응.

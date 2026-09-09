@@ -123,25 +123,6 @@ class SafeMapService(MapService):
             return await self._fallback.get_route(origin, dest, mode)
 
 
-class EnrichedMapService(MapService):
-    """검색 결과에 Google Places 평점을 보강하는 데코레이터. 라우트는 위임."""
-
-    def __init__(self, inner: MapService) -> None:
-        self._inner = inner
-
-    async def search_places(self, region, keywords, limit=10):
-        places = await self._inner.search_places(region, keywords, limit)
-        try:
-            from app.adapters.google import get_places_enricher
-
-            return await get_places_enricher().enrich(places)
-        except Exception:
-            return places  # 보강 실패는 무영향
-
-    async def get_route(self, origin, dest, mode):
-        return await self._inner.get_route(origin, dest, mode)
-
-
 class ClosedFilterMapService(MapService):
     """LOCALDATA 로 폐업 장소를 걷어내고 인허가일자(업력)를 붙이는 데코레이터.
 
@@ -224,17 +205,14 @@ class CachedSearchMapService(MapService):
 
 @lru_cache(maxsize=1)
 def get_map_service() -> MapService:
-    """설정에 따라 구현체 선택(싱글턴). 키 없으면 Mock, 있으면 Naver(+Mock 폴백).
-
-    Google 키가 있으면 검색 결과에 평점을 보강한다.
-    """
+    """설정에 따라 구현체 선택(싱글턴). 키 없으면 Mock, 있으면 Naver(+Mock 폴백)."""
     if settings.map_provider == "naver" and settings.naver_client_id:
         from app.adapters.naver import NaverMapService
 
         base: MapService = SafeMapService(NaverMapService(), MockMapService())
     else:
         base = MockMapService()
-    if settings.google_maps_api_key:
-        base = EnrichedMapService(base)
+    # Google 평점은 후보 검색 때 부르지 않는다 — 평점 콜은 Enterprise 티어(월 1,000)
+    # 라서, 배치로 상권별 상위 장소만 채우고 런타임에는 DB 값을 쓴다.
     # 폐업 필터는 캐시 안쪽에 둔다 — 캐시된 결과에도 이미 필터가 적용되도록.
     return CachedSearchMapService(ClosedFilterMapService(base))
