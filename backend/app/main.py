@@ -803,9 +803,25 @@ class RatingRequest(BaseModel):
 
 
 @api.post("/places/{place_id}/rating")
-async def rate_place(place_id: str, req: RatingRequest) -> dict:
-    """장소 원탭 별점(1~5). 자체 정량 신호로 planner 스코어에 반영 (data #9)."""
-    rating_store.submit(place_id, req.stars)
+async def rate_place(
+    place_id: str, req: RatingRequest, x_user_id: str | None = Header(default=None)
+) -> dict:
+    """장소 원탭 별점(1~5). 자체 정량 신호로 planner 스코어에 반영 (data #9).
+
+    같은 사람이 다시 매기면 표본을 늘리지 않고 이전 점수를 대체한다
+    (반복 제출로 평균을 흔들 수 없게).
+    """
+    from app.ratings import user_rating_store
+
+    if x_user_id:
+        previous = user_rating_store.previous(x_user_id, place_id)
+        if previous == req.stars:
+            avg_same = rating_store.averages([place_id]).get(place_id)
+            return {"ok": True, "average": avg_same, "counted": False}
+        rating_store.submit(place_id, req.stars, replaces=previous)
+        user_rating_store.remember(x_user_id, place_id, req.stars)
+    else:
+        rating_store.submit(place_id, req.stars)
     avg = rating_store.averages([place_id]).get(place_id)
     return {"ok": True, "average": avg}
 

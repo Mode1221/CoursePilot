@@ -57,7 +57,7 @@ describe("PlaceDetailModal", () => {
     relatedPlaces.mockResolvedValue([]);
     const { getByLabelText } = render(<PlaceDetailModal place={place} onClose={vi.fn()} />);
     fireEvent.click(getByLabelText("4점"));
-    expect(ratePlace).toHaveBeenCalledWith("p1", 4);
+    expect(ratePlace).toHaveBeenCalledWith("p1", 4, undefined);
   });
 
   it("또 가고 싶어요 클릭 시 revisit 호출", async () => {

@@ -137,10 +137,12 @@ export const api = {
   credits: (userId: string) =>
     request<{ questions_left: number }>(`/users/${userId}/credits`, { userId }),
 
-  ratePlace: (placeId: string, stars: number) =>
+  // 별점은 사람·장소당 한 표(다시 매기면 이전 점수 대체)라 사용자 id 를 함께 보낸다
+  ratePlace: (placeId: string, stars: number, userId?: string) =>
     request<{ ok: boolean; average: number | null }>(`/places/${placeId}/rating`, {
       method: "POST",
       body: { stars },
+      userId,
     }),
 
   relatedPlaces: (placeId: string) =>
