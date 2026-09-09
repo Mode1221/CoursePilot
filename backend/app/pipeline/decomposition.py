@@ -24,7 +24,8 @@ _DURATION_RE = re.compile(r"(\d{1,2})\s*시간\s*(반)?")
 _RANGE_RE = re.compile(
     r"(오전|오후|아침|점심|낮|저녁|밤|새벽)?\s*(\d{1,2})\s*시\s*(?:\d{1,2}\s*분)?\s*"
     r"(?:부터|에서|~|-|–)\s*"
-    r"(오전|오후|아침|점심|낮|저녁|밤|새벽)?\s*(\d{1,2})\s*시(?:\s*(\d{1,2})\s*분)?\s*(?:까지)?"
+    # "11시부터 3시간"은 범위가 아니다 → 뒤에 "간"이 오면 매치하지 않는다
+    r"(오전|오후|아침|점심|낮|저녁|밤|새벽)?\s*(\d{1,2})\s*시(?!간)(?:\s*(\d{1,2})\s*분)?\s*(?:까지)?"
 )
 # 시간 표현 관용구 → 소요 시간(분)
 _DURATION_WORDS = {"반나절": 240, "하루 종일": 480, "하루종일": 480}
@@ -199,9 +200,8 @@ def parse_constraints(text: str, today: date | None = None) -> PlanConstraints:
         c.duration_min = int(dm.group(1)) * 60 + (30 if dm.group(2) else 0)
         if c.start_time:
             total = c.start_time.hour * 60 + c.start_time.minute + c.duration_min
-            # 자정을 넘기면 시각으로 절단하지 않고 종료 미지정(같은 날 내 열림)으로 둔다.
-            if total < 24 * 60:
-                c.end_time = time(total // 60, total % 60)
+            # 자정을 넘겨도 종료 시각을 잡는다(타임라인이 다음 날로 이어지는 것을 지원).
+            c.end_time = time((total // 60) % 24, total % 60)
 
     if c.duration_min is None:
         for word, minutes in _DURATION_WORDS.items():
@@ -209,8 +209,7 @@ def parse_constraints(text: str, today: date | None = None) -> PlanConstraints:
                 c.duration_min = minutes
                 if c.start_time:
                     total = c.start_time.hour * 60 + c.start_time.minute + minutes
-                    if total < 24 * 60:
-                        c.end_time = time(total // 60, total % 60)
+                    c.end_time = time((total // 60) % 24, total % 60)
                 break
 
     # 이동수단 + 이동시간 상한
