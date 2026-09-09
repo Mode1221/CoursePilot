@@ -498,13 +498,26 @@ async def relax(course_id: str, x_user_id: str | None = Header(default=None)) ->
             raise HTTPException(status_code=404, detail="course not found")
         course.locked = True
         await broadcast_lock(course_id, True)
+        # 완화 재시도에서도 온보딩 선호(지역·예산·식이)와 행동 선호를 그대로 쓴다 —
+        # 예전에는 None 을 넘겨, 완화하면 사용자 프로필이 통째로 무시됐다.
+        prefs: dict | None = None
+        user = user_store.get(x_user_id)
+        if user is not None:
+            from app.behavior import behavior_store
+
+            prefs = user.preferences.model_dump()
+            prefs["behavior_cats"] = behavior_store.top_categories(x_user_id)
         try:
             result = await generate_course(
-                last_user_text, get_map_service(), None, None, force_relax=True
+                last_user_text, get_map_service(), prefs, None, force_relax=True
             )
             course.items = result.timeline
             if result.constraints.region:
                 course.region = result.constraints.region
+            if result.constraints.plan_date:
+                course.plan_date = result.constraints.plan_date
+            if result.constraints.party_size:
+                course.party_size = result.constraints.party_size
         finally:
             course.locked = False
             store.save(course)
