@@ -5,15 +5,28 @@ DB 사용 가능 시 PostgreSQL 영속화, 불가 시 인메모리(dict) 폴백.
 """
 from __future__ import annotations
 
+import logging
 import secrets
 
 from app.db import is_ready
 from app.schemas import Course
 
+# DB 미사용(개발·소규모) 모드에서 인메모리 코스 상한. 넘으면 오래된 것부터 버린다 —
+# 다른 인메모리 스토어(채팅·장소)와 달리 상한이 없어 장기 구동 시 계속 늘어났다.
+MAX_MEM_COURSES = 5000
+
+logger = logging.getLogger("coursepilot")
+
 
 class CourseStore:
     def __init__(self) -> None:
         self._mem: dict[str, Course] = {}
+
+    def _evict_if_needed(self) -> None:
+        while len(self._mem) > MAX_MEM_COURSES:
+            oldest, _ = next(iter(self._mem.items()))
+            del self._mem[oldest]
+            logger.warning("인메모리 코스 상한 초과 — 오래된 코스를 버렸습니다: %s", oldest)
 
     @staticmethod
     def new_id() -> str:
@@ -95,6 +108,7 @@ class CourseStore:
                 s.commit()
             return course
         self._mem[course.id] = course
+        self._evict_if_needed()
         return course
 
     def delete(self, course_id: str) -> bool:
