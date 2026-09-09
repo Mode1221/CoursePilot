@@ -5,6 +5,7 @@
 from __future__ import annotations
 
 import logging
+import re
 import secrets
 from contextlib import asynccontextmanager
 from time import monotonic
@@ -660,6 +661,16 @@ async def generate(
         gen_constraints: PlanConstraints | None = None  # 편집 명령이면 None
         old_ids = [it.place.id for it in course.items]
         edit_cmd = parse_edit(req.text) if course.items else EditCommand(action="none")
+        # 질문("여기 주차 되나요?")에 코스를 갈아엎지 않는다. 편집 명령이 아닌
+        # 물음이면 지금 코스로 답하고 크레딧도 돌려준다.
+        if edit_cmd.action == "none" and course.items and _is_question(req.text):
+            user_store.refund_credit(x_user_id)
+            course.locked = False
+            await broadcast_lock(course_id, False)
+            ai_text = _course_answer(course)
+            chat_store.append(course_id, "ai", ai_text)
+            await broadcast_message(course_id, "ai", ai_text)
+            return GenerateResponse(course=course, relaxed=False, needs_confirmation=False)
         if edit_cmd.action == "clarify":
             # 어느 자리를 바꿀지 알 수 없다 → 새 코스를 만들지 않고 되묻는다
             user_store.refund_credit(x_user_id)
@@ -791,6 +802,32 @@ async def generate(
         )
 
     return await queues.run(course_id, action)
+
+
+_QUESTION_RE = re.compile(r"[?？]\s*$|나요|까요|어때|얼마나|있나|없나|맞나|되나|뭐야|어디야")
+
+
+def _is_question(text: str) -> bool:
+    """코스를 바꾸라는 지시가 아니라 물음인지."""
+    return bool(_QUESTION_RE.search(text.strip()))
+
+
+def _course_answer(course: Course) -> str:
+    """지금 코스로 답할 수 있는 것(개수·시작·종료·이동)을 요약해 답한다."""
+    n = len(course.items)
+    first, last = course.items[0], course.items[-1]
+    travel = sum(it.travel_to_next.duration_min for it in course.items if it.travel_to_next)
+    parts = [f"지금 코스는 {n}곳이에요"]
+    if first.arrive and last.depart:
+        parts.append(
+            f"{first.arrive.strftime('%H:%M')}에 시작해 {last.depart.strftime('%H:%M')}쯤 끝나요"
+        )
+    if travel:
+        parts.append(f"이동은 모두 {travel}분")
+    return (
+        ". ".join(parts)
+        + ". 장소별 영업시간·리뷰는 카드를 누르면 볼 수 있어요."
+    )
 
 
 def _edit_reply(course: Course, action: str, old_ids: list[str], new_ids: list[str]) -> str:
