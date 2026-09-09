@@ -28,3 +28,24 @@ def test_지역은_영향을_받지_않는다():
 
 def test_교정표는_서로_다른_표기만_담는다():
     assert all(wrong != right for wrong, right in TYPO_FIXES.items())
+
+
+@pytest.mark.parametrize(
+    "text,action,keyword",
+    [
+        ("두번째를 카폐로 바꿔줘", "replace", "카페"),
+        ("까페 하나 추가해줘", "add", "카페"),
+    ],
+)
+def test_편집_명령의_오타도_읽는다(text, action, keyword):
+    from app.pipeline.edit import parse_edit
+
+    cmd = parse_edit(text)
+    assert (cmd.action, cmd.keyword) == (action, keyword)
+
+
+def test_오타가_섞인_삭제도_대상을_찾는다():
+    from app.pipeline.edit import MATCH_INDEX, parse_edit
+
+    cmd = parse_edit("술찝 빼줘")
+    assert cmd.action == "remove" and cmd.index == MATCH_INDEX and cmd.match == "bar"

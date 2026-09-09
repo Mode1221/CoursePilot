@@ -102,6 +102,10 @@ def _other_kind(text: str) -> str:
 
 
 def parse_edit(text: str) -> EditCommand:
+    # 편집 명령도 오타를 그대로 두면 "카폐로 바꿔줘"의 대상 성격을 놓친다.
+    from app.pipeline.decomposition import normalize_typos
+
+    text = normalize_typos(text)
     if _CLEAR_RE.search(text):
         # "첫번째만 남기고 다 지워" — 남길 곳을 말했는데 전부 지우면 안 된다
         if _KEEP_RE.search(text):
