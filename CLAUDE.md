@@ -23,6 +23,10 @@ Next.js+TS+Zustand / FastAPI+PostgreSQL+pgvector / Socket.IO / GPT-4o-mini
   - 파일을 추가한 뒤에도 반드시 다시 실행할 것(새 테스트 파일의 lint 위반이 CI에서만 잡히는 경우가 있음).
 - 외부연동은 키 없으면 폴백 유지(테스트는 키 없는 환경 기준).
 
+## Claude 설정
+- `.claude/settings.json`: 읽을 필요 없는 경로(node_modules, .next, __pycache__, 락파일, 캐시 등)를 `permissions.deny` 의 Read 규칙으로 차단.
+  Claude Code 는 `.claudeignore` 를 읽지 않으므로 제외 목록은 이 파일에서 관리한다.
+
 ## 인수인계 문서
 - `docs/STATUS.md` 기능·개발 단계 / `docs/ARCHITECTURE.md` 모듈·요청흐름 / `docs/BACKLOG.md` 남은 과제·착수점.
 - 기능 추가/변경 시 STATUS.md 갱신.
