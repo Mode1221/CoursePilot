@@ -208,7 +208,7 @@ async def signup(req: SignupRequest) -> dict:
         and req.referrer_id != user.id
         and user_store.get(req.referrer_id) is not None
     ):
-        user_store.grant_credits(req.referrer_id, REFERRAL_BONUS)
+        user_store.grant_referral_bonus(req.referrer_id, REFERRAL_BONUS)
     return {"user_id": user.id, "credits_left": user.credits_left}
 
 
