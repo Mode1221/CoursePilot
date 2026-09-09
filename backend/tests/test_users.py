@@ -97,3 +97,15 @@ def test_같은_번호로_다시_가입하면_기존_계정이다():
     first = store.create("01055556666")
     assert store.find_by_phone("01055556666").id == first.id
     assert store.find_by_phone("01000000999") is None
+
+
+def test_포인트_충전과_레퍼럴_지급이_누적된다():
+    from app.users import UserStore
+
+    store = UserStore()
+    user = store.create("01033334444")
+    store.purchase_points(user.id, 5)
+    granted = store.grant_credits(user.id, 2)
+    assert granted.points == 5
+    assert granted.credits_limit == 7  # 기본 5 + 2
+    assert store.purchase_points("없는유저", 5) is None
