@@ -131,6 +131,10 @@ def score_place(
     if party_kw and any(k in haystack for k in party_kw):
         score += w.party
 
+    # 사실 태그: 요청한 조건(단체석·주차·반려동물 등)이 실제로 가능/불가한지.
+    # 감정 섞인 리뷰 원문 대신, 스니펫에서 뽑은 사실 축만 본다.
+    score += w.fact_tag * _fact_tag_match(place, constraints)
+
     # 업력: 상권에서 오래 버틴 가게일수록 실패 확률이 낮다(리뷰 원문 없이 얻는 품질 신호).
     score += w.longevity * longevity_signal(place)
 
@@ -152,6 +156,20 @@ MIN_TRUSTED_RATINGS = 30
 LONGEVITY_CAP_YEARS = 20
 # 인지도(블로그 검색 건수) 포화 지점.
 AWARENESS_CAP = 3000
+
+
+def _fact_tag_match(place: Place, constraints: PlanConstraints) -> float:
+    """요청 키워드와 겹치는 사실 태그: 가능하면 +1, 주의면 -1, 없으면 0."""
+    if not (place.fact_tags or place.caution_tags):
+        return 0.0
+    wanted = [k for k in [*constraints.keywords, constraints.companion or ""] if k]
+    if not wanted:
+        return 0.0
+    hit = sum(1 for tag in place.fact_tags if any(tag in k or k in tag for k in wanted))
+    miss = sum(1 for tag in place.caution_tags if any(tag in k or k in tag for k in wanted))
+    if hit == miss == 0:
+        return 0.0
+    return max(-1.0, min(1.0, hit - miss))
 
 
 def _rating_trusted(place: Place) -> bool:

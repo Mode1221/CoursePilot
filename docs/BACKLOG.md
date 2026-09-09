@@ -36,6 +36,7 @@
 - 데이터 원천: LOCALDATA 폐업 필터 + 인허가일자 업력(`adapters/localdata.py`, `ClosedFilterMapService`)
 - 데이터 원천: 영업시간 LLM 웹검색 폴백(최후 수단·확인 필요 표시), 공연·전시 일정(KOPIS) 기간 필터
 - 운영: 주기 갱신 배치(`scripts/refresh_places.py`) — 폐업 주1회·영업시간 30일·평점 90일, 활성 집합 기준
+- 스코어링: 사실 태그(주차·단체석 등) 요청 조건 일치 반영, 블로그 원문 미저장
 - 스코어링: 평가수 신뢰도(N≥30)·업력·인근 폐업률·TourAPI 등재·블로그 인지도 반영, 리뷰 원문 미사용
 - 데이터 원천: TourAPI 어댑터, 네이버 Directions 엔드포인트 최신화·NCP 키 분리
 - 데이터 원천: 카카오 로컬 어댑터(장소 발견 주 원천)·카테고리 코드 기반 슬롯 분류, 상권 구축 배치(`scripts/build_places.py`)
