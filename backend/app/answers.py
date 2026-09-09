@@ -16,6 +16,14 @@ _FACT_QUESTIONS: tuple[tuple[str, tuple[str, ...]], ...] = (
     ("웨이팅", ("웨이팅", "줄", "대기")),
     ("예약", ("예약",)),
 )
+# 아직 모으지 않는 정보. 코스 요약으로 얼버무리지 말고 없다고 말한다.
+UNKNOWN_FACT_QUESTIONS: tuple[tuple[str, tuple[str, ...]], ...] = (
+    ("화장실", ("화장실",)),
+    ("와이파이", ("와이파이", "wifi", "인터넷")),
+    ("흡연", ("흡연", "담배")),
+    ("콜키지", ("콜키지", "주류 반입", "와인 반입")),
+    ("배달", ("배달", "포장")),
+)
 _COST_WORDS = ("얼마", "비용", "가격", "예산")
 _HOURS_WORDS = ("영업시간", "몇 시까지", "몇시까지", "문 닫", "문닫", "언제까지 해", "브레이크")
 # 이동 질문. "이동 시간 얼마나 돼"의 '얼마'가 비용으로 새지 않도록 먼저 본다.
@@ -145,6 +153,18 @@ def why_answer(course: Course, text: str) -> str:
     return " / ".join(lines)
 
 
+def unknown_fact_answer(text: str) -> str | None:
+    """아직 모으지 않는 정보를 물으면 그렇다고 답한다(요약으로 얼버무리지 않는다)."""
+    lowered = (text or "").lower()
+    tag = next(
+        (tag for tag, words in UNKNOWN_FACT_QUESTIONS if any(w in lowered for w in words)),
+        None,
+    )
+    if tag is None:
+        return None
+    return f"{tag} 정보는 아직 모으지 않아요. 매장에 직접 확인해 주세요."
+
+
 def cost_answer(course: Course) -> str:
     """비용 질문: 아는 것만 더하고, 추정이 섞였는지 밝힌다."""
     priced = [it.place for it in course.items if it.place.price is not None]
@@ -162,6 +182,9 @@ def course_answer(course: Course, text: str = "") -> str:
     fact = fact_answer(course, text)
     if fact:
         return fact
+    unknown = unknown_fact_answer(text)
+    if unknown:
+        return unknown
     if any(w in text for w in _TRAVEL_WORDS):
         return travel_answer(course)
     if any(w in text for w in _WHY_WORDS):
