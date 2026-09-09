@@ -226,8 +226,35 @@ def _looks_like_region_typo(candidate: str) -> bool:
     return candidate in _REGION_STOPWORDS or bool(_REGION_ENDING_RE.search(candidate))
 
 
+# 날짜를 숫자로 말하지 않는 기념일. 이미 지났으면 내년으로 본다.
+HOLIDAYS: dict[str, tuple[int, int]] = {
+    "크리스마스": (12, 25),
+    "크리스마스이브": (12, 24),
+    "성탄절": (12, 25),
+    "발렌타인": (2, 14),
+    "화이트데이": (3, 14),
+    "빼빼로데이": (11, 11),
+    "어린이날": (5, 5),
+    "한글날": (10, 9),
+}
+
+
+def _holiday_date(text: str, today: date) -> date | None:
+    """"크리스마스에 데이트" 같은 기념일 표현 → 날짜. 긴 이름부터 본다."""
+    for name in sorted(HOLIDAYS, key=len, reverse=True):
+        if name not in text:
+            continue
+        month, day = HOLIDAYS[name]
+        cand = date(today.year, month, day)
+        return cand if cand >= today else date(today.year + 1, month, day)
+    return None
+
+
 def _parse_date(text: str, today: date) -> date | None:
-    """"내일", "이번 주 토요일", "12월 3일" 등에서 날짜를 뽑는다. 없으면 None."""
+    """"내일", "이번 주 토요일", "12월 3일", "크리스마스" 등에서 날짜를 뽑는다."""
+    holiday = _holiday_date(text, today)
+    if holiday:
+        return holiday
     md = _MD_RE.search(text)
     if md:
         month, day = int(md.group(1)), int(md.group(2))
