@@ -69,3 +69,23 @@ async def test_요청한_성격이_첫_칸에_온다():
 
     result = await generate_course("성수동 반려동물 동반 카페", MockMapService())
     assert classify(result.timeline[0].place) == "cafe"
+
+
+def test_긴_시간_요청은_칸을_더_만든다():
+    from app.pipeline.decomposition import parse_constraints
+    from app.pipeline.planner import MAX_STOPS, desired_slots
+
+    long_day = desired_slots(parse_constraints("성수동 오후 2시부터 밤 11시까지"))
+    assert len(long_day) >= 5
+    assert len(long_day) <= MAX_STOPS
+    # 짧은 요청은 그대로
+    assert len(desired_slots(parse_constraints("성수동 3시간"))) == 2
+
+
+def test_같은_성격이_연달아_오지_않는다():
+    from app.pipeline.decomposition import parse_constraints
+    from app.pipeline.planner import desired_slots
+
+    for text in ("성수동 오후 2시부터 밤 11시까지", "성수동 하루종일", "성수동 6시간"):
+        slots = desired_slots(parse_constraints(text))
+        assert all(a != b for a, b in zip(slots, slots[1:], strict=False)), text
