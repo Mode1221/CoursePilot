@@ -36,12 +36,43 @@ async def connect(sid, environ, auth):
 
 
 @sio.event
+async def disconnect(sid):
+    """연결이 끊기면 남은 참가자에게 인원수를 다시 알린다."""
+    for room in _rooms_of(sid):
+        await broadcast_presence(room, exclude=sid)
+
+
+def _rooms_of(sid: str) -> list[str]:
+    """이 소켓이 들어가 있는 코스 room 목록(자기 자신 room 제외)."""
+    try:
+        rooms = sio.rooms(sid)
+    except Exception:  # pragma: no cover - 매니저 구현에 따라 조회 불가할 수 있다
+        return []
+    return [r for r in rooms if r != sid]
+
+
+def _room_size(course_id: str, exclude: str | None = None) -> int:
+    """room 참가자 수. 다중 인스턴스(Redis)에서는 이 인스턴스 기준이다."""
+    try:
+        participants = sio.manager.rooms.get("/", {}).get(course_id, {})
+    except Exception:  # pragma: no cover - 매니저 구현 차이
+        return 0
+    return len([p for p in participants if p != exclude])
+
+
+async def broadcast_presence(course_id: str, exclude: str | None = None) -> None:
+    """"몇 명이 함께 보고 있는지"를 room 에 알린다 (5-4 선택 항목)."""
+    await sio.emit("presence", {"count": _room_size(course_id, exclude)}, room=course_id)
+
+
+@sio.event
 async def join(sid, data):
     """참가자가 코스 room에 입장."""
     course_id = data.get("course_id")
     if course_id:
         await sio.enter_room(sid, course_id)
         await sio.emit("joined", {"course_id": course_id}, to=sid)
+        await broadcast_presence(course_id)
 
 
 @sio.event
@@ -55,6 +86,7 @@ async def leave(sid, data):
     if course_id:
         await sio.leave_room(sid, course_id)
         await sio.emit("left", {"course_id": course_id}, to=sid)
+        await broadcast_presence(course_id)
 
 
 async def broadcast_state(course_id: str, course_dict: dict) -> None:

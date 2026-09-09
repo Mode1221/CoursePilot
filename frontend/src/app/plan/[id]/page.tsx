@@ -20,6 +20,7 @@ export default function PlanPage({ params }: { params: { id: string } }) {
   const setMessages = useCourseStore((s) => s.setMessages);
   const appendMessage = useCourseStore((s) => s.appendMessage);
   const setConnected = useCourseStore((s) => s.setConnected);
+  const setViewers = useCourseStore((s) => s.setViewers);
   const setNotFound = useCourseStore((s) => s.setNotFound);
   const notFound = useCourseStore((s) => s.notFound);
   const narrow = useIsNarrow();
@@ -58,6 +59,7 @@ export default function PlanPage({ params }: { params: { id: string } }) {
       setStage(null);
     });
     socket.on("progress", (d: { stage: string }) => setStage(d.stage));
+    socket.on("presence", (d: { count: number }) => setViewers(d.count));
     socket.on("message", (m: { role: "user" | "ai"; text: string }) => appendMessage(m));
     socket.on("connect", () => {
       setConnected(true);
@@ -73,11 +75,22 @@ export default function PlanPage({ params }: { params: { id: string } }) {
       socket.off("locked");
       socket.off("unlocked");
       socket.off("progress");
+      socket.off("presence");
       socket.off("message");
       socket.off("connect");
       socket.off("disconnect");
     };
-  }, [id, setCourse, setLocked, setStage, setMessages, appendMessage, setConnected, setNotFound]);
+  }, [
+    id,
+    setCourse,
+    setLocked,
+    setStage,
+    setMessages,
+    appendMessage,
+    setConnected,
+    setNotFound,
+    setViewers,
+  ]);
 
   if (notFound) {
     return <NotFound message="링크가 잘못되었거나 삭제된 코스일 수 있어요." />;

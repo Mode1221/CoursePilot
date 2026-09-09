@@ -17,6 +17,7 @@ interface CourseState {
   stage: string | null; // AI 처리 단계 (5-4)
   messages: ChatMessage[]; // append-only 채팅 로그 (5-2)
   connected: boolean; // 소켓 연결 상태 (5-4)
+  viewers: number; // 이 코스를 함께 보고 있는 사람 수 (5-4)
   notFound: boolean; // 코스 없음(404)
   history: string[][]; // 수동 편집 되돌리기 스택 (편집 직전 place_id 목록)
   setCourse: (course: Course) => void;
@@ -25,6 +26,7 @@ interface CourseState {
   setMessages: (messages: ChatMessage[]) => void;
   appendMessage: (message: ChatMessage) => void;
   setConnected: (connected: boolean) => void;
+  setViewers: (viewers: number) => void;
   setNotFound: (notFound: boolean) => void;
   // 수동 편집: 드래그로 순서 변경 후 이동시간 재계산 (4-3). AI 호출 없음 → 무료.
   reorder: (from: number, to: number) => Promise<void>;
@@ -53,6 +55,7 @@ export const useCourseStore = create<CourseState>((set, get) => ({
   stage: null,
   messages: [],
   connected: true,
+  viewers: 1,
   notFound: false,
   history: [],
   setCourse: (course) => set({ course, locked: course.locked, notFound: false }),
@@ -61,6 +64,7 @@ export const useCourseStore = create<CourseState>((set, get) => ({
   setMessages: (messages) => set({ messages }),
   appendMessage: (message) => set((s) => ({ messages: [...s.messages, message] })),
   setConnected: (connected) => set({ connected }),
+  setViewers: (viewers) => set({ viewers }),
   setNotFound: (notFound) => set({ notFound }),
 
   // 수동 편집: 낙관적 로컬 갱신 후 서버 큐로 직렬화(무료). 서버 broadcast 가 최종 반영.
