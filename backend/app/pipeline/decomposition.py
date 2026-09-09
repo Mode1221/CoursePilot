@@ -190,6 +190,21 @@ _END_ONLY_RE = re.compile(
 _WEEKEND_RE = re.compile(r"(다음|담|이번)?\s*(?:주\s*)?주말")
 
 
+# 접미사(동/역/구/읍/면)로 끝나지만 지명이 아닌 흔한 말들.
+# "친구랑 놀 데" 가 지역 "친구" 로 잡혀 엉뚱한 검색어가 되던 문제를 막는다.
+_REGION_STOPWORDS = {
+    "친구", "여친", "남친", "입구", "출구", "지구", "우동", "라면", "동구",
+    "가구", "도구", "기구", "연구", "요구", "욕구", "안구", "지구촌",
+}
+# "아니면", "하면" 처럼 어미로 끝나는 말(면 접미사 오탐)
+_REGION_ENDING_RE = re.compile(r"(?:하|되|이|가|오|보|아니|려|다|라|으|주)면$")
+
+
+def _looks_like_region_typo(candidate: str) -> bool:
+    """지명 접미사로 끝나지만 지명이 아닌 표현인지."""
+    return candidate in _REGION_STOPWORDS or bool(_REGION_ENDING_RE.search(candidate))
+
+
 def _parse_date(text: str, today: date) -> date | None:
     """"내일", "이번 주 토요일", "12월 3일" 등에서 날짜를 뽑는다. 없으면 None."""
     md = _MD_RE.search(text)
@@ -247,10 +262,17 @@ def parse_constraints(text: str, today: date | None = None) -> PlanConstraints:
     # 접미사 뒤에 한글이 이어지면 지명이 아니다("반려동물"의 "반려동")
     # 접미사 뒤에 한글이 이어지면 지명이 아니다("반려동물"의 "반려동").
     # 다만 조사가 붙는 경우("성수동에서")는 지명으로 인정한다.
-    region_m = re.search(
-        r"([가-힣]{1,5}?(?:동|역|구|읍|면))"
-        r"(?=$|[^가-힣]|에|으로|로|까지|부터|은|는|이|가|의|랑|와|과)",
-        text,
+    region_m = next(
+        (
+            m
+            for m in re.finditer(
+                r"([가-힣]{1,5}?(?:동|역|구|읍|면))"
+                r"(?=$|[^가-힣]|에|으로|로|까지|부터|은|는|이|가|의|랑|와|과)",
+                text,
+            )
+            if not _looks_like_region_typo(m.group(1))
+        ),
+        None,
     )
     if region_m:
         c.region = region_m.group(1)

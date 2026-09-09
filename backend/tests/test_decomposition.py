@@ -116,3 +116,16 @@ def test_한글_수사_소요시간과_퇴근_표현():
     assert parse_constraints("세 시간 반 정도").duration_min == 210
     # 방문 개수 표현("두 곳")과 섞이지 않는다
     assert parse_constraints("두 곳만 가고 싶어").duration_min is None
+
+
+def test_지명_접미사_오탐을_거른다():
+    from app.pipeline.decomposition import parse_constraints
+
+    # "친구"의 '구', "아니면"의 '면'이 지명으로 잡히면 엉뚱한 검색어가 된다
+    assert parse_constraints("친구랑 놀 데 추천해줘").region is None
+    assert parse_constraints("강남 아니면 홍대").region == "홍대"
+    assert parse_constraints("라면 먹고 카페").region is None
+    # 진짜 지명은 그대로 인식
+    assert parse_constraints("성수동 저녁").region == "성수동"
+    assert parse_constraints("서초구 점심").region == "서초구"
+    assert parse_constraints("대구 저녁").region == "대구"
