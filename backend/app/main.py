@@ -567,6 +567,7 @@ async def relax(course_id: str, x_user_id: str | None = Header(default=None)) ->
         await broadcast_lock(course_id, True)
         # 완화 재시도에서도 온보딩 선호(지역·예산·식이)와 행동 선호를 그대로 쓴다 —
         # 예전에는 None 을 넘겨, 완화하면 사용자 프로필이 통째로 무시됐다.
+        before_ids = [it.place.id for it in course.items]
         prefs: dict | None = None
         user = user_store.get(x_user_id)
         if user is not None:
@@ -589,7 +590,15 @@ async def relax(course_id: str, x_user_id: str | None = Header(default=None)) ->
             course.locked = False
             store.save(course)
             await broadcast_lock(course_id, False)
-        ai_text = _ai_reply(course, True, result.needs_confirmation, constraints=result.constraints)
+        if [it.place.id for it in course.items] == before_ids:
+            # 완화해도 결과가 같으면 같은 문구를 반복하지 않고 다음 수를 제안한다
+            ai_text = (
+                "완화해도 더 찾지 못했어요. 지역이나 시간대를 바꿔 보시겠어요?"
+            )
+        else:
+            ai_text = _ai_reply(
+                course, True, result.needs_confirmation, constraints=result.constraints
+            )
         chat_store.append(course_id, "ai", ai_text)
         await broadcast_state(course_id, course.model_dump(mode="json"))
         await broadcast_message(course_id, "ai", ai_text)
