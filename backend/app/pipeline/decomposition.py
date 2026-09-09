@@ -101,6 +101,8 @@ _SOFT_KEYWORDS = [
     "키즈존", "놀이방", "유아의자", "엘리베이터", "좌식",
     # 차수 요청에서 자주 나오는 음식 종류("1차 고기 2차 맥주")
     "고기", "삼겹살", "곱창", "치킨", "피자", "국밥", "초밥", "맥주", "막걸리", "노래방",
+    # 동반·상황 조건에서 자주 나오는 표현
+    "유모차", "케이크", "생일", "샐러드", "다이어트", "가벼운", "든든한", "해장", "야식",
 ]
 
 # 제외 표현에 붙어 오는 조사 — "술은 빼고" 의 "술은" 을 "술" 로 정규화한다
@@ -296,7 +298,10 @@ def parse_constraints(text: str, today: date | None = None) -> PlanConstraints:
     if region_m:
         c.region = region_m.group(1)
     else:
-        c.region = next((r for r in _KNOWN_REGIONS if r in text), None)
+        # 여러 지명이 나오면 문장에서 먼저 말한 곳을 쓴다("성수 아니면 연남" → 성수).
+        # 사전 순서를 따르면 사용자가 뒤에 덧붙인 대안이 본 지역이 된다.
+        found = [(text.index(r), r) for r in _KNOWN_REGIONS if r in text]
+        c.region = min(found)[1] if found else None
 
     # 출발지("강남역에서 출발") → 동선 시작점. 지역이 없으면 출발지를 지역으로도 쓴다.
     sp = _START_PLACE_RE.search(text)

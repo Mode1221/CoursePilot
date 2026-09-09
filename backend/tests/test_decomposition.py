@@ -123,7 +123,8 @@ def test_지명_접미사_오탐을_거른다():
 
     # "친구"의 '구', "아니면"의 '면'이 지명으로 잡히면 엉뚱한 검색어가 된다
     assert parse_constraints("친구랑 놀 데 추천해줘").region is None
-    assert parse_constraints("강남 아니면 홍대").region == "홍대"
+    # 대안을 나열하면 먼저 말한 곳이 1순위다(뒤에 덧붙인 쪽이 본 지역이 되면 안 된다)
+    assert parse_constraints("강남 아니면 홍대").region == "강남"
     assert parse_constraints("라면 먹고 카페").region is None
     # 진짜 지명은 그대로 인식
     assert parse_constraints("성수동 저녁").region == "성수동"
