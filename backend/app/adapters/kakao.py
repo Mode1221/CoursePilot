@@ -43,6 +43,13 @@ SLOT_GROUP_CODES: dict[str, tuple[str, ...]] = {
 BAR_CATEGORY_HINTS = ("술집", "호프", "요리주점", "포장마차", "바(BAR)", "와인", "칵테일", "이자카야")
 
 
+def _record(name: str, ok: bool) -> None:
+    """외부 호출 결과를 관측에 남긴다(폴백률로 키·엔드포인트 이상을 잡는다)."""
+    from app.metrics import metrics_store
+
+    metrics_store.record_external(name, ok=ok)
+
+
 def slot_for(group_code: str | None, category_name: str | None) -> str | None:
     """카카오 카테고리 → 코스 슬롯. 모르면 None(상위에서 이름 기반 분류)."""
     slot = GROUP_CODE_SLOT.get((group_code or "").upper())
@@ -138,8 +145,13 @@ class KakaoLocalService(MapService):
                 "radius": REGION_RADIUS_M,
                 "sort": "distance",
             }
-        resp = await self._client.get(_KEYWORD_URL, params=params, headers=self._headers)
-        resp.raise_for_status()
+        try:
+            resp = await self._client.get(_KEYWORD_URL, params=params, headers=self._headers)
+            resp.raise_for_status()
+        except Exception:
+            _record("kakao.keyword", ok=False)
+            raise  # 상위(SafeMapService)가 폴백을 결정한다
+        _record("kakao.keyword", ok=True)
         return resp.json().get("documents") or []
 
     async def search_category(
@@ -157,8 +169,15 @@ class KakaoLocalService(MapService):
                 "page": page,
                 "sort": "distance",
             }
-            resp = await self._client.get(_CATEGORY_URL, params=params, headers=self._headers)
-            resp.raise_for_status()
+            try:
+                resp = await self._client.get(
+                    _CATEGORY_URL, params=params, headers=self._headers
+                )
+                resp.raise_for_status()
+            except Exception:
+                _record("kakao.category", ok=False)
+                raise
+            _record("kakao.category", ok=True)
             body = resp.json()
             for doc in body.get("documents") or []:
                 place = to_place(doc)
