@@ -133,6 +133,13 @@ export default function MapPanel({ readOnly = false }: { readOnly?: boolean }) {
               </span>
               <span style={{ color: "var(--text-muted)", fontSize: "var(--fs-sm)", whiteSpace: "nowrap" }}>
                 {item.arrive?.slice(0, 5)}~{item.depart?.slice(0, 5)}
+                {/* 상세를 열지 않아도 영업시간이 미확인이라는 걸 알 수 있어야 한다 */}
+                {item.place.hours_unverified && (
+                  <span title="영업시간을 확인하지 못했어요. 방문 전 확인해 주세요">
+                    {" "}
+                    ⚠ 시간 확인 필요
+                  </span>
+                )}
               </span>
             </div>
             <div
