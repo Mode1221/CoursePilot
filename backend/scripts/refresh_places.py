@@ -15,6 +15,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
+from app.batch.lock import LockBusy, batch_lock  # noqa: E402
 from app.batch.places_build import HOURS_PER_DAY, RATINGS_PER_DAY  # noqa: E402
 from app.batch.refresh import run  # noqa: E402
 
@@ -25,9 +26,14 @@ def main() -> int:
     ap.add_argument("--ratings-limit", type=int, default=RATINGS_PER_DAY)
     args = ap.parse_args()
 
-    report = asyncio.run(
-        run(hours_limit=args.hours_limit, ratings_limit=args.ratings_limit)
-    )
+    try:
+        with batch_lock("places_refresh"):
+            report = asyncio.run(
+                run(hours_limit=args.hours_limit, ratings_limit=args.ratings_limit)
+            )
+    except LockBusy as exc:
+        print(exc, file=sys.stderr)
+        return 1
     print(f"스캔 {report.scanned} / 활성 {report.active}")
     print(f"폐업 제거 {report.closed_removed} / 업력 갱신 {report.longevity_filled}")
     print(f"영업시간 {report.hours_filled} / 평점 {report.ratings_filled}")

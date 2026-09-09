@@ -17,6 +17,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from app.batch.districts import DISTRICTS  # noqa: E402
+from app.batch.lock import LockBusy, batch_lock  # noqa: E402
 from app.batch.places_build import HOURS_PER_DAY, RATINGS_PER_DAY, run  # noqa: E402
 
 
@@ -35,9 +36,14 @@ def main() -> int:
             print(f"알 수 없는 상권: {', '.join(sorted(names))}", file=sys.stderr)
             return 1
 
-    report = asyncio.run(
-        run(targets, hours_limit=args.hours_limit, ratings_limit=args.ratings_limit)
-    )
+    try:
+        with batch_lock("places_build"):
+            report = asyncio.run(
+                run(targets, hours_limit=args.hours_limit, ratings_limit=args.ratings_limit)
+            )
+    except LockBusy as exc:
+        print(exc, file=sys.stderr)
+        return 1
     print(f"상권 {len(report.districts)}곳: {', '.join(report.districts)}")
     print(f"수집 {report.collected} / 폐업 제거 {report.closed_removed}")
     print(
