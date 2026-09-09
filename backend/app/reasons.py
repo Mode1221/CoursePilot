@@ -5,10 +5,14 @@
 """
 from __future__ import annotations
 
+from datetime import date
+
 from app.schemas import Course, PlanConstraints, TimelineItem
 
 GOOD_RATING = 4.3  # 이 이상이면 "평점 좋음"으로 언급할 만하다
 NEAR_MIN = 10  # 이 시간 이하로 이어지면 "가깝다"고 말할 수 있다
+LONG_RUNNING_YEARS = 5  # 이만큼 버텼으면 근거로 말할 만하다
+MANY_RATINGS = 300  # 표본이 이 정도면 평점을 "믿을 만하다"고 말할 수 있다
 
 
 def _place_reasons(
@@ -25,7 +29,27 @@ def _place_reasons(
         reasons.append(f"'{matched[0]}' 조건에 맞아요")
 
     if item.place.rating is not None and item.place.rating >= GOOD_RATING:
-        reasons.append(f"평점 {item.place.rating}")
+        count = item.place.rating_count
+        if count and count >= MANY_RATINGS:
+            # 표본을 함께 보여줘야 "리뷰 3개짜리 4.9"와 구분된다
+            reasons.append(f"평점 {item.place.rating} ({count:,}명)")
+        else:
+            reasons.append(f"평점 {item.place.rating}")
+
+    years = _years_open(item.place)
+    if years is not None and years >= LONG_RUNNING_YEARS:
+        reasons.append(f"{years}년째 영업 중")
+
+    if item.place.tour_listed:
+        reasons.append("관광·문화 공식 정보에 등재된 곳")
+
+    matched_facts = [
+        tag
+        for tag in item.place.fact_tags
+        if any(tag in k or k in tag for k in [*constraints.keywords, constraints.companion or ""] if k)
+    ]
+    if matched_facts:
+        reasons.append(f"{matched_facts[0]} 가능")
 
     if constraints.budget_max and item.place.price is not None:
         if item.place.price <= constraints.budget_max:
@@ -40,6 +64,14 @@ def _place_reasons(
         reasons.append("이 시간대에 자주 선택돼요")
 
     return reasons
+
+
+def _years_open(place) -> int | None:
+    """인허가일자 기준 영업 년차. 1년 미만은 근거로 쓰지 않는다."""
+    if place.opened_on is None:
+        return None
+    years = int((date.today() - place.opened_on).days // 365)
+    return years if years >= 1 else None
 
 
 def course_reasons(course: Course, text: str) -> dict[str, list[str]]:
