@@ -40,3 +40,13 @@ def test_정상_편집은_안내하지_않는다():
     )
     messages = client.get(f"/courses/{cid}/messages").json()
     assert "찾지 못했어요" not in messages[-1]["text"]
+
+
+def test_반영되지_않으면_크레딧을_돌려준다():
+    cid, uid = _course_with_items()
+    before = client.get(f"/users/{uid}/credits", headers={"X-User-Id": uid}).json()["questions_left"]
+    client.post(
+        f"/courses/{cid}/generate", headers={"X-User-Id": uid}, json={"text": "9번째 삭제해줘"}
+    )
+    after = client.get(f"/users/{uid}/credits", headers={"X-User-Id": uid}).json()["questions_left"]
+    assert after == before
