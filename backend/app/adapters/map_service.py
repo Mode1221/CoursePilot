@@ -142,6 +142,42 @@ class EnrichedMapService(MapService):
         return await self._inner.get_route(origin, dest, mode)
 
 
+class ClosedFilterMapService(MapService):
+    """LOCALDATA 로 폐업 장소를 걷어내고 인허가일자(업력)를 붙이는 데코레이터.
+
+    검색 API(카카오/네이버/Google)는 폐업 업소를 그대로 돌려주기 때문에,
+    후보 단계에서 제거하지 않으면 "문 닫은 가게"가 코스에 들어간다.
+    대장이 비어 있으면(파일 미배포) 아무것도 하지 않는다.
+    """
+
+    def __init__(self, inner: MapService) -> None:
+        self._inner = inner
+
+    async def search_places(self, region, keywords, limit=10):
+        places = await self._inner.search_places(region, keywords, limit)
+        try:
+            from app.adapters.localdata import get_localdata_registry
+
+            registry = get_localdata_registry()
+            registry.reload_if_stale()
+            if not registry.loaded:
+                return places
+            kept: list[Place] = []
+            for place in places:
+                record = registry.find(place.name, place.address)
+                if record and record.closed:
+                    continue
+                if record and record.opened_on and place.opened_on is None:
+                    place.opened_on = record.opened_on
+                kept.append(place)
+            return kept
+        except Exception:
+            return places  # 필터 실패는 무영향
+
+    async def get_route(self, origin, dest, mode):
+        return await self._inner.get_route(origin, dest, mode)
+
+
 class CachedSearchMapService(MapService):
     """동일 조건 장소 검색·경로를 짧게 캐시하는 데코레이터(외부 호출·지연 절감).
 
@@ -200,4 +236,5 @@ def get_map_service() -> MapService:
         base = MockMapService()
     if settings.google_maps_api_key:
         base = EnrichedMapService(base)
-    return CachedSearchMapService(base)
+    # 폐업 필터는 캐시 안쪽에 둔다 — 캐시된 결과에도 이미 필터가 적용되도록.
+    return CachedSearchMapService(ClosedFilterMapService(base))

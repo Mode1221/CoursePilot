@@ -41,9 +41,10 @@
 - `edit.py` — 편집 명령 파싱/적용(교체·삭제·추가), `_infer_mode`.
 
 ### 어댑터 (`app/adapters/`) — 벤더 직접호출 금지, 반드시 경유
-- `map_service.py` — `MapService` 추상 + `MockMapService` + `SafeMapService`(폴백 래퍼) + `EnrichedMapService`(Google 평점) + `CachedSearchMapService(검색 5분 TTL + 경로 캐시)`(검색 결과 5분 TTL 캐시) + `get_map_service()`.
+- `map_service.py` — `MapService` 추상 + `MockMapService` + `SafeMapService`(폴백 래퍼) + `EnrichedMapService`(Google 평점) + `ClosedFilterMapService`(LOCALDATA 폐업 제거·업력 부착) + `CachedSearchMapService(검색 5분 TTL + 경로 캐시)` + `get_map_service()`.
 - `naver.py` — 네이버 지역검색/길찾기.
 - `google.py` — Google Places 평점 enrich.
+- `localdata.py` — LOCALDATA(지방행정 인허가) CSV 인덱스. 폐업 판정·인허가일자(업력)·지역 폐업률. 무료·무인증, 주 1회 갱신(`LOCALDATA_CSV_DIR`).
 - `sms.py` — NHN Cloud SMS. `payment.py` — 포트원 v1 결제 검증.
 
 ### 학습 신호 스토어 (전부 DB/인메모리 폴백, `_db_ready()` 분기)

@@ -24,6 +24,7 @@ class Place(BaseModel):
     lng: float
     rating: float | None = None
     price: int | None = None  # 1인 예상 비용(원). 없으면 예산 검증에서 제외
+    opened_on: date | None = None  # 인허가일자(LOCALDATA). 업력 스코어링용
     open_time: time | None = None
     close_time: time | None = None
     break_start: time | None = None
