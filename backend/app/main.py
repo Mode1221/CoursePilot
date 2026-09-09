@@ -849,8 +849,13 @@ async def view_course(course_id: str) -> dict:
     course = store.get(course_id)
     if course is None:
         raise HTTPException(status_code=404, detail="코스를 찾을 수 없어요")
+    if course.viewed:
+        # 새로고침으로 열람 신호를 계속 불릴 수 없게 코스당 한 번만 반영한다
+        return {"ok": True, "already": True}
     popularity_store.bump_many([it.place.id for it in course.items], weight=VIEW_WEIGHT)
-    return {"ok": True}
+    course.viewed = True
+    store.save(course)
+    return {"ok": True, "already": False}
 
 
 @api.get("/places/{place_id}/related", response_model=list[Place])
@@ -935,15 +940,25 @@ async def rate_satisfaction(course_id: str, req: SatisfactionRequest) -> dict:
     course = store.get(course_id)
     if course is None:
         raise HTTPException(status_code=404, detail="코스를 찾을 수 없어요")
+    if course.satisfaction is req.liked:
+        # 같은 평가를 반복해도 신호가 쌓이지 않게 한다
+        return {"ok": True, "already": True}
+    place_ids = [it.place.id for it in course.items]
+    if course.satisfaction is not None:
+        # 평가를 바꾼 경우: 이전 평가 효과를 먼저 되돌린다
+        undo = -SATISFACTION_WEIGHT if course.satisfaction else SATISFACTION_WEIGHT
+        popularity_store.bump_many(place_ids, weight=undo)
     weight = SATISFACTION_WEIGHT if req.liked else -SATISFACTION_WEIGHT
-    popularity_store.bump_many([it.place.id for it in course.items], weight=weight)
+    popularity_store.bump_many(place_ids, weight=weight)
     feedback_store.log(course_id, "liked" if req.liked else "disliked")
+    course.satisfaction = req.liked
+    store.save(course)
     # #17: 예측 점수 vs 실제 만족도 대조 데이터 축적
     if course.predicted_score is not None:
         from app.outcome import outcome_store
 
         outcome_store.record(course.predicted_score, req.liked)
-    return {"ok": True}
+    return {"ok": True, "already": False}
 
 
 def _reject_duplicates(place_ids: list[str]) -> None:

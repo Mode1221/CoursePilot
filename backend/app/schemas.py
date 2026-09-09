@@ -61,6 +61,8 @@ class Course(BaseModel):
     party_size: int | None = None  # 인원수(요약·공유 텍스트 표시용)
     locked: bool = False
     completed: bool = False  # "다녀왔어요" 완주 신호를 이미 받은 코스
+    viewed: bool = False  # 공유 열람 신호를 이미 반영한 코스
+    satisfaction: bool | None = None  # 마지막 만족도(👍=True/👎=False)
     predicted_score: float | None = None  # 생성 시 코스 목적함수 점수(#17 만족도 대조용)
 
 
