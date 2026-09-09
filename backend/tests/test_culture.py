@@ -85,3 +85,71 @@ async def test_키가_없으면_조회하지_않는다():
     client._key = ""
     assert not client.enabled
     assert await client.performances(date(2026, 9, 9)) == []
+
+
+PERF = Performance("1", "봄 전시", "성수아트홀", date(2026, 9, 1), date(2026, 9, 30))
+OLD = Performance("2", "지난 전시", "대학로극장", date(2026, 7, 1), date(2026, 7, 31))
+
+
+def _place(name, category="문화,예술 > 전시관"):
+    from app.schemas import Place
+
+    return Place(id=name, name=name, category=category, lat=37.5, lng=127.0)
+
+
+def test_기간제_장소만_확인_대상이다():
+    from app.adapters.culture import needs_schedule_check
+
+    assert needs_schedule_check(_place("성수아트홀 전시"))
+    assert not needs_schedule_check(_place("성수커피", "음식점 > 카페"))
+
+
+def test_일정에_없는_장소는_판단하지_않는다():
+    from app.adapters.culture import is_running
+
+    assert is_running(_place("작은갤러리"), [PERF], date(2026, 9, 9))
+
+
+def test_기간이_끝난_장소는_제외한다():
+    from app.adapters.culture import is_running
+
+    assert not is_running(_place("대학로극장"), [OLD], date(2026, 9, 9))
+    assert is_running(_place("성수아트홀"), [PERF], date(2026, 9, 9))
+
+
+async def test_코스_날짜에_안_하는_전시장을_뺀다():
+    from app.adapters.culture import drop_finished_places
+
+    class _Client(CultureClient):
+        def __init__(self):
+            self._key = "k"
+
+        async def performances(self, day, area_code="11", rows=50):
+            return [PERF, OLD]
+
+    places = [_place("성수아트홀"), _place("대학로극장"), _place("성수커피", "음식점 > 카페")]
+    kept = await drop_finished_places(places, date(2026, 9, 9), _Client())
+    assert [p.id for p in kept] == ["성수아트홀", "성수커피"]
+
+
+async def test_일정을_못_받으면_아무것도_빼지_않는다():
+    from app.adapters.culture import drop_finished_places
+
+    class _Empty(CultureClient):
+        def __init__(self):
+            self._key = "k"
+
+        async def performances(self, day, area_code="11", rows=50):
+            return []
+
+    places = [_place("대학로극장")]
+    assert await drop_finished_places(places, date(2026, 9, 9), _Empty()) == places
+
+
+async def test_키가_없으면_그대로_둔다():
+    from app.adapters.culture import drop_finished_places
+
+    client = CultureClient()
+    client._key = ""
+    places = [_place("대학로극장")]
+    assert await drop_finished_places(places, date(2026, 9, 9), client) == places

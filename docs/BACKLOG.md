@@ -36,6 +36,7 @@
 - 데이터 원천: LOCALDATA 폐업 필터 + 인허가일자 업력(`adapters/localdata.py`, `ClosedFilterMapService`)
 - 데이터 원천: 영업시간 LLM 웹검색 폴백(최후 수단·확인 필요 표시), 공연·전시 일정(KOPIS) 기간 필터
 - 운영: 주기 갱신 배치(`scripts/refresh_places.py`) — 폐업 주1회·영업시간 30일·평점 90일, 활성 집합 기준
+- 장소: 기간 끝난 전시·공연을 코스에서 제외(KOPIS 일정 연결)
 - 운영: 신규 어댑터(카카오·TourAPI·KOPIS·LOCALDATA) 외부 호출 메트릭 기록
 - 운영: 유료 API 한도 80%·소진 시 웹훅 알림(관리 화면을 안 봐도 요금 전에 인지)
 - 예산: 추정가에는 20% 여유폭을 두고 판정(실제 가격은 엄격)

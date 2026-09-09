@@ -103,3 +103,21 @@ async def test_시각을_모르면_판단하지_않는다(monkeypatch):
     timeline = [TimelineItem(place=early)]
     result = await _verify_hours(timeline, PlanConstraints(), MockMapService())
     assert [i.place.id for i in result] == ["early"]
+
+
+async def test_기간이_끝난_전시는_코스에서_빠진다(monkeypatch):
+    from datetime import date as _date
+
+    monkeypatch.setattr("app.adapters.google.refresh_final_hours", _noop)
+
+    async def only_cafe(places, day, client=None):
+        return [p for p in places if "전시" not in (p.category or "")]
+
+    monkeypatch.setattr("app.adapters.culture.drop_finished_places", only_cafe)
+    show = Place(id="show", name="전시장", category="문화,예술 > 전시관", lat=37.5, lng=127.0)
+    cafe = Place(id="cafe", name="카페", category="음식점 > 카페", lat=37.5, lng=127.0)
+    timeline = [_item(show), _item(cafe)]
+    result = await _verify_hours(
+        timeline, PlanConstraints(plan_date=_date(2026, 9, 9)), MockMapService()
+    )
+    assert [i.place.id for i in result] == ["cafe"]
