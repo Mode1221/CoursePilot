@@ -39,3 +39,22 @@ def test_정보가_전혀_없으면_없다고_한다():
 def test_다른_질문은_영향받지_않는다():
     course = _course(_place("성수커피", price=8000))
     assert "8,000원" in course_answer(course, "얼마야")
+
+
+def test_브레이크_타임도_함께_말한다():
+    course = _course(
+        _place(
+            "성수식당",
+            open_time=time(10, 0),
+            close_time=time(22, 0),
+            break_start=time(15, 0),
+            break_end=time(17, 0),
+        )
+    )
+    answer = course_answer(course, "브레이크 타임 있어?")
+    assert "브레이크 15:00~17:00" in answer
+
+
+def test_브레이크가_없으면_언급하지_않는다():
+    course = _course(_place("성수커피", open_time=time(10, 0), close_time=time(22, 0)))
+    assert "브레이크" not in course_answer(course, "영업시간 알려줘")

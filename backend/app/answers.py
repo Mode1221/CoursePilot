@@ -67,10 +67,17 @@ def hours_answer(course: Course) -> str:
     for item in course.items:
         place = item.place
         if place.open_time and place.close_time and not place.hours_unverified:
-            known.append(
+            line = (
                 f"{place.name} {place.open_time.strftime('%H:%M')}~"
                 f"{place.close_time.strftime('%H:%M')}"
             )
+            # 브레이크는 헛걸음으로 이어지는 정보라 함께 말한다
+            if place.break_start and place.break_end:
+                line += (
+                    f"(브레이크 {place.break_start.strftime('%H:%M')}~"
+                    f"{place.break_end.strftime('%H:%M')})"
+                )
+            known.append(line)
         else:
             unknown.append(place.name)
     parts = []
