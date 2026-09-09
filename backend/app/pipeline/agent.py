@@ -7,7 +7,7 @@ from __future__ import annotations
 import asyncio
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
-from datetime import UTC, datetime
+from datetime import UTC, datetime, time
 
 from app.adapters.map_service import MapService
 from app.constants import DEFAULT_REGION
@@ -89,7 +89,7 @@ async def generate_course(
     enough = _min_valid(constraints)
     if len(timeline) >= enough and not force_relax:
         await progress("done")
-        await _verify_hours(timeline)
+        timeline = await _verify_hours(timeline, constraints, map_service)
         # 개수를 직접 말한 요청("5곳")에 못 미치면, 완화 없이 끝내더라도
         # 그 사실을 알리고 완화 여부를 물어본다(조용히 4곳만 주지 않는다).
         return PlanResult(
@@ -129,7 +129,9 @@ async def generate_course(
     relaxed = len(timeline) > base_len
     needs_confirmation = len(timeline) < _min_usable(constraints)
     await progress("done")
-    await _verify_hours(timeline)
+    timeline = await _verify_hours(
+        timeline, relaxed_c if relaxed else constraints, map_service
+    )
     return PlanResult(
         relaxed_c if relaxed else constraints,
         timeline,
@@ -138,7 +140,11 @@ async def generate_course(
     )
 
 
-async def _verify_hours(timeline: list[TimelineItem]) -> None:
+async def _verify_hours(
+    timeline: list[TimelineItem],
+    constraints: PlanConstraints | None = None,
+    map_service: MapService | None = None,
+) -> list[TimelineItem]:
     """확정된 장소의 영업시간만 TTL 확인 후 갱신한다.
 
     후보 전체를 물으면 Google Pro 무료 한도(월 5,000)를 하루에 태운다.
@@ -174,6 +180,35 @@ async def _verify_hours(timeline: list[TimelineItem]) -> None:
         await fill_missing_hours(places)
     except Exception:
         pass
+    return await _drop_closed(timeline, constraints, map_service)
+
+
+async def _drop_closed(
+    timeline: list[TimelineItem],
+    constraints: PlanConstraints | None,
+    map_service: MapService | None,
+) -> list[TimelineItem]:
+    """영업하지 않는 장소(영구 폐업·일시 휴업)를 코스에서 뺀다.
+
+    영업 상태는 확정 후 Google 조회에서야 드러나므로, 여기서 한 번 더 거른다.
+    자리가 비면 뒤 일정이 당겨지도록 시간을 다시 계산한다.
+    """
+    from app.adapters.google import is_closed_now
+
+    kept = [item for item in timeline if not is_closed_now(item.place)]
+    if len(kept) == len(timeline):
+        return timeline
+    if not kept or constraints is None or map_service is None:
+        return kept
+    from app.pipeline.validation import recompute
+
+    start = constraints.start_time or time(12, 0)
+    try:
+        return await recompute(
+            [item.place for item in kept], start, constraints.travel_mode, map_service
+        )
+    except Exception:
+        return kept
 
 
 # 온보딩 예산 문항 → 1인 예산 상한(원). 문항 값과 1:1 대응.

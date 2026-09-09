@@ -33,6 +33,8 @@ HOURS_TTL_DAYS = 30
 RATING_TTL_DAYS = 90
 MIN_RATING_COUNT = 30  # 평가 수가 이보다 적으면 평점을 신뢰하지 않는다
 CLOSED_STATUSES = ("CLOSED_PERMANENTLY",)
+# 일시 휴업도 그 날은 갈 수 없다 — 추천에서는 폐업과 같이 다룬다.
+UNVISITABLE_STATUSES = ("CLOSED_PERMANENTLY", "CLOSED_TEMPORARILY")
 
 
 def _now() -> datetime:
@@ -229,8 +231,13 @@ async def refresh_final_hours(places: list[Place]) -> list[Place]:
 
 
 def is_permanently_closed(place: Place) -> bool:
-    """Google 기준 폐업. LOCALDATA 필터와 함께 이중으로 거른다."""
+    """Google 기준 영구 폐업. LOCALDATA 필터와 함께 이중으로 거른다."""
     return place.business_status in CLOSED_STATUSES
+
+
+def is_closed_now(place: Place) -> bool:
+    """지금 방문할 수 없는 상태(영구 폐업 또는 일시 휴업)."""
+    return place.business_status in UNVISITABLE_STATUSES
 
 
 @lru_cache(maxsize=1)
