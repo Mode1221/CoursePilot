@@ -102,7 +102,7 @@ _SOFT_KEYWORDS = [
     # 장소 성격을 그대로 검색어로 쓰는 표현
     "한정식", "노포", "서점", "책", "국밥", "라멘", "떡볶이", "전통주", "루프탑바", "전망",
     # 동반 조건이 붙는 요청의 검색어
-    "키즈존", "놀이방", "유아의자", "엘리베이터", "좌식",
+    "키즈존", "놀이방", "유아의자", "엘리베이터", "좌식", "콘센트", "웨이팅",
     # 차수 요청에서 자주 나오는 음식 종류("1차 고기 2차 맥주")
     "고기", "삼겹살", "곱창", "치킨", "피자", "국밥", "초밥", "맥주", "막걸리", "노래방",
     # 동반·상황 조건에서 자주 나오는 표현
@@ -326,6 +326,25 @@ TYPO_FIXES: dict[str, str] = {
 }
 
 
+# 같은 뜻인데 다르게 부르는 말 → 검색·태그와 맞는 표준어로.
+# 이미 사전에 있는 말(유모차·휠체어)은 건드리지 않는다 — 동행유형 판정에도 쓰인다.
+SYNONYMS: dict[str, str] = {
+    "강아지": "반려동물",
+    "댕댕이": "반려동물",
+    "애견": "반려동물",
+    "멍멍이": "반려동물",
+    "노트북": "콘센트",
+    "카공": "콘센트",
+}
+
+
+def normalize_synonyms(text: str) -> str:
+    """동의어를 표준 표기로 바꾼다(파싱용 사본만)."""
+    for word, standard in SYNONYMS.items():
+        text = text.replace(word, standard)
+    return text
+
+
 def normalize_typos(text: str) -> str:
     """오타를 표준 표기로 바꾼다(원문은 건드리지 않고 파싱용 사본만)."""
     for wrong, right in TYPO_FIXES.items():
@@ -335,7 +354,7 @@ def normalize_typos(text: str) -> str:
 
 def parse_constraints(text: str, today: date | None = None) -> PlanConstraints:
     """규칙 기반 조건 추출. LLM 폴백/오프라인 개발용."""
-    text = normalize_typos(text)
+    text = normalize_synonyms(normalize_typos(text))
     c = PlanConstraints()
     c.plan_date = _parse_date(text, today or date.today())
 
