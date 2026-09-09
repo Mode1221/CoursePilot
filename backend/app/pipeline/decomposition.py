@@ -70,6 +70,7 @@ _SOFT_KEYWORDS = [
     "술집", "와인", "카페", "맛집", "코스요리", "오마카세", "한식", "일식", "중식", "양식",
     # 자주 쓰는 표현 보강
     "커피", "베이커리", "빵집", "파스타", "이자카야", "포차", "칵테일", "보드게임", "전시회",
+    "애견동반", "펫프렌들리",
     # 장소 성격을 그대로 검색어로 쓰는 표현
     "한정식", "노포", "서점", "책", "국밥", "라멘", "떡볶이", "전통주", "루프탑바", "전망",
 ]
@@ -105,6 +106,10 @@ _KNOWN_REGIONS = sorted(
         "가로수길", "압구정", "청담", "삼청동", "송리단길", "문래", "영등포", "샤로수길",
         "서면", "해운대", "광안리", "전포", "동성로", "수성못", "구도심", "봉선동",
         "판교", "정자", "서현", "일산", "라페스타", "송도", "구월동",
+        # 접미사 없이 부르는 서울 주요 지명 보강
+        "광화문", "삼각지", "한남", "청량리", "성신여대", "혜화", "대학로", "노량진",
+        "신사", "논현", "선릉", "역삼", "교대", "사당", "신림", "구로디지털", "목동",
+        "연희", "부암동", "성북동", "송파", "석촌호수", "위례", "미사", "동탄", "수원역",
     ],
     key=len,
     reverse=True,
@@ -326,10 +331,14 @@ def parse_constraints(text: str, today: date | None = None) -> PlanConstraints:
             seen.append(word)
     c.exclude_keywords = seen
     # "술 빼고" 는 "술집"도 함께 빼야 한다 — 부분 일치로 소프트 키워드를 거른다
-    c.keywords = [
+    matched = [
         k
         for k in _SOFT_KEYWORDS
         if k in text and not any(ex in k or k in ex for ex in seen)
+    ]
+    # "산책"이 잡혔으면 그 안에 든 "책"은 별도 키워드가 아니다
+    c.keywords = [
+        k for k in matched if not any(k != other and k in other for other in matched)
     ]
     if c.prefer_indoor and "실내" not in c.keywords:
         c.keywords.insert(0, "실내")  # 우천이면 실내를 최우선 검색어로
