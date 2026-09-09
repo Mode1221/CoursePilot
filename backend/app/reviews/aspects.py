@@ -30,8 +30,13 @@ MENTION_RATIO = 0.2  # 리뷰 수 대비 이 비율 이상 언급돼야 태그�
 
 
 def _threshold(review_count: int) -> int:
-    """리뷰가 많을수록 더 많이 언급된 축만 남긴다."""
-    return max(MIN_HITS, round(review_count * MENTION_RATIO))
+    """리뷰가 많을수록 더 많이 언급된 축만 남긴다.
+
+    반올림을 쓰면 리뷰 9건에서 기준이 2가 되어, 축마다 한 번씩 언급된 흔한
+    리뷰 묶음에서 태그가 전부 사라졌다(요약이 빈 껍데기). 내림으로 바꿔
+    소량 리뷰에서도 축을 남기고, 리뷰가 많아지면 자연히 엄격해진다.
+    """
+    return max(MIN_HITS, int(review_count * MENTION_RATIO))
 
 
 def extract_aspects(reviews: list[str]) -> tuple[list[str], list[str]]:
