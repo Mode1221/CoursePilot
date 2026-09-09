@@ -651,6 +651,15 @@ async def generate(
         gen_constraints: PlanConstraints | None = None  # 편집 명령이면 None
         old_ids = [it.place.id for it in course.items]
         edit_cmd = parse_edit(req.text) if course.items else EditCommand(action="none")
+        if edit_cmd.action == "clarify":
+            # 어느 자리를 바꿀지 알 수 없다 → 새 코스를 만들지 않고 되묻는다
+            user_store.refund_credit(x_user_id)
+            course.locked = False
+            await broadcast_lock(course_id, False)
+            ai_text = "어느 자리를 바꿀까요? 순번(예: 2번째)이나 장소 종류로 말씀해 주세요."
+            chat_store.append(course_id, "ai", ai_text)
+            await broadcast_message(course_id, "ai", ai_text)
+            return GenerateResponse(course=course, relaxed=False, needs_confirmation=False)
         # 편집도 아니고 조건·의도도 없는 입력("ㅋㅋㅋ")으로 엉뚱한 코스를 만들고
         # 크레딧까지 태우지 않는다 — 무엇을 원하는지 되묻는다.
         if edit_cmd.action == "none" and not is_actionable(

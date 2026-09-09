@@ -18,7 +18,15 @@ _ORDINALS = {
     "여섯": 6, "일곱": 7, "여덟": 8, "아홉": 9, "열": 10,
 }
 # "다른 곳으로", "딴 데로" 처럼 동사 없이 교체를 뜻하는 표현도 받는다.
-_REPLACE_RE = re.compile(r"(바꿔|바꾸|교체|변경|다른\s*(?:곳|데|장소)|딴\s*(?:곳|데))")
+_REPLACE_RE = re.compile(
+    r"(바꿔|바꾸|교체|변경|다른\s*(?:곳|데|장소)|딴\s*(?:곳|데)|(?:곳|데|장소)\s*로)"
+)
+# "더 저렴한 곳으로", "분위기 좋은 데로" — 성격만 말한 교체 요청의 검색어
+_QUALITY_WORDS: dict[str, str] = {
+    "저렴": "저렴한", "싼": "저렴한", "가성비": "가성비",
+    "가까": "가까운", "분위기": "분위기", "조용": "조용한",
+    "평점": "평점 높은", "유명": "유명한", "핫": "핫플",
+}
 _REMOVE_RE = re.compile(r"(빼|삭제|제거|없애|지워|지우|치워)")
 # "카페 하나 추가해줘", "술집 넣어줘" → 전체 재생성 대신 한 칸만 덧붙인다
 _ADD_RE = re.compile(r"(추가|넣어|붙여|더\s*가|하나\s*더)")
@@ -37,7 +45,7 @@ _TARGET_RE = re.compile(r"([가-힣A-Za-z]+?)(?:으로|로)\s*(?:바꿔|교체|�
 
 @dataclass
 class EditCommand:
-    action: str  # "replace"|"remove"|"add"|"reorder"|"swap"|"clear"|"none"
+    action: str  # "replace"|"remove"|"add"|"reorder"|"swap"|"clear"|"clarify"|"none"
     index: int = -1  # 0-based
     index2: int = -1  # swap 의 두 번째 대상(0-based)
     keyword: str = ""
@@ -57,6 +65,11 @@ _CATEGORY_WORDS = {
     "바": "bar",
     "포차": "bar",
 }
+
+
+def _quality_keyword(text: str) -> str:
+    """"더 저렴한 곳으로"처럼 성격만 말한 교체 요청에서 검색어를 뽑는다."""
+    return next((v for k, v in _QUALITY_WORDS.items() if k in text), "")
 
 
 def _find_category(text: str) -> tuple[str, str]:
@@ -89,12 +102,16 @@ def parse_edit(text: str) -> EditCommand:
         # 순서를 못 찾았으면 "카페 빼줘"처럼 카테고리로 지목했는지 본다
         _, match = _find_category(text)
         if not match:
+            # "더 저렴한 곳으로 바꿔" — 바꾸려는 의도는 분명한데 대상이 없다.
+            # 새 코스를 만들어 버리는 대신 어느 자리인지 되묻는다.
+            if _REPLACE_RE.search(text) and _quality_keyword(text):
+                return EditCommand(action="clarify")
             return EditCommand(action="none")
         idx = MATCH_INDEX
 
     if _REPLACE_RE.search(text):
         m = _TARGET_RE.search(text)
-        keyword = m.group(1) if m else ""
+        keyword = m.group(1) if m else _quality_keyword(text)
         return EditCommand(action="replace", index=idx, keyword=keyword, match=match)
     if _REMOVE_RE.search(text):
         return EditCommand(action="remove", index=idx, match=match)

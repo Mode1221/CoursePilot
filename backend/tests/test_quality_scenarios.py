@@ -59,8 +59,18 @@ async def test_이동시간_상한을_말하면_대체로_지킨다():
 
 async def test_요청한_성격이_첫_칸에_온다():
     """"카페" 를 말했는데 식사 시간대라고 식당부터 시작하면 요청과 어긋난다."""
+    from app.cooccurrence import cooccurrence_store
     from app.pipeline.decomposition import parse_constraints
     from app.pipeline.planner import desired_slots
+    from app.popularity import popularity_store
+    from app.ratings import rating_store
+    from app.sequence import sequence_store
+    from app.timecontext import time_context_store
+
+    # 다른 테스트가 남긴 신호가 순위·순서를 뒤집지 않게 초기화
+    for store in (popularity_store, cooccurrence_store, time_context_store,
+                  sequence_store, rating_store):
+        store._mem.clear()
 
     assert desired_slots(parse_constraints("성수동 반려동물 동반 카페"))[0] == "cafe"
     assert desired_slots(parse_constraints("성수동 전시 보고 저녁"))[0] == "activity"
