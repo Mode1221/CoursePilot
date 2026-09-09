@@ -2,7 +2,7 @@
 import { create } from "zustand";
 
 import { api } from "@/services/api";
-import { mapService } from "@/services/mapService";
+import { bestRoute } from "@/services/mapService";
 import { toast } from "@/store/toastStore";
 import type { Course, TimelineItem, TravelMode } from "@/types";
 
@@ -41,7 +41,7 @@ async function recalcRoutes(items: TimelineItem[]): Promise<TimelineItem[]> {
   const next = items.map((it) => ({ ...it, travel_to_next: null as TimelineItem["travel_to_next"] }));
   // 구간 계산은 서로 독립 → 병렬 조회 후 배치
   const routes = await Promise.all(
-    next.slice(0, -1).map((it, i) => mapService.getRoute(it.place, next[i + 1].place, mode)),
+    next.slice(0, -1).map((it, i) => bestRoute(it.place, next[i + 1].place, mode)),
   );
   routes.forEach((r, i) => (next[i].travel_to_next = r));
   return next;
