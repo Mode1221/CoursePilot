@@ -85,7 +85,14 @@ async def generate_course(
     enough = _min_valid(constraints)
     if len(timeline) >= enough and not force_relax:
         await progress("done")
-        return PlanResult(constraints, timeline, relaxed=False, needs_confirmation=False)
+        # 개수를 직접 말한 요청("5곳")에 못 미치면, 완화 없이 끝내더라도
+        # 그 사실을 알리고 완화 여부를 물어본다(조용히 4곳만 주지 않는다).
+        return PlanResult(
+            constraints,
+            timeline,
+            relaxed=False,
+            needs_confirmation=len(timeline) < _min_usable(constraints),
+        )
 
     # 7-4 조건 완화: 소프트 제약(이동시간 여유폭)부터 단계적 완화. 하드 제약(예산)은 유지.
     # #16 학습: 완화 수용률이 높을수록 이동시간을 더 과감히(1.5~2.0x) 완화.
