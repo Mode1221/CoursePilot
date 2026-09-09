@@ -16,7 +16,8 @@ from app.schemas import Place
 
 HOURS_PER_DAY = 160  # Google Pro 월 5,000 무료 → 배치 3,000, 런타임 2,000 분배 기준
 RATINGS_PER_DAY = 11  # Enterprise 월 1,000 무료. 상권별 상위 100개를 3개월에 채운다
-TOP_PER_DISTRICT = 100  # 평점을 물을 상권별 상위 개수
+TOP_PER_DISTRICT = 100
+AWARENESS_PER_RUN = 500  # 블로그 검색 일 25,000 한도 안에서 여유 있게  # 평점을 물을 상권별 상위 개수
 
 # 카테고리 검색에 쓸 그룹 코드(슬롯별 중복 제거)
 GROUP_CODES = tuple(dict.fromkeys(c for codes in SLOT_GROUP_CODES.values() for c in codes))
@@ -27,6 +28,7 @@ class BuildReport:
     collected: int = 0
     closed_removed: int = 0
     hours_filled: int = 0
+    awareness_filled: int = 0
     ratings_filled: int = 0
     upserted: int = 0
     districts: list[str] = field(default_factory=list)
@@ -108,6 +110,31 @@ async def fill_ratings(
     return sum(1 for p in targets if p.rating is not None)
 
 
+async def fill_awareness(places: list[Place], limit: int = AWARENESS_PER_RUN) -> int:
+    """블로그 검색 '건수'로 인지도를 채운다(원문·스니펫은 저장하지 않는다)."""
+    import httpx
+
+    from app.adapters.naver import blog_mention_count
+    from app.config import settings
+
+    if not settings.naver_client_id:
+        return 0
+    targets = [p for p in places if p.blog_mentions is None][:limit]
+    if not targets:
+        return 0
+    async with httpx.AsyncClient(timeout=10) as client:
+        counts = await asyncio.gather(
+            *(blog_mention_count(client, p.name) for p in targets),
+            return_exceptions=True,
+        )
+    filled = 0
+    for place, count in zip(targets, counts, strict=False):
+        if isinstance(count, int):
+            place.blog_mentions = count
+            filled += 1
+    return filled
+
+
 async def run(
     districts: tuple[District, ...] = DISTRICTS,
     *,
@@ -123,6 +150,7 @@ async def run(
     places, report.closed_removed = drop_closed(places)
     report.hours_filled = await fill_hours(places, hours_limit)
     report.ratings_filled = await fill_ratings(places, ratings_limit)
+    report.awareness_filled = await fill_awareness(places)
     if places:
         from app.places import place_repo
 

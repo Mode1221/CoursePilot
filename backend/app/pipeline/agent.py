@@ -4,6 +4,7 @@ Decomposition → Tool-Use → Validation → 조건 완화 재시도 → Final.
 """
 from __future__ import annotations
 
+import asyncio
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
 
@@ -142,10 +143,24 @@ async def _verify_hours(timeline: list[TimelineItem]) -> None:
     후보 전체를 물으면 Google Pro 무료 한도(월 5,000)를 하루에 태운다.
     코스에 남은 3~5곳만, 그것도 30일 지난 것만 갱신한다. 실패해도 코스는 그대로다.
     """
+    places = [item.place for item in timeline]
     try:
         from app.adapters.google import refresh_final_hours
 
-        await refresh_final_hours([item.place for item in timeline])
+        await refresh_final_hours(places)
+    except Exception:
+        pass
+    # Google 에 영업시간이 없는 곳(관광지·전시관이 대부분)은 공공 데이터로 메운다.
+    try:
+        from app.adapters.tourapi import TourApiClient
+
+        client = TourApiClient()
+        if client.enabled:
+            unverified = [p for p in places if p.hours_unverified]
+            if unverified:
+                await asyncio.gather(
+                    *(client.enrich(p) for p in unverified), return_exceptions=True
+                )
     except Exception:
         pass
 

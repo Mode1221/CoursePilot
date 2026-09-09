@@ -43,7 +43,8 @@
 ### 어댑터 (`app/adapters/`) — 벤더 직접호출 금지, 반드시 경유
 - `map_service.py` — `MapService` 추상 + `MockMapService` + `SafeMapService`(폴백 래퍼) + `ClosedFilterMapService`(LOCALDATA 폐업 제거·업력 부착) + `CachedSearchMapService(검색 5분 TTL + 경로 캐시)` + `get_map_service()`.
 - `kakao.py` — 카카오 로컬 검색(장소 발견 주 원천, `category_group_code`→슬롯). 경로는 네이버에 위임.
-- `naver.py` — 네이버 지역검색/길찾기.
+- `naver.py` — 네이버 지역검색/Directions(`maps.apigw.ntruss.com`, NCP 전용키 우선)/블로그 건수(인지도).
+- `tourapi.py` — 관광·문화시설 이용시간·등재 여부(Google에 영업시간 없는 곳 보강).
 - `google.py` — Google Places v1. 티어별 분리 호출(IDs-only 매핑 / Pro 영업시간 / Enterprise 평점, 필드마스크 혼합 금지). 영업시간 30일·평점 90일 TTL, 확정 코스만 런타임 갱신(`refresh_final_hours`).
 - `localdata.py` — LOCALDATA(지방행정 인허가) CSV 인덱스. 폐업 판정·인허가일자(업력)·지역 폐업률. 무료·무인증, 주 1회 갱신(`LOCALDATA_CSV_DIR`).
 - `sms.py` — NHN Cloud SMS. `payment.py` — 포트원 v1 결제 검증.
@@ -79,4 +80,7 @@
 ### 배치 (`app/batch/`)
 - `districts.py` — 수집 대상 상권 24곳(좌표·반경).
 - `places_build.py` — 상권 전수 수집(카카오) → 폐업 제거(LOCALDATA) → Google 영업시간·평점 페이싱 → upsert.
-  실행: `python scripts/build_places.py` (하루 1회, 영업시간 160건/일·평점 11건/일).
+  실행: `python scripts/build_places.py` (하루 1회, 영업시간 160건/일·평점 11건/일·인지도 500건/회).
+
+### 품질 신호(리뷰 원문 미사용)
+- 외부 평점은 표본 N≥30 일 때만 사용, 업력 log(년수), 인근 폐업률 감점, TourAPI 등재, 블로그 건수 인지도 — 계수는 `pipeline/weights.py`.
