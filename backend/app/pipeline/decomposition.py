@@ -111,6 +111,10 @@ _KNOWN_REGIONS = sorted(
 )
 
 
+# 시각 없이 "브런치"만 말한 경우의 기본 시작 시각(기본 12시는 브런치 시간대를 벗어난다)
+BRUNCH_DEFAULT_HOUR = 11
+_BRUNCH_RE = re.compile(r"브런치|브런취|모닝\s*세트|조식")
+
 # 마커 없는 1~7시는 저녁으로 보는 게 한국어 관용("7시에 보자" = 19시).
 # 오전을 뜻할 때는 보통 "아침 7시"처럼 마커를 붙인다.
 EVENING_DEFAULT_MAX_HOUR = 7
@@ -232,6 +236,10 @@ def parse_constraints(text: str, today: date | None = None) -> PlanConstraints:
         tod = _TIME_OF_DAY_RE.search(text)
         if tod:
             c.start_time = time(_TIME_OF_DAY[tod.group(1)], 0)
+        elif _BRUNCH_RE.search(text):
+            # "연남동 브런치" 처럼 시각을 말하지 않으면 기본 12시로 잡혀
+            # 브런치 시간대를 벗어난다 → 11시로 시작
+            c.start_time = time(BRUNCH_DEFAULT_HOUR, 0)
 
     # 범위 표현("7시부터 10시까지")이면 종료 시각까지 함께 잡는다
     rm = _RANGE_RE.search(text)
