@@ -1,3 +1,4 @@
+import pytest
 
 
 def test_supporters_and_ambassador_detected():
@@ -35,3 +36,18 @@ def test_내돈내산_이면_표기_문구가_있어도_남긴다():
 
     text = "내돈내산 후기예요. " * 5 + "요즘 협찬 글이 많던데 저는 제 돈으로 갔습니다."
     assert sponsored_score(text) < SPONSORED_THRESHOLD
+
+
+@pytest.mark.parametrize("text", ["협찬 아님", "광고 아니에요", "협찬 받지 않았습니다", "지원 아니고 내돈내산"])
+def test_협찬이_아니라고_밝힌_후기는_거르지_않는다(text):
+    from app.reviews.sponsored import is_sponsored, sponsored_score
+
+    assert is_sponsored(text) is False
+    assert sponsored_score(text) < 0.5
+
+
+def test_실제_표기_문구는_여전히_걸러낸다():
+    from app.reviews.sponsored import is_sponsored, sponsored_score
+
+    assert is_sponsored("업체로부터 제공받아 작성한 후기입니다")
+    assert sponsored_score("업체로부터 제공받아 작성한 후기입니다") >= 0.5
