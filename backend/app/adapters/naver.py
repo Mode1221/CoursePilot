@@ -71,7 +71,10 @@ class NaverMapService(MapService):
 
         places: list[Place] = []
         for it in items:
-            lat, lng = _katech_to_wgs84(it.get("mapx"), it.get("mapy"))
+            coords = _katech_to_wgs84(it.get("mapx"), it.get("mapy"))
+            if coords is None:
+                continue  # 좌표를 못 믿는 장소는 코스에 넣지 않는다
+            lat, lng = coords
             name = _strip_tags(it.get("title", ""))
             address = it.get("roadAddress") or it.get("address") or ""
             places.append(
@@ -127,14 +130,25 @@ def _place_id(name: str, address: str) -> str:
     return f"naver-{digest}"
 
 
-def _katech_to_wgs84(mapx, mapy) -> tuple[float, float]:
-    """네이버 지역검색 좌표(mapx/mapy, 문자열 *1e7)를 위경도로 변환."""
+# 한국 영역 대략 범위 — 이 밖의 좌표는 변환 실패로 본다
+_KR_LAT = (33.0, 39.5)
+_KR_LNG = (124.0, 132.0)
+
+
+def _katech_to_wgs84(mapx, mapy) -> tuple[float, float] | None:
+    """네이버 지역검색 좌표(mapx/mapy, 문자열 *1e7)를 위경도로 변환.
+
+    변환할 수 없으면 None — 예전에는 (0, 0) 을 돌려줘서 적도 앞바다 좌표가
+    코스에 섞이고 이동시간이 수천 분으로 계산됐다.
+    """
     try:
         lng = int(mapx) / 1e7
         lat = int(mapy) / 1e7
-        return lat, lng
     except (TypeError, ValueError):
-        return 0.0, 0.0
+        return None
+    if not (_KR_LAT[0] <= lat <= _KR_LAT[1] and _KR_LNG[0] <= lng <= _KR_LNG[1]):
+        return None
+    return lat, lng
 
 
 # 실제 길은 직선이 아니다(블록·횡단보도 우회). 도시 보행 기준 통용되는 계수.

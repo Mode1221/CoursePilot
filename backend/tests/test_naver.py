@@ -54,3 +54,40 @@ def test_detour_factor_applied_to_walking():
     straight = _haversine_m(a.lat, a.lng, b.lat, b.lng)
     route = _straight_line_route(a, b, TravelMode.WALK)
     assert route.distance_m == round(straight * DETOUR_FACTOR)
+
+
+def test_좌표를_못_믿는_장소는_제외한다():
+    from app.adapters.naver import _katech_to_wgs84
+
+    assert _katech_to_wgs84("1270000000", "375000000") == (37.5, 127.0)
+    assert _katech_to_wgs84(None, None) is None
+    assert _katech_to_wgs84("abc", "def") is None
+    assert _katech_to_wgs84("0", "0") is None  # 적도 앞바다
+    assert _katech_to_wgs84("1390000000", "355000000") is None  # 한국 밖
+
+
+async def test_좌표_불량_항목은_결과에서_빠진다(monkeypatch):
+    from app.adapters.naver import NaverMapService
+
+    payload = {
+        "items": [
+            {"title": "좋은 곳", "mapx": "1270000000", "mapy": "375000000", "address": "서울"},
+            {"title": "이상한 곳", "mapx": "0", "mapy": "0", "address": "??"},
+        ]
+    }
+
+    class _Resp:
+        def raise_for_status(self):
+            return None
+
+        def json(self):
+            return payload
+
+    svc = NaverMapService()
+
+    async def _get(url, params=None, headers=None):
+        return _Resp()
+
+    monkeypatch.setattr(svc._client, "get", _get)
+    places = await svc.search_places("성수동", [], limit=5)
+    assert [p.name for p in places] == ["좋은 곳"]
