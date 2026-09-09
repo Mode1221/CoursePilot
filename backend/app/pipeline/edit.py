@@ -22,6 +22,10 @@ _REPLACE_RE = re.compile(r"(바꿔|바꾸|교체|변경|다른\s*(?:곳|데|장�
 _REMOVE_RE = re.compile(r"(빼|삭제|제거|없애|지워|지우|치워)")
 # "카페 하나 추가해줘", "술집 넣어줘" → 전체 재생성 대신 한 칸만 덧붙인다
 _ADD_RE = re.compile(r"(추가|넣어|붙여|더\s*가|하나\s*더)")
+# "다 지워", "전부 삭제", "초기화" → 코스를 비운다(새로 만들라는 뜻이 아니다)
+_CLEAR_RE = re.compile(
+    r"(?:다|전부|모두|싹|전체)\s*(?:다\s*)?(?:지워|지우|삭제|없애|비워|치워)|초기화|리셋"
+)
 # "순서 바꿔줘", "동선 정리해줘" → 장소는 그대로 두고 방문 순서만 다시 짠다
 _REORDER_RE = re.compile(
     r"(?:순서|순번|동선)\s*(?:를|을)?\s*(?:[가-힣]{0,3}\s*)?"
@@ -33,7 +37,7 @@ _TARGET_RE = re.compile(r"([가-힣A-Za-z]+?)(?:으로|로)\s*(?:바꿔|교체|�
 
 @dataclass
 class EditCommand:
-    action: str  # "replace" | "remove" | "add" | "reorder" | "swap" | "none"
+    action: str  # "replace"|"remove"|"add"|"reorder"|"swap"|"clear"|"none"
     index: int = -1  # 0-based
     index2: int = -1  # swap 의 두 번째 대상(0-based)
     keyword: str = ""
@@ -65,6 +69,8 @@ def _find_category(text: str) -> tuple[str, str]:
 
 
 def parse_edit(text: str) -> EditCommand:
+    if _CLEAR_RE.search(text):
+        return EditCommand(action="clear")
     # 순서 재배치는 대상 지목이 필요 없다(코스 전체가 대상)
     if _REORDER_RE.search(text):
         # "첫번째랑 두번째 순서 바꿔"처럼 두 곳을 콕 집었으면 그 둘만 맞바꾼다
@@ -137,6 +143,8 @@ async def apply_edit(
 ) -> list[TimelineItem]:
     """편집 명령을 적용해 갱신된 타임라인을 반환. 전체 동선 재계산."""
     items = list(course.items)
+    if cmd.action == "clear":
+        return []
     if cmd.action == "swap":
         return await _apply_swap(items, cmd, map_service)
     if cmd.action == "reorder":

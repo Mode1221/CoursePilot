@@ -635,7 +635,9 @@ async def generate(
             dropped = [pid for pid in old_ids if pid not in set(new_ids)]
             popularity_store.bump_many(dropped, weight=-1)
 
-        if is_edit and new_ids == old_ids and edit_cmd.action == "reorder":
+        if is_edit and edit_cmd.action == "clear":
+            ai_text = "코스를 비웠어요. 어떤 모임인지 다시 말씀해 주세요."
+        elif is_edit and new_ids == old_ids and edit_cmd.action == "reorder":
             # 이미 최적 동선이면 "못 찾았다"가 아니라 그대로 좋다고 알린다
             user_store.refund_credit(x_user_id)
             ai_text = "이미 이동거리가 가장 짧은 순서예요. 그대로 두는 걸 추천해요."
