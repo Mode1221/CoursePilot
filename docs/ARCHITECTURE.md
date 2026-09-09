@@ -33,6 +33,7 @@
 - `llm.py` — LLM 도구호출 분해(anthropic/openai), 실패 시 규칙 폴백.
 - (backend) `alerting.py` — 임계 알림 웹훅 발송(미설정 시 로그, 재알림 억제).
 - (backend) `reasons.py` — 코스 장소 선택 근거 계산(저장 없이 코스+마지막 요청으로).
+- (backend) `accounts_api.py` — 가입·SMS 인증·선호·크레딧·포인트 구매 라우터.
 - (backend) `admin_api.py` — 관리 엔드포인트(/admin/metrics, /admin/signals)와 토큰 검사.
 - (backend) `answers.py` — 질문 답변(사실 태그·비용·영업시간·코스 요약). 외부 호출 없음.
 - `weights.py` — 스코어 계수(`PLACE_WEIGHTS`/`COURSE_WEIGHTS`) 단일 출처.

@@ -5,7 +5,8 @@ import itertools
 
 from fastapi.testclient import TestClient
 
-from app.main import REFERRAL_BONUS, api
+from app.accounts_api import REFERRAL_BONUS
+from app.main import api
 from app.users import MAX_REFERRAL_BONUS
 
 client = TestClient(api)
