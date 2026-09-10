@@ -248,7 +248,12 @@ def get_map_service() -> MapService:
     elif naver is not None:
         base = SafeMapService(naver, MockMapService())
     else:
-        base = MockMapService()
+        # 키가 하나도 없을 때: 시드 장소가 DB 에 있으면 그것으로 검색한다.
+        # Mock 장소("성수동 장소 1")보다 실제에 가까워, 키 없이도 화면·플래너를
+        # 제대로 볼 수 있다(scripts/seed_mock_places.py).
+        from app.adapters.seeded import SeededPlaceService, has_seed_places
+
+        base = SeededPlaceService() if has_seed_places() else MockMapService()
     # Google 평점은 후보 검색 때 부르지 않는다 — 평점 콜은 Enterprise 티어(월 1,000)
     # 라서, 배치로 상권별 상위 장소만 채우고 런타임에는 DB 값을 쓴다.
     # 폐업 필터는 캐시 안쪽에 둔다 — 캐시된 결과에도 이미 필터가 적용되도록.
