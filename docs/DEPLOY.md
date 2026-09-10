@@ -106,6 +106,24 @@ docker compose --profile scale up -d --scale backend=2
 프로필을 쓰지 않으면 redis 는 뜨지 않고 단일 프로세스로 동작한다(기본값).
 크레딧 차감은 DB 행 잠금에 의존하므로 다중 인스턴스에서는 DB 영속이 필수다.
 
+## 키가 들어올 때마다: 외부 연동 스모크
+키를 하나 넣을 때마다 그 벤더만 바로 확인한다. 실키로 1~2건만 부르고,
+응답 필드명·타입이 코드가 기대하는 것과 같은지 대조해 PASS/FAIL 을 낸다.
+```bash
+cd backend
+python scripts/smoke_kakao.py      # 카카오 로컬(키워드·카테고리 검색)
+python scripts/smoke_naver.py      # 지역검색 + NCP 차량 경로
+python scripts/smoke_tourapi.py    # TourAPI 검색 + 소개정보
+python scripts/smoke_kopis.py      # KOPIS 공연 목록(XML)
+python scripts/smoke_localdata.py  # LOCALDATA CSV 컬럼
+python scripts/smoke_google.py     # Google Places(유료 — quota 차감·기록 확인)
+python scripts/smoke_all.py        # 전부 한 번에(요약 표)
+```
+- 키가 없는 벤더는 **SKIP** 이고 종료 코드 0 — 아직 발급 전이어도 그냥 돌리면 된다.
+- 불일치가 있으면 어느 필드가 어떤 타입으로 왔는지 찍는다.
+- `smoke_google.py` 는 어댑터를 그대로 타므로 `quota.py` 무료 한도에 카운트되고,
+  필드마스크가 티어별로 분리돼 있는지(과금 티어 상승 방지)도 함께 본다.
+
 ## 운영 주의
 - **`SESSION_SECRET` 을 반드시 설정한다.** 없으면 `X-User-Id` 헤더만으로 신원이 인정돼, 사용자 id 를 아는 사람이 남의 크레딧을 쓰고 계정을 지울 수 있다(가입 시 내려주는 서명 토큰을 서버가 검증하지 않는다).
 - Socket.IO는 WebSocket 사용 — 리버스 프록시(Nginx 등)에서 `Upgrade` 헤더 전달 필요.
