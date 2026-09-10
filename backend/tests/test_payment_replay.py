@@ -74,3 +74,25 @@ def test_결제키가_없어도_같은_결제로_반복_충전은_막힌다():
         ).status_code
         == 200
     )
+
+
+def test_같은_결제를_두_번_기록하면_두_번째는_거짓():
+    # is_used 로 먼저 보지 않고 mark_used 반환값만으로 지급을 판단할 수 있어야 한다
+    ledger = PaymentLedger()
+    assert ledger.mark_used("imp_x", user_id="u1", points=5) is True
+    assert ledger.mark_used("imp_x", user_id="u1", points=5) is False
+
+
+def test_기록_선점당하면_지급하지_않는다(monkeypatch, _paid):
+    """검증까지 통과해도 원장 기록에 실패하면(동시 요청이 먼저 선점) 409."""
+    user_id = _signup()
+    before = client.get(f"/users/{user_id}/credits", headers={"X-User-Id": user_id}).json()["questions_left"]
+    monkeypatch.setattr(payment_ledger, "mark_used", lambda *a, **k: False)
+
+    res = client.post(
+        f"/users/{user_id}/purchase",
+        json={"points": 3, "imp_uid": "imp_race"},
+        headers={"X-User-Id": user_id},
+    )
+    assert res.status_code == 409
+    assert client.get(f"/users/{user_id}/credits", headers={"X-User-Id": user_id}).json()["questions_left"] == before
