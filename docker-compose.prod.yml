@@ -8,8 +8,16 @@
 #   - 도메인: ${DOMAIN} → 프론트, api.${DOMAIN} → 백엔드(Socket.IO 포함)
 #   - db: pgvector 컨테이너(볼륨 영속). 별도 관리형 DB 불필요.
 # 사용: `.env.prod` 를 `.env` 로 복사해 값 채운 뒤 `./deploy.sh`
+# 컨테이너 로그가 무한히 자라면 100GB 디스크가 조용히 찬다.
+x-logging: &logging
+  driver: json-file
+  options:
+    max-size: "10m"
+    max-file: "3"
+
 services:
   db:
+    logging: *logging
     image: pgvector/pgvector:0.8.0-pg16  # arm64 지원 확인
     # DB 는 공개 IP 에 절대 노출하지 않는다. Tailscale 인터페이스에만 바인딩하고,
     # TAILSCALE_IP 를 비워 두면 루프백으로 떨어져 외부에서 닿지 않는다.
@@ -31,6 +39,7 @@ services:
   # 다중 인스턴스로 늘릴 때만 띄운다: `docker compose --profile scale up -d`
   # (단일 인스턴스면 REDIS_URL 을 비워 두고 이 서비스도 뜨지 않는다)
   redis:
+    logging: *logging
     image: redis:7.4.1-alpine  # arm64 지원 확인
     profiles: ["scale"]
     restart: unless-stopped
@@ -44,6 +53,7 @@ services:
   backend:
     image: ${IMAGE_REGISTRY:-ghcr.io/mode1221/coursepilot}-backend:${IMAGE_TAG:-latest}
     pull_policy: always
+    logging: *logging
     restart: unless-stopped
     environment:
       ENV: ${ENV:-production}
@@ -67,6 +77,13 @@ services:
       # 백엔드를 2개 이상 띄울 때만 설정(단일 인스턴스면 비워둔다)
       REDIS_URL: ${REDIS_URL:-}
       ADMIN_TOKEN: ${ADMIN_TOKEN:-}
+    healthcheck:
+      test: ["CMD", "python", "-c",
+             "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
     depends_on:
       db:
         condition: service_healthy
@@ -74,15 +91,26 @@ services:
   frontend:
     image: ${IMAGE_REGISTRY:-ghcr.io/mode1221/coursepilot}-frontend:${IMAGE_TAG:-latest}
     pull_policy: always
+    logging: *logging
     restart: unless-stopped
     environment:
       # 브라우저는 현재 호스트에서 api.<도메인> 을 유도한다(빌드에 도메인을 박지 않는다).
       # SSR(공유 페이지 OG)만 컨테이너 내부 주소로 곧장 부른다.
       API_INTERNAL_BASE: http://backend:8000
+    healthcheck:
+      # 이미지에 curl/wget 이 없어 node 로 확인한다
+      test: ["CMD", "node", "-e",
+             "fetch('http://localhost:3000/').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
     depends_on:
-      - backend
+      backend:
+        condition: service_healthy
 
   caddy:
+    logging: *logging
     image: caddy:2.8.4  # arm64 지원 확인
     restart: unless-stopped
     ports:
@@ -94,6 +122,13 @@ services:
       - ./Caddyfile:/etc/caddy/Caddyfile:ro
       - caddy_data:/data
       - caddy_config:/config
+    healthcheck:
+      # Caddy 관리 API(로컬 전용). 설정을 물고 있으면 살아 있는 것이다
+      test: ["CMD", "wget", "-q", "--spider", "http://localhost:2019/config/"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 20s
     depends_on:
       - frontend
       - backend

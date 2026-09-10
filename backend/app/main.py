@@ -43,6 +43,9 @@ from app.signals_api import signals_router
 from app.store import store
 from app.users import CreditError, user_store
 
+# 개발 기본값 그대로면 비밀번호를 설정하지 않은 것으로 본다
+_DEV_DB_PASSWORD = "coursepilot:coursepilot@"
+
 
 def _production_warnings() -> list[str]:
     """운영에서 비어 있으면 안 되는 설정을 모은다(값은 절대 로그에 남기지 않는다)."""
@@ -51,19 +54,28 @@ def _production_warnings() -> list[str]:
         missing.append("SESSION_SECRET")  # 없으면 id 헤더만으로 남의 계정이 된다
     if not settings.admin_token:
         missing.append("ADMIN_TOKEN")  # 없으면 /admin/* 이 열린다
+    if _DEV_DB_PASSWORD in settings.database_url:
+        missing.append("POSTGRES_PASSWORD")  # 개발 기본 비밀번호를 그대로 쓰고 있다
     return missing
+
+
+class ProductionConfigError(RuntimeError):
+    """운영 필수 설정이 없다. 반쯤 열린 채로 뜨느니 기동을 멈춘다."""
 
 
 @asynccontextmanager
 async def lifespan(_app: FastAPI):
     from app.db import init_db, set_ready
 
-    set_ready(init_db())  # 전 스토어가 참조하는 단일 readiness
     if settings.is_production:
-        for name in _production_warnings():
-            logging.getLogger("coursepilot").error(
-                "%s 가 설정되지 않았습니다 — 운영에서는 필수입니다.", name
+        # 경고만 남기고 뜨면 아무도 안 본다. 열린 채로 서비스되는 것보다 낫다.
+        missing = _production_warnings()
+        if missing:
+            raise ProductionConfigError(
+                f"운영 필수 설정이 없습니다: {', '.join(missing)}. "
+                "ENV(APP_ENV)=production 에서는 이 값들이 반드시 있어야 합니다."
             )
+    set_ready(init_db())  # 전 스토어가 참조하는 단일 readiness
     yield
 
 
@@ -128,8 +140,28 @@ class GenerateRequest(BaseModel):
 
 @api.get("/health")
 async def health() -> dict:
-    """살아 있는지만 본다(liveness). 프로세스가 응답하면 항상 200."""
-    return {"status": "ok"}
+    """살아 있는지 본다(liveness). 프로세스가 응답하면 항상 200.
+
+    컨테이너 헬스체크가 부르는 곳이라 DB·외부 연동 상태도 함께 싣는다
+    (`docker inspect` 로 바로 보이도록). 판정 자체는 응답 여부로만 한다.
+    """
+    from app.db import is_ready
+
+    return {
+        "status": "ok",
+        "db": is_ready(),
+        "env": settings.env,
+        # 어떤 외부 연동이 살아 있는지 — 키가 없으면 폴백으로 도는 중이다
+        "integrations": {
+            "kakao": bool(settings.kakao_rest_api_key),
+            "naver": bool(settings.naver_client_id),
+            "google": bool(settings.google_maps_api_key),
+            "tourapi": bool(settings.tourapi_service_key),
+            "llm": bool(settings.anthropic_api_key or settings.openai_api_key),
+            "sms": settings.sms_enabled,
+            "payment": settings.payment_enabled,
+        },
+    }
 
 
 @api.get("/health/ready")
