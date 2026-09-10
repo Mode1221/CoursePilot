@@ -24,7 +24,19 @@ _TIME_OF_DAY_RE = re.compile(r"(새벽|아침|점심|낮|오후|저녁|밤)(?!\s
 _LATE_NIGHT_RE = re.compile(r"(?:새벽|늦게|늦은\s*시간|밤늦게)\s*까지")
 # 12시간제에서 오후로 해석해야 하는 표현
 _PM_WORDS = {"오후", "저녁", "밤", "낮"}
-_DURATION_RE = re.compile(r"(\d{1,2})\s*시간\s*(반)?")
+# 앞에 숫자가 더 붙어 있으면(예: "1000시간") 뒤 두 자리만 잘라 읽지 않는다 —
+# 그대로 두면 "00시간" → 0분짜리 코스가 만들어졌다.
+_DURATION_RE = re.compile(r"(?<!\d)(\d{1,2})\s*시간\s*(반)?")
+
+# 하루 안에 끝나는 모임이라는 전제. 이 밖의 값은 오독이거나 쓸 수 없는 요청이다.
+MIN_DURATION_MIN = 30
+MAX_DURATION_MIN = 14 * 60
+
+
+def _clamped_duration(minutes: int) -> int:
+    return max(MIN_DURATION_MIN, min(minutes, MAX_DURATION_MIN))
+
+
 # "한 시간", "두 시간 반" 처럼 한글 수사로 말하는 소요 시간
 _HANGUL_HOURS = {"한": 1, "두": 2, "세": 3, "네": 4, "다섯": 5, "여섯": 6, "일곱": 7, "여덟": 8}
 _HANGUL_DURATION_RE = re.compile(
@@ -437,7 +449,7 @@ def parse_constraints(text: str, today: date | None = None) -> PlanConstraints:
         c.start_time = time(start_h % 24, c.start_time.minute if c.start_time else 0)
         c.end_time = time(end_h % 24, min(end_min, 59))
         span = (end_h * 60 + end_min) - (start_h * 60)
-        c.duration_min = span if span > 0 else span + 24 * 60
+        c.duration_min = _clamped_duration(span if span > 0 else span + 24 * 60)
 
     # 범위 표현이 없어도 "…11시까지"만 붙는 경우가 흔하다("6시에 만나서 11시까지").
     # 시작 시각을 말하지 않고 끝만 못박는 요청("10시 전에 마무리")도 같은 자리에서 받는다.
@@ -453,18 +465,20 @@ def parse_constraints(text: str, today: date | None = None) -> PlanConstraints:
             c.end_time = time(end_h % 24, min(end_min, 59))
             if c.start_time is not None:
                 span = (end_h * 60 + end_min) - (start_h * 60 + c.start_time.minute)
-                c.duration_min = span if span > 0 else span + 24 * 60
+                c.duration_min = _clamped_duration(span if span > 0 else span + 24 * 60)
 
     # 소요 시간 → 종료 시각 (N시간 / N시간 반)
     dm = _DURATION_RE.search(text)
     hm = _HANGUL_DURATION_RE.search(text) if dm is None else None
     if hm is not None and not rm and c.duration_min is None:
-        c.duration_min = _HANGUL_HOURS[hm.group(1)] * 60 + (30 if hm.group(2) else 0)
+        c.duration_min = _clamped_duration(
+            _HANGUL_HOURS[hm.group(1)] * 60 + (30 if hm.group(2) else 0)
+        )
         if c.start_time:
             total = c.start_time.hour * 60 + c.start_time.minute + c.duration_min
             c.end_time = time((total // 60) % 24, total % 60)
     if dm and not rm and c.duration_min is None:
-        c.duration_min = int(dm.group(1)) * 60 + (30 if dm.group(2) else 0)
+        c.duration_min = _clamped_duration(int(dm.group(1)) * 60 + (30 if dm.group(2) else 0))
         if c.start_time:
             total = c.start_time.hour * 60 + c.start_time.minute + c.duration_min
             # 자정을 넘겨도 종료 시각을 잡는다(타임라인이 다음 날로 이어지는 것을 지원).
@@ -473,11 +487,17 @@ def parse_constraints(text: str, today: date | None = None) -> PlanConstraints:
     if c.duration_min is None:
         for word, minutes in _DURATION_WORDS.items():
             if word in text:
-                c.duration_min = minutes
+                c.duration_min = _clamped_duration(minutes)
                 if c.start_time:
                     total = c.start_time.hour * 60 + c.start_time.minute + minutes
                     c.end_time = time((total // 60) % 24, total % 60)
                 break
+
+    # 소요 시간을 상·하한으로 조정했다면 종료 시각도 그 값에 맞춘다
+    # (예: "10시부터 9시까지" → 23시간이 아니라 상한만큼)
+    if c.start_time and c.duration_min is not None:
+        total = c.start_time.hour * 60 + c.start_time.minute + c.duration_min
+        c.end_time = time((total // 60) % 24, total % 60)
 
     # 이동수단 + 이동시간 상한
     # 수단만 말한 경우도 반영한다("지하철로", "택시 타고") — 예전엔 전부 도보였다
