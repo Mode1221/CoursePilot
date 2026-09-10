@@ -130,6 +130,27 @@ docker compose --profile scale up -d --scale backend=2
 프로필을 쓰지 않으면 redis 는 뜨지 않고 단일 프로세스로 동작한다(기본값).
 크레딧 차감은 DB 행 잠금에 의존하므로 다중 인스턴스에서는 DB 영속이 필수다.
 
+## 첫 데이터 구축 순서
+```bash
+cd backend
+# ① 폐업 대장 먼저 — 이게 없으면 문 닫은 가게가 그대로 코스에 들어간다
+python scripts/fetch_localdata.py                 # 내려받기 + 시군구 커버리지 확인
+python scripts/fetch_localdata.py --check-only    # 이미 받아 둔 파일만 점검
+# ② 상권 수집(카카오 키만 있으면 된다. Google 단계는 자동으로 건너뛴다)
+python scripts/build_places.py
+# ③ 결과 점검
+python scripts/verify_places.py
+```
+- **첫 줄 로그**에 카카오 콜 수와 예상 소요가 찍힌다(24개 상권 = 최대 288콜, 약 2분).
+- 중간에 죽어도(네트워크·rate limit) **다시 실행하면 남은 조각부터 이어서** 한다.
+  진행 상태는 `BATCH_STATE_DIR`(기본 `/tmp`)에 남는다. 처음부터 돌리려면 `--no-resume`.
+- 실패한 조각은 끝낸 것으로 치지 않으므로 다음 실행에서 그 조각만 다시 시도한다.
+- **Google 키는 나중에 넣어도 된다.** 재실행하면 이미 채운 것은 건너뛰고 남은 것부터
+  이어서 채운다 — 매일 재수집이 어제 채운 값을 덮어쓰지 않는다.
+- `fetch_localdata.py` 는 24개 상권이 속한 **11개 시군구**(성동·마포·용산·중·종로·강남·
+  영등포·광진·송파·서대문·분당)를 다 덮는지 확인하고, 빠진 곳과 영향받는 상권을 찍는다.
+- `verify_places.py` 는 상권별 건수 / 슬롯 미매핑 / 폐업 잔존 / Google 매핑률을 보여 준다.
+
 ## 운영 주의
 - **`SESSION_SECRET` 을 반드시 설정한다.** 없으면 `X-User-Id` 헤더만으로 신원이 인정돼, 사용자 id 를 아는 사람이 남의 크레딧을 쓰고 계정을 지울 수 있다(가입 시 내려주는 서명 토큰을 서버가 검증하지 않는다).
 - Socket.IO는 WebSocket 사용 — 리버스 프록시(Nginx 등)에서 `Upgrade` 헤더 전달 필요.

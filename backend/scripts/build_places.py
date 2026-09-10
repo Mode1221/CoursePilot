@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import argparse
 import asyncio
+import logging
 import sys
 from pathlib import Path
 
@@ -28,11 +29,18 @@ def main() -> int:
     ap.add_argument("--hours-limit", type=int, default=HOURS_PER_DAY)
     ap.add_argument("--ratings-limit", type=int, default=RATINGS_PER_DAY)
     ap.add_argument(
+        "--no-resume",
+        action="store_true",
+        help="이전 실행의 진행 상태를 무시하고 처음부터 (기본은 이어서)",
+    )
+    ap.add_argument(
         "--sample",
         action="store_true",
         help="키 없이 합성 데이터로 리허설(스키마·용량·페이싱 확인용, 운영 금지)",
     )
     args = ap.parse_args()
+    # 배치는 로그로만 상태를 남긴다 — 첫 줄에 콜 수·예상 시간이 찍히도록 미리 켠다
+    logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
     connect_db()  # 배치는 앱과 별개 프로세스라 DB 를 직접 열어야 한다
 
     targets = DISTRICTS
@@ -57,13 +65,19 @@ def main() -> int:
                     hours_limit=args.hours_limit,
                     ratings_limit=args.ratings_limit,
                     kakao=kakao,
+                    resume=not args.no_resume,
                 )
             )
     except LockBusy as exc:
         print(exc, file=sys.stderr)
         return 1
     print(f"상권 {len(report.districts)}곳: {', '.join(report.districts)}")
-    print(f"수집 {report.collected} / 폐업 제거 {report.closed_removed}")
+    if report.skipped_chunks:
+        print(f"이어서 실행: 이미 끝낸 조각 {report.skipped_chunks}개 건너뜀")
+    print(
+        f"수집 {report.collected} / 저장분 이어받기 {report.merged} / "
+        f"폐업 제거 {report.closed_removed}"
+    )
     print(
         f"영업시간 {report.hours_filled} / 평점 {report.ratings_filled} / "
         f"인지도 {report.awareness_filled} / 저장 {report.upserted}"

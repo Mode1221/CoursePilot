@@ -8,11 +8,16 @@ Google 콜은 무료 한도가 좁아 하루 단위로 페이싱한다(영업시
 from __future__ import annotations
 
 import asyncio
+import logging
 from dataclasses import dataclass, field
 
-from app.adapters.kakao import SLOT_GROUP_CODES, KakaoLocalService
+from app.adapters.kakao import MAX_PAGE, SLOT_GROUP_CODES, KakaoLocalService
 from app.batch.districts import DISTRICTS, District
+from app.batch.merge import merge_with_stored
+from app.batch.progress import Progress
 from app.schemas import Place
+
+logger = logging.getLogger("coursepilot")
 
 HOURS_PER_DAY = 160  # Google Pro 월 5,000 무료 → 배치 3,000, 런타임 2,000 분배 기준
 RATINGS_PER_DAY = 11  # Enterprise 월 1,000 무료. 상권별 상위 100개를 3개월에 채운다
@@ -23,6 +28,16 @@ AWARENESS_PER_RUN = 500  # 블로그 검색 일 25,000 한도 안에서 여유 �
 GROUP_CODES = tuple(dict.fromkeys(c for codes in SLOT_GROUP_CODES.values() for c in codes))
 
 
+# 카카오 카테고리 검색 1콜에 걸리는 대략의 시간(응답 + 예의상 간격).
+SECONDS_PER_CALL = 0.35
+
+
+def call_plan(districts: tuple[District, ...]) -> tuple[int, float]:
+    """수집에 필요한 카카오 콜 수와 예상 소요(분). 로그 첫 줄에 찍는다."""
+    calls = len(districts) * len(GROUP_CODES) * MAX_PAGE
+    return calls, calls * SECONDS_PER_CALL / 60
+
+
 @dataclass
 class BuildReport:
     collected: int = 0
@@ -31,24 +46,38 @@ class BuildReport:
     awareness_filled: int = 0
     ratings_filled: int = 0
     upserted: int = 0
+    merged: int = 0  # 저장된 보강 값을 이어받은 장소 수
+    skipped_chunks: int = 0  # 이전 실행에서 이미 끝낸 (상권×카테고리) 조각
     districts: list[str] = field(default_factory=list)
 
 
 async def collect(
-    kakao: KakaoLocalService, districts: tuple[District, ...] = DISTRICTS
+    kakao: KakaoLocalService,
+    districts: tuple[District, ...] = DISTRICTS,
+    progress: Progress | None = None,
 ) -> list[Place]:
-    """상권×카테고리 전수 수집. 같은 장소는 한 번만."""
+    """상권×카테고리 전수 수집. 같은 장소는 한 번만.
+
+    progress 를 주면 이미 끝낸 조각은 건너뛴다(중간에 죽어도 이어서 한다).
+    """
     found: dict[str, Place] = {}
     for district in districts:
         for code in GROUP_CODES:
+            if progress and progress.is_done(district.name, code):
+                continue
             try:
                 places = await kakao.search_category(
                     code, district.lat, district.lng, district.radius_m
                 )
-            except Exception:
-                continue  # 한 상권 실패가 전체 배치를 멈추지 않는다
+            except Exception as exc:
+                # 한 조각 실패가 전체 배치를 멈추지 않는다. 다만 끝낸 것으로
+                # 표시하지 않으므로 다음 실행에서 이 조각만 다시 시도한다.
+                logger.warning("수집 실패 %s/%s: %s", district.name, code, exc)
+                continue
             for place in places:
                 found.setdefault(place.id, place)
+            if progress:
+                progress.mark(district.name, code)
     return list(found.values())
 
 
@@ -146,12 +175,33 @@ async def run(
     hours_limit: int = HOURS_PER_DAY,
     ratings_limit: int = RATINGS_PER_DAY,
     kakao: KakaoLocalService | None = None,
+    resume: bool = True,
 ) -> BuildReport:
     """수집→필터→보강→저장 한 사이클. 매일 돌려 조금씩 채우는 것을 전제로 한다."""
     client = kakao or KakaoLocalService()
     report = BuildReport(districts=[d.name for d in districts])
-    places = await collect(client, districts)
+
+    calls, minutes = call_plan(districts)
+    state = Progress() if resume else None
+    if state and state.resumed:
+        report.skipped_chunks = len(state.done)
+        logger.info(
+            "상권 %d곳 수집 재개 — 끝낸 조각 %d개는 건너뛴다(남은 카카오 콜 최대 %d회)",
+            len(districts), report.skipped_chunks,
+            max(0, calls - report.skipped_chunks * MAX_PAGE),
+        )
+    else:
+        logger.info(
+            "상권 %d곳 수집 시작 — 카카오 최대 %d콜(상권 %d × 카테고리 %d × %d페이지), "
+            "예상 %.0f분",
+            len(districts), calls, len(districts), len(GROUP_CODES), MAX_PAGE, minutes,
+        )
+
+    places = await collect(client, districts, state)
     report.collected = len(places)
+    # 저장된 보강 값(영업시간·평점·인지도·업력)을 먼저 얹는다.
+    # 이걸 빼먹으면 매일 재수집이 어제 채운 것을 지워 영원히 안 채워진다.
+    report.merged = merge_with_stored(places)
     places, report.closed_removed = drop_closed(places)
     report.hours_filled = await fill_hours(places, hours_limit)
     report.ratings_filled = await fill_ratings(places, ratings_limit)
@@ -161,4 +211,6 @@ async def run(
 
         place_repo.upsert_many(places)
         report.upserted = len(places)
+    if state:
+        state.clear()  # 완주했으니 다음 실행은 처음부터
     return report
