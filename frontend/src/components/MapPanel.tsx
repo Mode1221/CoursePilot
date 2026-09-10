@@ -1,11 +1,10 @@
 "use client";
 
+import dynamic from "next/dynamic";
 import { useEffect, useState } from "react";
 
 import MapCanvas from "@/components/MapCanvas";
 import { Badge, Button, EmptyState } from "@/components/ui";
-import PlaceDetailModal from "@/components/PlaceDetailModal";
-import PlaceSearchPanel from "@/components/PlaceSearchPanel";
 import { api } from "@/services/api";
 import { courseStats, formatCost, formatDuration } from "@/services/courseStats";
 import { naverMapUrl } from "@/services/mapLink";
@@ -13,6 +12,10 @@ import { courseToText } from "@/services/courseText";
 import { useCourseStore } from "@/store/courseStore";
 import { toast } from "@/store/toastStore";
 import { MODE_LABEL, type Place } from "@/types";
+
+// 모달·검색 패널은 클릭해야 열린다 — 첫 로드에서는 내려받지 않는다
+const PlaceDetailModal = dynamic(() => import("@/components/PlaceDetailModal"));
+const PlaceSearchPanel = dynamic(() => import("@/components/PlaceSearchPanel"));
 
 // 시각화 패널: 지도(SVG 렌더) + 타임라인. 실제 지도 SDK 는 mapService 어댑터로 교체 예정.
 export default function MapPanel({ readOnly = false }: { readOnly?: boolean }) {
