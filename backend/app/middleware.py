@@ -5,6 +5,8 @@ import logging
 import time
 import uuid
 from collections import deque
+from functools import lru_cache
+from ipaddress import ip_address, ip_network
 
 from fastapi import Request
 from fastapi.responses import JSONResponse
@@ -22,6 +24,28 @@ def reset_rate_limits() -> None:
     """모든 rate limiter의 카운터 초기화. 테스트 간 격리에 사용."""
     for mw in _RATE_LIMITERS:
         mw._hits.clear()
+
+
+@lru_cache(maxsize=1)
+def _trusted_networks() -> tuple[ip_network, ...]:
+    """설정된 신뢰 프록시 대역. 잘못 적힌 항목은 건너뛴다(기동을 막지 않는다)."""
+    from app.config import settings
+
+    nets = []
+    for raw in settings.trusted_proxies:
+        try:
+            nets.append(ip_network(raw, strict=False))
+        except ValueError:
+            logger.warning("TRUSTED_PROXIES 항목을 해석할 수 없습니다: %r", raw)
+    return tuple(nets)
+
+
+def is_trusted_proxy(host: str) -> bool:
+    try:
+        addr = ip_address(host)
+    except ValueError:
+        return False
+    return any(addr in net for net in _trusted_networks())
 
 
 SWEEP_EVERY = 500  # 이 횟수마다 만료된 클라이언트 항목을 정리한다
@@ -70,14 +94,27 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
         _RATE_LIMITERS.append(self)
 
     def _client_key(self, request: Request) -> str:
-        """리버스 프록시(Caddy) 뒤에서는 실제 클라이언트 IP 를 써야 한다.
+        """rate limit 을 걸 기준 주소.
 
-        X-Forwarded-For 의 첫 항목이 원 클라이언트. 헤더가 없으면 소켓 주소.
+        Caddy 뒤에서는 소켓 주소가 전부 프록시 IP 라, 그대로 쓰면 한 사람 제한이
+        모든 사용자 제한이 된다. 그렇다고 X-Forwarded-For 를 무조건 믿으면 아무나
+        헤더를 지어내 제한을 무한히 우회한다.
+
+        그래서 **신뢰하는 프록시에서 온 요청일 때만** 헤더를 본다. 프록시는 받은
+        헤더 뒤에 실제 접속자를 덧붙이므로, 믿을 수 있는 값은 **맨 오른쪽**이다
+        (왼쪽 항목들은 클라이언트가 지어낼 수 있다).
         """
+        peer = request.client.host if request.client else ""
+        if not peer:
+            return "unknown"
+        if not is_trusted_proxy(peer):
+            return peer  # 프록시를 거치지 않은 직접 접속 — 헤더는 믿지 않는다
         forwarded = request.headers.get("X-Forwarded-For")
         if forwarded:
-            return forwarded.split(",")[0].strip()
-        return request.client.host if request.client else "unknown"
+            parts = [p.strip() for p in forwarded.split(",") if p.strip()]
+            if parts:
+                return parts[-1]
+        return peer
 
     def _sweep(self, now: float) -> None:
         """오래된 클라이언트 항목 제거(무한 증가 방지)."""

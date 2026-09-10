@@ -198,6 +198,45 @@ python scripts/districts_map.py     # districts_map.html + 겹침 목록
 ```
 좌표는 대표 역·랜드마크 기준으로 맞춰 두었고(테스트가 300m 이내로 고정),
 붙어 있는 상권은 같은 원을 두 번 훑지 않도록 반경을 줄여 잡았다.
+## 첫 기동 체크리스트
+서버에 처음 올릴 때 이 순서로 확인한다. 각 단계가 끝나야 다음이 의미가 있다.
+
+1. **컨테이너가 다 healthy 인가**
+   ```bash
+   docker compose -f docker-compose.prod.yml ps      # 전부 (healthy)
+   curl -s https://api.${DOMAIN}/health | jq         # db·integrations 확인
+   curl -s -o /dev/null -w '%{http_code}\n' https://api.${DOMAIN}/health/ready   # 200
+   ```
+   `/health/ready` 가 503 이면 DB 미연결이거나 필수 설정이 빠진 것이다.
+2. **외부 연동 스모크** — 키를 넣은 만큼만 PASS, 나머지는 SKIP
+   ```bash
+   docker compose -f docker-compose.prod.yml exec -T backend python scripts/smoke_all.py
+   ```
+3. **폐업 대장 내려받기 + 시군구 커버리지**
+   ```bash
+   docker compose -f docker-compose.prod.yml exec -T backend python scripts/fetch_localdata.py
+   ```
+4. **백업 한 번 손으로 돌려 본다** — 크론이 처음 도는 새벽에 실패를 발견하면 늦다
+   ```bash
+   ./scripts/ops/backup.sh && ls -lh /var/backups/coursepilot
+   ```
+5. **크론 확인** — `deploy.sh` 가 설치한다
+   ```bash
+   crontab -l | sed -n '/coursepilot/,/coursepilot/p'
+   ```
+6. 여기까지 통과하면 상권 수집(`scripts/build_places.py`)을 돌린다.
+
+## 운영 스크립트 (`scripts/ops/`)
+| 스크립트 | 하는 일 |
+|---|---|
+| `backup.sh` | `pg_dump` → gzip, `BACKUP_DIR`(기본 `/var/backups/coursepilot`)에 보관. `BACKUP_KEEP_DAYS`(기본 7)일 초과분 삭제. 어느 단계에서 실패해도 웹훅 알림 |
+| `disk_check.sh` | `DISK_ALERT_PERCENT`(기본 85%) 초과 시 웹훅 알림 |
+| `notify.sh` | 위 둘이 쓰는 알림 전송(`ALERT_WEBHOOK_URL`, 미설정 시 로그) |
+| `crontab.txt` | 크론 항목 원본(`{{ROOT}}` 치환) |
+| `install_cron.sh` | crontab 설치·갱신(기존 사용자 항목은 보존, CoursePilot 블록만 교체) |
+
+크론은 `deploy.sh` 가 자동 설치한다(`INSTALL_CRON=false` 로 끌 수 있다).
+로그는 `/var/log/coursepilot/` 아래에 쌓인다.
 
 ## 첫 데이터 구축 순서
 ```bash
@@ -220,6 +259,24 @@ python scripts/verify_places.py
   영등포·광진·송파·서대문·분당)를 다 덮는지 확인하고, 빠진 곳과 영향받는 상권을 찍는다.
 - `verify_places.py` 는 상권별 건수 / 슬롯 미매핑 / 폐업 잔존 / Google 매핑률을 보여 준다.
 
+## 프로덕션 안전장치
+- **기동 거부(fail fast)** — `ENV`(또는 `APP_ENV`)`=production` 인데 `SESSION_SECRET`,
+  `ADMIN_TOKEN` 이 비었거나 DB 비밀번호가 개발 기본값(`coursepilot:coursepilot`)이면
+  **앱이 뜨지 않는다.** 경고만 남기고 뜨면 아무도 안 보고, 그 사이 관리 엔드포인트가 열린다.
+- **rate limit 은 신뢰 프록시 뒤에서만 헤더를 본다** — Caddy 뒤에서는 소켓 주소가 전부
+  프록시라 그대로 쓰면 한 사람이 제한을 채웠을 때 모두가 막힌다. 그렇다고 헤더를 무조건
+  믿으면 아무나 지어내 우회한다. `TRUSTED_PROXIES`(기본: 루프백 + 사설망)에서 온 요청만
+  `X-Forwarded-For` 를 보고, 그중 **프록시가 덧붙인 맨 오른쪽** 값을 쓴다.
+- **운영에서 SMS 키가 없으면 인증 요청을 거절한다(503)** — 개발 폴백은 인증번호를 응답에
+  그대로 돌려준다. 운영에서 그러면 누구나 남의 번호로 가입할 수 있다.
+- **민감값 마스킹** — 전화번호·인증번호·토큰은 로그에 남기지 않는다(`app/log_safe.py`,
+  회귀 테스트가 실제 요청 로그를 훑어 확인한다). 요청 로그는 쿼리스트링을 남기지 않는다.
+- **컨테이너 로그 로테이션** — 전 서비스 `json-file` 10MB × 3개. 100GB 디스크가 조용히
+  차는 것을 막는다.
+- **헬스체크** — db(`pg_isready`) / backend(`/health`) / frontend(`/`) / caddy(관리 API).
+  `docker compose ps` 로 상태가 바로 보이고, frontend 는 backend 가 healthy 여야 뜬다.
+  `GET /health` 는 DB 연결 여부와 외부 연동(키) 상태를 함께 돌려준다.
+
 ## 운영 주의
 - **`SESSION_SECRET` 을 반드시 설정한다.** 없으면 `X-User-Id` 헤더만으로 신원이 인정돼, 사용자 id 를 아는 사람이 남의 크레딧을 쓰고 계정을 지울 수 있다(가입 시 내려주는 서명 토큰을 서버가 검증하지 않는다).
 - Socket.IO는 WebSocket 사용 — 리버스 프록시(Nginx 등)에서 `Upgrade` 헤더 전달 필요.
@@ -230,16 +287,16 @@ python scripts/verify_places.py
 장소 DB 는 검색 API 로 즉석에서 만드는 대신 배치로 쌓고 주기적으로 갱신한다.
 유료 콜은 무료 한도 안에서 페이싱되며, 한도를 넘기면 호출 자체가 차단된다(`app/quota.py`).
 
-```cron
-# 폐업 대장(LOCALDATA) 내려받기 — 주 1회
-0 3 * * 1 cd /srv/coursepilot/backend && python scripts/fetch_localdata.py
+실제 항목은 `scripts/ops/crontab.txt` 에 있고 `deploy.sh` 가 설치한다.
+배치는 백엔드 컨테이너 안에서 돈다(파이썬·의존성이 거기 있다).
 
-# 상권 수집·보강 — 매일(영업시간 160건/일, 평점 11건/일로 나눠 채운다)
-0 4 * * * cd /srv/coursepilot/backend && python scripts/build_places.py
-
-# 저장된 장소 갱신 — 매일(폐업 전체 / 영업시간 30일 / 평점 90일 TTL)
-30 4 * * * cd /srv/coursepilot/backend && python scripts/refresh_places.py
-```
+| 시각 | 작업 |
+|---|---|
+| 월 02:00 | 폐업 대장(LOCALDATA) 내려받기 |
+| 매일 03:00 | 상권 수집·보강 |
+| 매일 04:30 | 저장된 장소 갱신(TTL 기준) |
+| 매일 05:00 | DB 백업 |
+| 6시간마다 | 디스크 사용률 점검 |
 
 - 실행이 겹치면 뒤에 뜬 쪽이 종료 코드 1 로 빠진다(`batch_lock`). 크론 중복은 걱정하지 않아도 된다.
 - 초기 구축은 며칠 걸린다 — 영업시간·평점을 하루 할당량씩 채우는 것이 설계 전제다.

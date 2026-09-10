@@ -46,8 +46,18 @@ class SmsVerifyBody(_PhoneBody):
 
 @accounts_router.post("/auth/sms/request")
 async def sms_request(req: SmsRequestBody) -> dict:
-    """인증번호 발송. 실서비스는 발송만, 개발(키 미설정)은 코드를 응답에 노출."""
+    """인증번호 발송. 개발(키 미설정)에서만 코드를 응답에 노출한다.
+
+    운영에서 SMS 키가 없으면 코드를 그대로 돌려주게 되는데, 그건 누구나
+    남의 번호로 가입할 수 있다는 뜻이다. 노출 대신 거절한다.
+    """
     from app.auth import SmsSendFailed, TooManyRequests, request_code
+
+    if settings.is_production and not settings.sms_enabled:
+        raise HTTPException(
+            status_code=503,
+            detail="문자 인증을 사용할 수 없습니다. 잠시 후 다시 시도해주세요.",
+        )
 
     try:
         dev_code = await request_code(req.phone)

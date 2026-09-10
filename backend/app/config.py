@@ -1,3 +1,4 @@
+from pydantic import AliasChoices, Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -71,9 +72,17 @@ class Settings(BaseSettings):
 
     cors_origins: list[str] = ["http://localhost:3000"]
 
-    # 배포 환경 표식. "production" 이면 시작 시 필수 설정(세션/관리 토큰)을 점검하고
+    # 배포 환경 표식. "production" 이면 필수 설정이 없을 때 기동을 거부하고
     # /health/ready 가 DB 연결을 필수로 본다(로드밸런서가 미완성 인스턴스를 빼도록).
-    env: str = "development"
+    # ENV / APP_ENV 어느 이름으로 넣어도 받는다(둘 다 흔히 쓰는 이름이라).
+    env: str = Field(default="development", validation_alias=AliasChoices("ENV", "APP_ENV"))
+
+    # 리버스 프록시(Caddy) 주소대. 이 주소에서 온 요청만 X-Forwarded-For 를 믿는다.
+    # 아무나 보낸 헤더를 믿으면 IP 를 바꿔 가며 rate limit 을 무한히 우회할 수 있다.
+    trusted_proxies: list[str] = [
+        "127.0.0.1", "::1",
+        "10.0.0.0/8", "172.16.0.0/12", "192.168.0.0/16",  # 도커 브리지·사설망
+    ]
 
     @property
     def is_production(self) -> bool:
