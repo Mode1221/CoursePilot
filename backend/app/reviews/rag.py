@@ -83,6 +83,8 @@ async def summarize_reviews(reviews: list[str]) -> str:
     OpenAI 만 봐서, Anthropic 키만 넣은 배포에서는 항상 태그 요약으로 떨어졌다.
     키가 없거나 호출이 실패하면 원문 대신 애스펙트 태그 요약으로 폴백한다.
     """
+    # 빈 문자열·공백만 있는 리뷰는 세지 않는다("리뷰 1건을 참고했어요"가 거짓말이 된다)
+    reviews = [r for r in reviews if r and r.strip()]
     if not reviews:
         return "참고할 리뷰가 없습니다."
 
