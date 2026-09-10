@@ -112,3 +112,21 @@ describe("MapPanel", () => {
     expect(queryByText(/시간 확인 필요/)).toBeNull();
   });
 });
+
+it("손으로 넣은 자리가 영업시간 밖이면 알려 준다", () => {
+  useCourseStore.setState({
+    course: {
+      id: "c1",
+      items: [
+        {
+          place: { id: "p1", name: "닫힌 카페", lat: 37.54, lng: 127.05 },
+          arrive: "14:50",
+          depart: "15:50",
+          hours_conflict: true,
+        },
+      ],
+    } as never,
+  });
+  render(<MapPanel />);
+  expect(screen.getByText(/영업시간 밖/)).toBeTruthy();
+});

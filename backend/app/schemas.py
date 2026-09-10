@@ -63,6 +63,9 @@ class TimelineItem(BaseModel):
     arrive: time | None = None
     depart: time | None = None
     travel_to_next: Route | None = None
+    # 수동 편집으로 영업시간(브레이크 포함) 밖에 놓인 자리. 자동 생성 때는 걸러지지만
+    # 손으로 넣은 자리는 사용자의 선택이라 지우지 않고 표시만 한다.
+    hours_conflict: bool = False
 
 
 class Course(BaseModel):

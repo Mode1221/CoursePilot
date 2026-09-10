@@ -43,6 +43,8 @@ export interface TimelineItem {
   arrive?: string | null;
   depart?: string | null;
   travel_to_next?: Route | null;
+  /** 손으로 넣은 자리가 영업시간(브레이크 포함) 밖일 때 true. */
+  hours_conflict?: boolean;
 }
 
 export interface Course {

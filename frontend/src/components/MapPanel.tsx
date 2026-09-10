@@ -143,6 +143,16 @@ export default function MapPanel({ readOnly = false }: { readOnly?: boolean }) {
                     ⚠ 시간 확인 필요
                   </span>
                 )}
+                {/* 손으로 넣은 자리는 지우지 않는 대신, 문 닫은 시간이면 알려 준다 */}
+                {item.hours_conflict && (
+                  <span
+                    style={{ color: "var(--danger)" }}
+                    title="이 시간에는 영업하지 않거나 브레이크 타임이에요"
+                  >
+                    {" "}
+                    ⚠ 영업시간 밖
+                  </span>
+                )}
               </span>
             </div>
             <div

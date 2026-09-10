@@ -207,7 +207,19 @@ async def recompute(
             timeline[-1].travel_to_next = routes[i - 1]
         arrive = cursor.time()
         depart_dt = cursor + timedelta(minutes=stay_minutes(place))
-        timeline.append(TimelineItem(place=place, arrive=arrive, depart=depart_dt.time()))
+        # 드롭하지 않는 대신, 문 닫은 시간에 놓였다면 표시해 둔다
+        conflict = bool(
+            (place.open_time or place.close_time or place.break_start)
+            and not is_open_during(place, arrive, depart_dt.time())
+        )
+        timeline.append(
+            TimelineItem(
+                place=place,
+                arrive=arrive,
+                depart=depart_dt.time(),
+                hours_conflict=conflict,
+            )
+        )
         cursor = depart_dt
 
     return timeline
