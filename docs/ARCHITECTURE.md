@@ -66,9 +66,13 @@
 
 ### 코어
 - `main.py` 엔드포인트, `models.py` ORM, `schemas.py` 도메인, `store.py` 코스 저장.
-- `users.py` 회원·크레딧(차감·환불 모두 행 잠금), `auth.py` SMS 인증(시도·발송 제한), `payment_ledger.py` 결제 원장(리플레이 차단, DB/인메모리 폴백), `bookmarks.py`, `chat.py`.
+- `users.py` 회원·크레딧(차감·환불 모두 행 잠금), `auth.py` SMS 인증(시도·발송 제한 + 번호 정규화 — 표기가 달라도 같은 계정), `payment_ledger.py` 결제 원장(`mark_used()` 반환값으로만 지급 판단 — 동시 충전 중복 지급 차단), `bookmarks.py`, `chat.py`.
+- `session_token.py` — HMAC 서명 세션 토큰. `SESSION_SECRET` 이 있으면 `X-User-Id` 만으로는 인증되지 않는다. 개인 데이터(`_require_self`)와 **코스 생성자 판정(`_owned_course`)** 모두 이 토큰을 본다.
+- `answers.py` 질문 유형별 답변(사실 태그·비용·영업시간·이동·우천·아이 동반), `reasons.py` 추천 근거.
+- 라우터 분리: `admin_api.py`(+`admin_dashboard.py` 단일 파일 운영 대시보드) / `accounts_api.py` / `signals_api.py`.
 - `db.py` 세션/폴백, `queue.py` 액션 큐, `realtime.py` Socket.IO, `config.py` env 설정.
 - `middleware.py` — rate limit + 요청 로깅(요청마다 `X-Request-Id` 발급·응답 반환, 2초 이상은 warning).
+- 헬스: `/health` 는 liveness(항상 200), `/health/ready` 는 readiness — `ENV=production` 에서 DB 미연결이나 `SESSION_SECRET`/`ADMIN_TOKEN` 누락이면 503.
 - `metrics.py` — 라우트별 지연/에러, 외부 연동 폴백 비율(`externals`), 임계 초과 `alerts`. `GET /admin/metrics`(ADMIN_TOKEN).
 - 미처리 예외는 `main.py` 전역 핸들러가 `request_id` 를 담아 응답(내부 스택은 로그로만).
 
@@ -85,7 +89,14 @@
 5. 학습 스토어는 전역 싱글턴 → 테스트는 `tests/conftest.py` 및 각자 `_mem.clear()` 로 격리.
 
 ### 배치 (`app/batch/`)
-- `districts.py` — 수집 대상 상권 24곳(좌표·반경).
+- `districts.py` — 수집 대상 상권 24곳(좌표·반경·소속 시군구).
+- `merge.py` — 재수집분에 저장된 보강 값(영업시간·평점·인지도·업력·place_id)을 얹는다.
+  **이걸 빼면 매일 재수집이 어제 채운 값을 덮어써 하루 한도로는 영원히 못 채운다.**
+  덕분에 Google 키가 나중에 들어와도 남은 것부터 이어서 채워진다.
+- `progress.py` — (상권×카테고리) 조각 단위 진행 상태(JSON, 원자적 교체). 중간에 죽어도
+  재실행이 남은 조각부터 이어 간다. 실패한 조각은 끝낸 것으로 치지 않는다. 20시간 지나면 폐기.
+- `coverage.py` — LOCALDATA CSV 가 24개 상권의 11개 시군구를 덮는지. 빠지면 그 상권은
+  폐업 판정이 통째로 빠진다(`scripts/fetch_localdata.py --check-only`).
 - `places_build.py` — 상권 전수 수집(카카오) → 폐업 제거(LOCALDATA) → Google 영업시간·평점 페이싱 → upsert.
   실행: `python scripts/build_places.py` (하루 1회, 영업시간 160건/일·평점 11건/일·인지도 500건/회).
 
@@ -94,6 +105,12 @@
 - `localdata_fetch.py` — LOCALDATA CSV 내려받기(`scripts/fetch_localdata.py`, 주 1회). 부분 실패 허용, 성공 시 캐시 무효화.
 - `refresh.py` — 주기 갱신: 폐업 주 1회(전체) / 영업시간 30일 TTL(최근 90일 내 추천된 활성 집합) / 평점 90일(인기 상위).
   실행: `python scripts/refresh_places.py` (하루 1회). 활성 집합 밖 장소는 재등장 시 즉석 갱신.
+
+### 운영 스크립트 (`backend/scripts/`)
+- `smoke_{kakao,naver,google,tourapi,kopis,localdata}.py` + `smoke_all.py` — 실키로 1~2콜만 부르고
+  응답 필드명·타입을 코드가 읽는 것과 대조(PASS/FAIL). 키 없으면 SKIP·exit 0.
+  Google 은 어댑터를 그대로 타 `quota.py` 에 카운트되고, 필드마스크 티어 분리도 확인한다.
+- `verify_places.py` — 구축 결과 점검(상권별 건수·슬롯 미매핑·폐업 잔존·Google 매핑률).
 
 ### 유료 API 한도 (`app/quota.py`)
 - 사용량은 DB(`api_quota`)에 월 단위로 영속화한다 — 재시작으로 카운터가 되살아나면 한도를 넘겨 과금된다. DB 없으면 인메모리 폴백.
