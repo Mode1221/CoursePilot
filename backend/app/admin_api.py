@@ -9,11 +9,24 @@ import logging
 import secrets
 
 from fastapi import APIRouter, Header, HTTPException
+from fastapi.responses import HTMLResponse
 
 from app.config import settings
 from app.users import user_store
 
 admin_router = APIRouter(prefix="/admin", tags=["admin"])
+
+@admin_router.get("/dashboard", response_class=HTMLResponse)
+async def dashboard(x_admin_token: str | None = Header(default=None)) -> str:
+    """지표를 눈으로 보는 한 페이지. 데이터는 브라우저가 metrics/signals 로 다시 받는다.
+
+    HTML 자체에는 집계값이 없으므로 토큰 검사는 데이터 엔드포인트가 맡는다
+    (토큰을 화면에서 입력해 넣을 수 있어야 하기 때문).
+    """
+    from app.admin_dashboard import DASHBOARD_HTML
+
+    return DASHBOARD_HTML
+
 
 def _require_admin(token: str | None) -> None:
     """ADMIN_TOKEN 이 설정된 환경에서는 일치하는 헤더가 있어야 한다(미설정=개발용 개방).

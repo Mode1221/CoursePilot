@@ -114,6 +114,7 @@ curl -X POST http://localhost:8000/courses # 코스 생성
 
 - 실행이 겹치면 뒤에 뜬 쪽이 종료 코드 1 로 빠진다(`batch_lock`). 크론 중복은 걱정하지 않아도 된다.
 - 초기 구축은 며칠 걸린다 — 영업시간·평점을 하루 할당량씩 채우는 것이 설계 전제다.
+- 운영 화면은 `/admin/dashboard`(폴백률·잔여 한도·학습 신호를 한눈에, 30초 갱신).
 - 사용량은 `GET /admin/metrics` 의 `quotas` 로 확인하고, 80%·소진 시점에는 `ALERT_WEBHOOK_URL` 로 알림이 간다.
 
 ### 키 오기 전 리허설
