@@ -15,7 +15,11 @@ _FACT_QUESTIONS: tuple[tuple[str, tuple[str, ...]], ...] = (
     ("콘센트", ("콘센트", "노트북", "카공")),
     ("웨이팅", ("웨이팅", "줄", "대기")),
     ("예약", ("예약",)),
+    # 동반 조건은 취향이 아니라 가부다 — 물어보면 태그로 분명히 답한다
+    ("휠체어", ("휠체어", "배리어프리", "유모차")),
 )
+# "노키즈"는 '가능'이 아니라 '불가'를 뜻하는 태그라 다른 축과 반대로 읽어야 한다
+_KIDS_WORDS = ("애기", "아기", "아이", "유아", "노키즈", "키즈")
 # 아직 모으지 않는 정보. 코스 요약으로 얼버무리지 말고 없다고 말한다.
 UNKNOWN_FACT_QUESTIONS: tuple[tuple[str, tuple[str, ...]], ...] = (
     ("화장실", ("화장실",)),
@@ -24,6 +28,8 @@ UNKNOWN_FACT_QUESTIONS: tuple[tuple[str, tuple[str, ...]], ...] = (
     ("콜키지", ("콜키지", "주류 반입", "와인 반입")),
     ("배달", ("배달", "포장")),
 )
+# "비 오면?" — 코스를 다시 짜기 전에, 지금 코스가 비에 얼마나 견디는지부터 답한다
+_RAIN_WORDS = ("비 오", "비오", "우천", "장마", "비 올", "비가 오")
 _COST_WORDS = ("얼마", "비용", "가격", "예산")
 _HOURS_WORDS = ("영업시간", "몇 시까지", "몇시까지", "문 닫", "문닫", "언제까지 해", "브레이크")
 # 이동 질문. "이동 시간 얼마나 돼"의 '얼마'가 비용으로 새지 않도록 먼저 본다.
@@ -51,6 +57,44 @@ def fact_answer(course: Course, text: str) -> str | None:
         names = ", ".join(no)
         parts.append(f"{names}{_topic_particle(names)} {tag}{_subject_particle(tag)} 어려울 수 있어요")
     return ". ".join(parts) + "."
+
+
+def kids_answer(course: Course) -> str:
+    """아이 동반 질문. '노키즈' 태그는 가능이 아니라 불가를 뜻한다."""
+    blocked = [
+        it.place.name
+        for it in course.items
+        if "노키즈" in it.place.fact_tags or "노키즈" in it.place.caution_tags
+    ]
+    if not blocked:
+        return "노키즈존으로 확인된 곳은 없어요. 다만 매장 정책은 바뀔 수 있어 방문 전 확인을 권해요."
+    names = ", ".join(blocked)
+    return (
+        f"{names}{_topic_particle(names)} 노키즈존이라 아이와는 어려워요. "
+        "'노키즈존 아닌 곳으로 바꿔줘'라고 말하면 다시 짜 드릴게요."
+    )
+
+
+def rain_answer(course: Course) -> str:
+    """우천 질문: 실내로 볼 수 있는 자리와 야외 자리를 갈라 알려 준다."""
+    from app.pipeline.planner import _INDOOR_KEYWORDS, _OUTDOOR_KEYWORDS
+
+    def _kind(name: str, category: str | None) -> str:
+        haystack = f"{name} {category or ''}"
+        if any(k in haystack for k in _OUTDOOR_KEYWORDS):
+            return "outdoor"
+        if any(k in haystack for k in _INDOOR_KEYWORDS):
+            return "indoor"
+        return "unknown"
+
+    outdoor = [it.place.name for it in course.items if _kind(it.place.name, it.place.category) == "outdoor"]
+    if not outdoor:
+        return "지금 코스는 야외 자리가 없어 비가 와도 그대로 다닐 수 있어요."
+    names = ", ".join(outdoor)
+    return (
+        f"{names}{_topic_particle(names)} 야외라 비 오면 아쉬울 수 있어요. "
+        "'비 와서 실내로 바꿔줘'라고 말하면 실내 위주로 다시 짜 드릴게요."
+    )
 
 
 def _has_final_consonant(word: str) -> bool:
@@ -185,6 +229,10 @@ def course_answer(course: Course, text: str = "") -> str:
     unknown = unknown_fact_answer(text)
     if unknown:
         return unknown
+    if any(w in text for w in _KIDS_WORDS):
+        return kids_answer(course)
+    if any(w in text for w in _RAIN_WORDS):
+        return rain_answer(course)
     if any(w in text for w in _TRAVEL_WORDS):
         return travel_answer(course)
     if any(w in text for w in _WHY_WORDS):
