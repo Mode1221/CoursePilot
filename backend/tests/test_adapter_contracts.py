@@ -295,3 +295,54 @@ async def test_NHN_SMS_실패_응답은_거짓이다(monkeypatch):
 
     monkeypatch.setattr(sms, "_client", lambda: _client(load("nhn_sms_fail.json")))
     assert await sms.NhnCloudSms().send("010-0000-0000", "인증번호 123456") is False
+
+
+async def test_구글_리뷰_응답에서_출처와_평점을_보존한다(monkeypatch):
+    """attribution 이 필수인 소스라 author/url 을 잃으면 안 된다."""
+    import app.reviews.source as source
+    from app.config import settings
+
+    monkeypatch.setattr(settings, "google_maps_api_key", "test-key")
+    monkeypatch.setattr(
+        source,
+        "_client",
+        lambda: httpx.AsyncClient(
+            transport=_RouteStub(
+                {
+                    "textsearch": load("google_textsearch_reviews.json"),
+                    "details": load("google_reviews_details.json"),
+                }
+            )
+        ),
+    )
+    reviews = await source.GooglePlacesReviewSource().fetch("성수 커피로스터스")
+    assert [r.rating for r in reviews] == [5, 3]
+    assert reviews[0].author == "김민수"
+    assert reviews[0].url.startswith("https://www.google.com/maps/contrib/")
+    assert all(r.source == "google" for r in reviews)
+
+
+async def test_검색_결과가_없으면_빈_목록이다(monkeypatch):
+    import app.reviews.source as source
+    from app.config import settings
+
+    monkeypatch.setattr(settings, "google_maps_api_key", "test-key")
+    monkeypatch.setattr(
+        source,
+        "_client",
+        lambda: _client({"results": [], "status": "ZERO_RESULTS"}),
+    )
+    assert await source.GooglePlacesReviewSource().fetch("없는 가게") == []
+
+
+async def test_리뷰_소스가_실패하면_폴백으로_이어_간다():
+    import app.reviews.source as source
+
+    class _Broken(source.ReviewSource):
+        async def fetch(self, place_name, limit=10):
+            raise RuntimeError("외부 장애")
+
+    safe = source.SafeReviewSource(_Broken(), source.MockReviewSource())
+    reviews = await safe.fetch("성수 카페", limit=3)
+    assert len(reviews) == 3
+    assert all(r.source == "mock" for r in reviews)

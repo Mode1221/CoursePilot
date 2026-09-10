@@ -15,6 +15,13 @@ from abc import ABC, abstractmethod
 from dataclasses import dataclass
 
 
+def _client():
+    """HTTP 클라이언트 팩토리. 테스트가 고정 응답 전송 계층으로 갈아끼운다."""
+    import httpx
+
+    return httpx.AsyncClient(timeout=10)
+
+
 @dataclass
 class RawReview:
     source: str          # mock | google | naver_blog
@@ -61,14 +68,12 @@ class GooglePlacesReviewSource(ReviewSource):
     _DETAILS = "https://maps.googleapis.com/maps/api/place/details/json"
 
     async def fetch(self, place_name: str, limit: int = 10) -> list[RawReview]:
-        import httpx
-
         from app.config import settings
 
         key = settings.google_maps_api_key
         if not key:
             raise RuntimeError("google_maps_api_key 미설정")  # 상위에서 Mock 폴백
-        async with httpx.AsyncClient(timeout=10) as client:
+        async with _client() as client:
             ts = await client.get(
                 self._TEXTSEARCH, params={"query": place_name, "key": key, "language": "ko"}
             )
