@@ -11,6 +11,12 @@ import httpx
 
 from app.config import settings
 
+
+def _client() -> httpx.AsyncClient:
+    """HTTP 클라이언트 팩토리. 테스트가 고정 응답 전송 계층으로 갈아끼운다."""
+    return httpx.AsyncClient(timeout=10)
+
+
 _TOKEN_URL = "https://api.iamport.kr/users/getToken"
 _PAYMENT_URL = "https://api.iamport.kr/payments/{imp_uid}"
 
@@ -28,7 +34,7 @@ class PortOneClient:
         self._secret = settings.portone_api_secret
 
     async def verify(self, imp_uid: str) -> PaymentResult:
-        async with httpx.AsyncClient(timeout=10) as client:
+        async with _client() as client:
             tok = await client.post(
                 _TOKEN_URL,
                 json={"imp_key": self._key, "imp_secret": self._secret},

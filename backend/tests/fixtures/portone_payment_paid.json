@@ -1,0 +1,1 @@
+{"code": 0, "message": null, "response": {"imp_uid": "imp_123456789012", "merchant_uid": "order_20260910_0001", "pay_method": "card", "status": "paid", "amount": 5000, "currency": "KRW", "name": "CoursePilot 포인트 5개", "buyer_tel": "010-0000-0000", "paid_at": 1757000100}}

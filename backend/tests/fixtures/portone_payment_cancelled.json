@@ -1,0 +1,1 @@
+{"code": 0, "message": null, "response": {"imp_uid": "imp_123456789013", "merchant_uid": "order_20260910_0002", "status": "cancelled", "amount": 5000, "currency": "KRW", "cancel_amount": 5000, "cancelled_at": 1757000500}}

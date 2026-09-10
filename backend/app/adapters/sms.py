@@ -9,6 +9,11 @@ import httpx
 from app.config import settings
 
 
+def _client() -> httpx.AsyncClient:
+    """HTTP 클라이언트 팩토리. 테스트가 고정 응답 전송 계층으로 갈아끼운다."""
+    return httpx.AsyncClient(timeout=10)
+
+
 class NhnCloudSms:
     def __init__(self) -> None:
         self._app_key = settings.nhn_sms_app_key
@@ -25,7 +30,7 @@ class NhnCloudSms:
             "sendNo": self._sender,
             "recipientList": [{"recipientNo": phone.replace("-", "")}],
         }
-        async with httpx.AsyncClient(timeout=10) as client:
+        async with _client() as client:
             resp = await client.post(url, json=body, headers=headers)
             resp.raise_for_status()
             header = resp.json().get("header", {})

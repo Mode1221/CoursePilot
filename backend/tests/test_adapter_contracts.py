@@ -226,3 +226,72 @@ async def test_네이버_대체_경로_키도_읽는다():
     assert _route_summary(body)["distance"] == 100
     assert _route_summary({"code": 1}) is None
     assert _route_summary({}) is None
+
+
+class _RouteStub(httpx.AsyncBaseTransport):
+    """경로(path)별로 다른 응답을 주는 전송 계층. 토큰 발급 → 결제 조회처럼
+    한 호출 안에서 두 번 나가는 어댑터를 검증하는 데 쓴다."""
+
+    def __init__(self, by_path: dict[str, dict]):
+        self._by_path = by_path
+
+    async def handle_async_request(self, request):
+        for fragment, payload in self._by_path.items():
+            if fragment in request.url.path:
+                return httpx.Response(200, json=payload)
+        return httpx.Response(404, json={})
+
+
+async def test_포트원_결제완료_응답을_읽는다(monkeypatch):
+    import app.adapters.payment as payment
+
+    monkeypatch.setattr(
+        payment,
+        "_client",
+        lambda: httpx.AsyncClient(
+            transport=_RouteStub(
+                {
+                    "getToken": load("portone_token.json"),
+                    "payments/": load("portone_payment_paid.json"),
+                }
+            )
+        ),
+    )
+    result = await payment.PortOneClient().verify("imp_123456789012")
+    assert result.paid is True
+    assert result.amount == 5000
+    assert result.status == "paid"
+
+
+async def test_포트원_취소건은_미결제로_읽는다(monkeypatch):
+    import app.adapters.payment as payment
+
+    monkeypatch.setattr(
+        payment,
+        "_client",
+        lambda: httpx.AsyncClient(
+            transport=_RouteStub(
+                {
+                    "getToken": load("portone_token.json"),
+                    "payments/": load("portone_payment_cancelled.json"),
+                }
+            )
+        ),
+    )
+    result = await payment.PortOneClient().verify("imp_123456789013")
+    assert result.paid is False
+    assert result.status == "cancelled"
+
+
+async def test_NHN_SMS_성공_응답을_읽는다(monkeypatch):
+    import app.adapters.sms as sms
+
+    monkeypatch.setattr(sms, "_client", lambda: _client(load("nhn_sms_ok.json")))
+    assert await sms.NhnCloudSms().send("010-0000-0000", "인증번호 123456") is True
+
+
+async def test_NHN_SMS_실패_응답은_거짓이다(monkeypatch):
+    import app.adapters.sms as sms
+
+    monkeypatch.setattr(sms, "_client", lambda: _client(load("nhn_sms_fail.json")))
+    assert await sms.NhnCloudSms().send("010-0000-0000", "인증번호 123456") is False
