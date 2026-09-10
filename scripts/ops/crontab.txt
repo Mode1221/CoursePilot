@@ -1,0 +1,23 @@
+# CoursePilot 운영 크론. deploy.sh 가 이 파일을 crontab 에 설치한다.
+#   설치 확인: crontab -l
+#   {{ROOT}} 는 설치 시 저장소 절대 경로로 치환된다.
+#
+# 배치는 백엔드 컨테이너 안에서 돈다(파이썬·의존성이 거기 있다).
+# 실행이 겹치면 뒤에 뜬 쪽이 batch_lock 으로 빠지므로 중복은 걱정하지 않아도 된다.
+SHELL=/bin/bash
+PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+
+# 폐업 대장(LOCALDATA) 내려받기 — 매주 월요일 02:00
+0 2 * * 1 cd {{ROOT}} && docker compose -f docker-compose.prod.yml exec -T backend python scripts/fetch_localdata.py >> /var/log/coursepilot/localdata.log 2>&1
+
+# 상권 수집·보강 — 매일 03:00 (영업시간 160건/일·평점 11건/일로 나눠 채운다)
+0 3 * * * cd {{ROOT}} && docker compose -f docker-compose.prod.yml exec -T backend python scripts/build_places.py >> /var/log/coursepilot/build_places.log 2>&1
+
+# 저장된 장소 갱신 — 매일 04:30 (폐업 전체 / 영업시간 30일 / 평점 90일 TTL)
+30 4 * * * cd {{ROOT}} && docker compose -f docker-compose.prod.yml exec -T backend python scripts/refresh_places.py >> /var/log/coursepilot/refresh_places.log 2>&1
+
+# DB 백업 — 매일 05:00 (7일 보관, 실패 시 웹훅 알림)
+0 5 * * * {{ROOT}}/scripts/ops/backup.sh >> /var/log/coursepilot/backup.log 2>&1
+
+# 디스크 사용률 점검 — 6시간마다 (85% 초과 시 웹훅 알림)
+0 */6 * * * {{ROOT}}/scripts/ops/disk_check.sh >> /var/log/coursepilot/disk.log 2>&1
