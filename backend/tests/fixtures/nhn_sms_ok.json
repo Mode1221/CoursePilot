@@ -1,0 +1,1 @@
+{"header": {"resultCode": 0, "resultMessage": "SUCCESS", "isSuccessful": true}, "body": {"data": {"requestId": "20260910000000000001", "statusCode": "2", "senderGroupingKey": null, "sendResultList": [{"recipientNo": "01000000000", "resultCode": 0, "resultMessage": "SUCCESS"}]}}}
