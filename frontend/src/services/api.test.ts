@@ -45,3 +45,50 @@ describe("요청 오류 메시지", () => {
     await expect(api.getCourse("c1")).rejects.toThrow(/다시 시도해주세요/);
   });
 });
+
+describe("일시적 실패 복구", () => {
+  it("조회는 서버 오류 뒤 한 번 다시 시도한다", async () => {
+    const ok = {
+      ok: true,
+      status: 200,
+      headers: { get: () => null },
+      text: async () => JSON.stringify({ id: "c1" }),
+    };
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce({
+        ok: false,
+        status: 503,
+        headers: { get: () => null },
+        json: async () => ({}),
+        text: async () => "{}",
+      })
+      .mockResolvedValueOnce(ok);
+    vi.stubGlobal("fetch", fetchMock);
+
+    await expect(api.getCourse("c1")).resolves.toEqual({ id: "c1" });
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+  });
+
+  it("쓰기 요청은 다시 시도하지 않는다(중복 생성 방지)", async () => {
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: false,
+      status: 503,
+      headers: { get: () => null },
+      json: async () => ({}),
+      text: async () => "{}",
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    await expect(api.generate("c1", "성수동")).rejects.toThrow();
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
+  it("응답이 없으면 타임아웃 문구로 끝난다(무한 대기 금지)", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockRejectedValue(new DOMException("timeout", "TimeoutError")),
+    );
+    await expect(api.generate("c1", "성수동")).rejects.toThrow(/응답이 너무 늦어요/);
+  });
+});
