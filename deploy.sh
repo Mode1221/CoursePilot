@@ -40,19 +40,48 @@ fi
 
 COMPOSE="docker compose -f docker-compose.prod.yml"
 
-echo "▶ 빌드 & 기동 (${DOMAIN})..."
-$COMPOSE pull db caddy || true
-$COMPOSE up -d --build
+# GHCR 패키지가 비공개면 로그인 없이는 pull 이 401 로 막힌다.
+# 여기서 먼저 알려 주지 않으면 "왜 안 뜨지"로 시간을 버린다.
+if ! docker manifest inspect \
+    "${IMAGE_REGISTRY:-ghcr.io/mode1221/coursepilot}-backend:${IMAGE_TAG:-latest}" \
+    >/dev/null 2>&1; then
+  echo "✗ 이미지를 볼 수 없습니다: ${IMAGE_REGISTRY:-ghcr.io/mode1221/coursepilot}-backend:${IMAGE_TAG:-latest}" >&2
+  echo "  · CI(Release images)가 아직 안 돌았거나," >&2
+  echo "  · GHCR 패키지가 비공개입니다 → 다음 중 하나:" >&2
+  echo "      docker login ghcr.io -u <github-id>   # read:packages 권한 PAT" >&2
+  echo "      또는 GitHub 패키지 설정에서 public 으로 전환" >&2
+  exit 1
+fi
+
+# 이미지는 CI 가 구워 GHCR 에 올려 둔다. 여기서는 받아서 띄우기만 한다
+# (1~2 OCPU VM 에서 Next.js 빌드는 수십 분이 걸리거나 메모리가 모자라 죽는다).
+echo "▶ 이미지 받는 중 (태그: ${IMAGE_TAG:-latest})..."
+$COMPOSE pull
+
+echo "▶ 기동 (${DOMAIN})..."
+$COMPOSE up -d --remove-orphans
 
 echo "▶ 백엔드 헬스체크 대기..."
-for i in $(seq 1 30); do
-  if $COMPOSE exec -T backend python -c "import urllib.request,sys; urllib.request.urlopen('http://localhost:8000/health'); " 2>/dev/null; then
-    echo "✓ 백엔드 정상"
+healthy=false
+for i in $(seq 1 45); do
+  if $COMPOSE exec -T backend python -c \
+      "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')" 2>/dev/null; then
+    healthy=true
     break
   fi
   sleep 2
-  [ "$i" = "30" ] && { echo "✗ 백엔드 헬스체크 실패"; $COMPOSE logs --tail=50 backend; exit 1; }
 done
+if [ "$healthy" != true ]; then
+  echo "✗ 백엔드 헬스체크 실패 — 이전 버전이 아직 떠 있을 수 있습니다" >&2
+  $COMPOSE logs --tail=50 backend >&2
+  exit 1
+fi
+echo "✓ 백엔드 정상"
+
+# 교체되고 남은 이전 이미지는 지운다(100GB 디스크가 조용히 차는 것을 막는다).
+# 실행 중인 컨테이너가 쓰는 이미지는 대상이 아니다.
+echo "▶ 이전 이미지 정리..."
+docker image prune -f >/dev/null 2>&1 || true
 
 echo "✓ 배포 완료"
 echo "   프론트:  https://${DOMAIN}"

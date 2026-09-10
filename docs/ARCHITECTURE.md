@@ -81,6 +81,14 @@
 - `sponsored.py` 협찬 필터(표기·구조 신호, "내돈내산"은 반대 신호), `aspects.py` 태그 추출.
 - `embedding.py`/`rag.py` 임베딩·검색(제한적). 요약 폴백은 **원문 대신 태그**로만 구성.
 
+### 배포 산출물
+- `.github/workflows/release.yml` — main 머지 시 buildx(QEMU)로 **linux/arm64** 이미지를
+  구워 GHCR 에 `{sha, latest}` 로 올린다. VM 은 빌드하지 않고 pull 만 한다.
+- `frontend/src/services/apiBase.ts` — API 주소를 런타임에 결정한다.
+  브라우저는 현재 호스트에서 `api.<도메인>` 을 유도하고, SSR 은 `API_INTERNAL_BASE` 를 읽는다.
+  `NEXT_PUBLIC_*` 는 빌드 시점에 박히므로, 도메인을 빌드 인자로 받으면 도메인마다
+  이미지를 다시 구워야 한다 — 그것을 피하기 위한 구조다.
+
 ## 불변 원칙 (깨지 말 것)
 1. 지도/장소는 **어댑터 경유만**(벤더 직접호출 금지).
 2. 코스 상태 변경은 **액션 큐 직렬화**.

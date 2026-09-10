@@ -25,6 +25,11 @@
 7. **관측성 강화** (🟡) — 구조적 로깅 + 인메모리 메트릭(`GET /admin/metrics`, `app/metrics.py`)에 외부 연동 폴백 비율·임계 알림(`alerts`) 포함. 임계 진입·회복 시 경고 로그. 임계 진입·회복 시 웹훅 발송(`app/alerting.py`, `ALERT_WEBHOOK_URL`, 미설정 시 로그 폴백·15분 재알림 억제). 남은 일: 외부 에러 트래킹(Sentry 등) 연동, 다중 인스턴스 집계.
 8. **행정** (코드 밖) — 포트원 가맹계약, SMS 발신번호 등록, 개인정보처리방침(삭제 요청은 회원 탈퇴 API 로 처리 가능).
 
+## 최근 처리 (2026-09-10, 4차 — 배포 파이프라인)
+- CI: main 머지 시 linux/arm64 이미지 빌드 → GHCR 푸시(sha·latest)
+- 배포: compose 가 GHCR 이미지를 참조, deploy.sh 는 pull→up→헬스체크→이전 이미지 정리
+- 프론트: API 주소 런타임 결정(도메인을 이미지에 박지 않는다)
+
 ## 최근 처리 (2026-09-10, 3차 — 실배포·데이터 구축 준비)
 - 배포: arm64 이미지 태그 고정, DB Tailscale 전용 바인딩, deploy.sh 사전 점검, .env.example 전면 정리(드리프트 테스트)
 - 검증: 벤더별 스모크 스크립트(카카오·네이버·Google·TourAPI·KOPIS·LOCALDATA + 묶음)

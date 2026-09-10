@@ -1,10 +1,10 @@
 import { toast } from "@/store/toastStore";
 
-const BASE = process.env.NEXT_PUBLIC_API_BASE || "http://localhost:8000";
+import { apiBase } from "@/services/apiBase";
 
 /** 코스를 .ics 로 내려받아 캘린더 앱에 넣게 한다. */
 export function saveCalendar(courseId: string): void {
-  const url = `${BASE}/courses/${courseId}/calendar.ics`;
+  const url = `${apiBase()}/courses/${courseId}/calendar.ics`;
   try {
     const a = document.createElement("a");
     a.href = url;

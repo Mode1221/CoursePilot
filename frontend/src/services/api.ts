@@ -7,7 +7,7 @@ export interface GenerateResponse {
   needs_confirmation: boolean;
 }
 
-const BASE = process.env.NEXT_PUBLIC_API_BASE || "http://localhost:8000";
+import { apiBase } from "@/services/apiBase";
 
 export class ApiError extends Error {
   constructor(
@@ -65,7 +65,7 @@ async function requestOnce<T>(path: string, opts: RequestOptions = {}): Promise<
   const method = opts.method ?? "GET";
   let res: Response;
   try {
-    res = await fetch(`${BASE}${path}`, {
+    res = await fetch(`${apiBase()}${path}`, {
       method,
       headers,
       body: opts.body !== undefined ? JSON.stringify(opts.body) : undefined,

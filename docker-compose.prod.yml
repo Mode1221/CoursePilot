@@ -1,4 +1,7 @@
 # 프로덕션(단일 VM) 배포용 compose.
+#   - backend/frontend 는 **CI 가 구운 arm64 이미지를 받아서** 띄운다(빌드하지 않는다).
+#     1~2 OCPU VM 에서 Next.js 를 빌드하면 수십 분이 걸리거나 메모리가 모자란다.
+#     IMAGE_TAG 를 커밋 sha 로 주면 그 버전으로 고정된다(기본 latest).
 #   - 이미지 태그는 모두 고정한다. 전부 linux/arm64 빌드가 있어 Oracle Cloud
 #     Ampere(aarch64) VM 에서 그대로 뜬다(2026-09 확인).
 #   - Caddy: 자동 HTTPS(Let's Encrypt) + 리버스 프록시 + WebSocket
@@ -39,7 +42,8 @@ services:
       retries: 10
 
   backend:
-    build: ./backend
+    image: ${IMAGE_REGISTRY:-ghcr.io/mode1221/coursepilot}-backend:${IMAGE_TAG:-latest}
+    pull_policy: always
     restart: unless-stopped
     environment:
       ENV: ${ENV:-production}
@@ -68,12 +72,13 @@ services:
         condition: service_healthy
 
   frontend:
-    build:
-      context: ./frontend
-      args:
-        NEXT_PUBLIC_API_BASE: https://api.${DOMAIN}
-        NEXT_PUBLIC_NAVER_MAP_CLIENT_ID: ${NEXT_PUBLIC_NAVER_MAP_CLIENT_ID:-}
+    image: ${IMAGE_REGISTRY:-ghcr.io/mode1221/coursepilot}-frontend:${IMAGE_TAG:-latest}
+    pull_policy: always
     restart: unless-stopped
+    environment:
+      # 브라우저는 현재 호스트에서 api.<도메인> 을 유도한다(빌드에 도메인을 박지 않는다).
+      # SSR(공유 페이지 OG)만 컨테이너 내부 주소로 곧장 부른다.
+      API_INTERNAL_BASE: http://backend:8000
     depends_on:
       - backend
 
