@@ -12,10 +12,31 @@ if [ ! -f .env ]; then
   exit 1
 fi
 
-# DOMAIN / POSTGRES_PASSWORD 필수값 확인
+# 필수값 확인. 여기서 걸러야 컨테이너가 반쯤 뜬 채로 헤매지 않는다.
 set -a; . ./.env; set +a
 : "${DOMAIN:?.env 에 DOMAIN 설정 필요}"
 : "${POSTGRES_PASSWORD:?.env 에 POSTGRES_PASSWORD 설정 필요}"
+: "${SESSION_SECRET:?.env 에 SESSION_SECRET 설정 필요 (openssl rand -hex 32)}"
+: "${ADMIN_TOKEN:?.env 에 ADMIN_TOKEN 설정 필요}"
+
+# 실행 환경 확인. 이미지는 전부 멀티아치라 x86/arm 어느 쪽이든 그대로 뜬다.
+ARCH="$(uname -m)"
+echo "▶ 아키텍처: ${ARCH} / $(. /etc/os-release 2>/dev/null && echo "${PRETTY_NAME:-unknown}")"
+command -v docker >/dev/null || { echo "✗ docker 가 없습니다." >&2; exit 1; }
+docker compose version >/dev/null 2>&1 || {
+  echo "✗ Docker Compose v2 가 없습니다 (docker-compose v1 은 지원하지 않습니다)." >&2; exit 1; }
+
+# DB 포트는 Tailscale 인터페이스에만 연다. 값이 없으면 루프백으로 떨어진다.
+if [ -n "${TAILSCALE_IP:-}" ]; then
+  if command -v ip >/dev/null && ! ip -4 addr show 2>/dev/null | grep -q "inet ${TAILSCALE_IP}/"; then
+    echo "✗ TAILSCALE_IP(${TAILSCALE_IP}) 가 이 서버의 인터페이스에 없습니다." >&2
+    echo "  'tailscale ip -4' 값을 확인하세요 (틀리면 db 컨테이너가 바인딩에 실패합니다)." >&2
+    exit 1
+  fi
+  echo "▶ DB 바인딩: ${TAILSCALE_IP}:5432 (사설망 전용)"
+else
+  echo "▶ DB 바인딩: 127.0.0.1:5432 (TAILSCALE_IP 미설정 → 루프백)"
+fi
 
 COMPOSE="docker compose -f docker-compose.prod.yml"
 

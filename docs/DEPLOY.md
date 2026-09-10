@@ -82,6 +82,30 @@ uvicorn app.main:app --host 0.0.0.0 --port 8000
 cd frontend && pnpm install && pnpm build && pnpm start
 ```
 
+## 대상 서버 (Oracle Cloud Ampere / arm64)
+Oracle Cloud 오사카 리전 Ampere A1(aarch64) + Ubuntu 24.04 를 기준으로 맞춰 두었다.
+compose 가 쓰는 이미지는 모두 `linux/arm64` 빌드가 있는 태그로 고정돼 있다.
+
+| 서비스 | 이미지(고정 태그) | arm64 |
+|---|---|---|
+| db | `pgvector/pgvector:0.8.0-pg16` | ✅ |
+| redis(선택) | `redis:7.4.1-alpine` | ✅ |
+| caddy | `caddy:2.8.4` | ✅ |
+| backend(빌드) | `python:3.11.13-slim-bookworm` | ✅ |
+| frontend(빌드) | `node:20.18.1-slim` | ✅ |
+
+`deploy.sh` 는 아키텍처 특정 명령을 쓰지 않는다(bash + docker compose v2 + coreutils).
+기동 시 `uname -m` 과 배포판을 찍어 주므로 로그로 확인할 수 있다.
+
+## DB 접근은 Tailscale 사설망으로만
+`5432` 는 공개 IP 에 열지 않는다. compose 의 포트 매핑이
+`"${TAILSCALE_IP:-127.0.0.1}:5432:5432"` 라서, `.env` 의 `TAILSCALE_IP` 에
+`tailscale ip -4` 값을 넣으면 그 인터페이스에만 바인딩된다. 값을 비우면
+루프백으로 떨어진다 — **어느 쪽이든 외부에서 닿지 않는다.**
+`deploy.sh` 는 기동 전에 그 IP 가 실제로 이 서버에 붙어 있는지 확인하고,
+아니면 멈춘다(틀린 값으로 컨테이너가 바인딩 실패하는 것을 막는다).
+클라우드 보안 그룹에서도 5432 는 열지 말 것(80/443 만 연다).
+
 ## DB 초기화
 백엔드 startup에서 `CREATE EXTENSION IF NOT EXISTS vector` + 테이블 자동 생성(`init_db`).
 성공 시 영속 모드, 실패 시 인메모리 폴백으로 자동 전환된다(전 스토어 `db.is_ready()` 참조).

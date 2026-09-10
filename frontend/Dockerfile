@@ -1,4 +1,4 @@
-FROM node:20-slim AS base
+FROM node:20.18.1-slim AS base  # arm64 지원 확인
 RUN corepack enable
 
 FROM base AS deps
