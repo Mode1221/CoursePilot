@@ -71,7 +71,10 @@
 - `answers.py` 질문 유형별 답변(사실 태그·비용·영업시간·이동·우천·아이 동반), `reasons.py` 추천 근거.
 - 라우터 분리: `admin_api.py`(+`admin_dashboard.py` 단일 파일 운영 대시보드) / `accounts_api.py` / `signals_api.py`.
 - `db.py` 세션/폴백, `queue.py` 액션 큐, `realtime.py` Socket.IO, `config.py` env 설정.
+- `log_safe.py` — 전화번호·비밀값 마스킹(로그에 남길 일이 있으면 여기를 거친다).
 - `middleware.py` — rate limit + 요청 로깅(요청마다 `X-Request-Id` 발급·응답 반환, 2초 이상은 warning).
+  rate limit 기준 주소는 **신뢰 프록시에서 온 요청일 때만** `X-Forwarded-For` 의 맨 오른쪽
+  값을 쓴다(왼쪽은 클라이언트가 지어낼 수 있고, 소켓 주소만 쓰면 프록시 뒤 전체가 한 덩어리가 된다).
 - 헬스: `/health` 는 liveness(항상 200), `/health/ready` 는 readiness — `ENV=production` 에서 DB 미연결이나 `SESSION_SECRET`/`ADMIN_TOKEN` 누락이면 503.
 - `metrics.py` — 라우트별 지연/에러, 외부 연동 폴백 비율(`externals`), 임계 초과 `alerts`. `GET /admin/metrics`(ADMIN_TOKEN).
 - 미처리 예외는 `main.py` 전역 핸들러가 `request_id` 를 담아 응답(내부 스택은 로그로만).

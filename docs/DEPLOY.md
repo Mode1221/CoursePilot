@@ -238,6 +238,24 @@ python scripts/verify_places.py
   영등포·광진·송파·서대문·분당)를 다 덮는지 확인하고, 빠진 곳과 영향받는 상권을 찍는다.
 - `verify_places.py` 는 상권별 건수 / 슬롯 미매핑 / 폐업 잔존 / Google 매핑률을 보여 준다.
 
+## 프로덕션 안전장치
+- **기동 거부(fail fast)** — `ENV`(또는 `APP_ENV`)`=production` 인데 `SESSION_SECRET`,
+  `ADMIN_TOKEN` 이 비었거나 DB 비밀번호가 개발 기본값(`coursepilot:coursepilot`)이면
+  **앱이 뜨지 않는다.** 경고만 남기고 뜨면 아무도 안 보고, 그 사이 관리 엔드포인트가 열린다.
+- **rate limit 은 신뢰 프록시 뒤에서만 헤더를 본다** — Caddy 뒤에서는 소켓 주소가 전부
+  프록시라 그대로 쓰면 한 사람이 제한을 채웠을 때 모두가 막힌다. 그렇다고 헤더를 무조건
+  믿으면 아무나 지어내 우회한다. `TRUSTED_PROXIES`(기본: 루프백 + 사설망)에서 온 요청만
+  `X-Forwarded-For` 를 보고, 그중 **프록시가 덧붙인 맨 오른쪽** 값을 쓴다.
+- **운영에서 SMS 키가 없으면 인증 요청을 거절한다(503)** — 개발 폴백은 인증번호를 응답에
+  그대로 돌려준다. 운영에서 그러면 누구나 남의 번호로 가입할 수 있다.
+- **민감값 마스킹** — 전화번호·인증번호·토큰은 로그에 남기지 않는다(`app/log_safe.py`,
+  회귀 테스트가 실제 요청 로그를 훑어 확인한다). 요청 로그는 쿼리스트링을 남기지 않는다.
+- **컨테이너 로그 로테이션** — 전 서비스 `json-file` 10MB × 3개. 100GB 디스크가 조용히
+  차는 것을 막는다.
+- **헬스체크** — db(`pg_isready`) / backend(`/health`) / frontend(`/`) / caddy(관리 API).
+  `docker compose ps` 로 상태가 바로 보이고, frontend 는 backend 가 healthy 여야 뜬다.
+  `GET /health` 는 DB 연결 여부와 외부 연동(키) 상태를 함께 돌려준다.
+
 ## 운영 주의
 - **`SESSION_SECRET` 을 반드시 설정한다.** 없으면 `X-User-Id` 헤더만으로 신원이 인정돼, 사용자 id 를 아는 사람이 남의 크레딧을 쓰고 계정을 지울 수 있다(가입 시 내려주는 서명 토큰을 서버가 검증하지 않는다).
 - Socket.IO는 WebSocket 사용 — 리버스 프록시(Nginx 등)에서 `Upgrade` 헤더 전달 필요.
