@@ -82,6 +82,35 @@ uvicorn app.main:app --host 0.0.0.0 --port 8000
 cd frontend && pnpm install && pnpm build && pnpm start
 ```
 
+## 이미지는 CI 가 굽고, VM 은 받아서 띄운다
+1~2 OCPU arm64 VM 에서 Next.js 를 빌드하면 수십 분이 걸리거나 메모리가 모자라 죽는다.
+그래서 `main` 에 머지되면 GitHub Actions(`.github/workflows/release.yml`)가 buildx +
+QEMU 로 **linux/arm64** 이미지를 만들어 GHCR 에 올린다.
+
+```
+ghcr.io/mode1221/coursepilot-backend:{커밋sha, latest}
+ghcr.io/mode1221/coursepilot-frontend:{커밋sha, latest}
+```
+
+`docker-compose.prod.yml` 은 `build:` 대신 `image:` 로 이 이미지를 참조한다.
+`.env` 의 `IMAGE_TAG` 로 버전을 고른다(기본 `latest`, 커밋 sha 로 고정 가능).
+`deploy.sh` 는 **pull → up -d → 헬스체크 대기 → 이전 이미지 정리** 순으로 돈다.
+
+**GHCR 이 비공개라면** VM 에서 한 번 로그인해 둔다(`read:packages` 권한 PAT):
+```bash
+echo <PAT> | docker login ghcr.io -u <github-id> --password-stdin
+```
+아니면 GitHub 패키지 설정에서 public 으로 바꾼다. `deploy.sh` 가 기동 전에
+이미지를 볼 수 있는지 확인하고, 못 보면 이 안내를 띄우고 멈춘다.
+
+### 도메인을 이미지에 박지 않는다
+`NEXT_PUBLIC_*` 는 빌드 시점에 번들에 박힌다. 도메인을 빌드 인자로 받으면 도메인이
+바뀔 때마다 이미지를 다시 구워야 한다. 그래서 브라우저는 현재 호스트에서
+`api.<도메인>` 을 유도하고(`frontend/src/services/apiBase.ts`), SSR 만 런타임
+환경변수 `API_INTERNAL_BASE`(compose 가 `http://backend:8000` 으로 준다)를 읽는다.
+지도 SDK 키(`NEXT_PUBLIC_NAVER_MAP_CLIENT_ID`)는 빌드 시점 값이라 GitHub 저장소
+변수(Variables)에 넣는다 — 바꾸면 이미지를 다시 구워야 한다.
+
 ## 대상 서버 (Oracle Cloud Ampere / arm64)
 Oracle Cloud 오사카 리전 Ampere A1(aarch64) + Ubuntu 24.04 를 기준으로 맞춰 두었다.
 compose 가 쓰는 이미지는 모두 `linux/arm64` 빌드가 있는 태그로 고정돼 있다.
