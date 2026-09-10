@@ -62,7 +62,7 @@ logging.basicConfig(
 
 # 순서 주의: 나중에 add 한 미들웨어가 바깥쪽 → rate limit 이 로깅보다 먼저 평가되도록
 api.add_middleware(RequestLogMiddleware)
-api.add_middleware(RateLimitMiddleware)
+api.add_middleware(RateLimitMiddleware, limit=settings.rate_limit_per_min)
 api.add_middleware(
     CORSMiddleware,
     allow_origins=settings.cors_origins,

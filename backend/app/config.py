@@ -55,6 +55,9 @@ class Settings(BaseSettings):
     # 미설정이면 단일 프로세스 메모리 매니저(개발/소규모 운영 기본값).
     redis_url: str = ""
 
+    # IP 당 분당 요청 상한. E2E·부하 테스트에서는 올려 잡는다(운영 기본 60).
+    rate_limit_per_min: int = 60
+
     # 세션 토큰 서명 키. 설정하면 사용자 id 헤더만으로는 인증되지 않는다.
     # 비워두면 개발 편의를 위해 헤더를 믿으므로, 배포 시에는 반드시 설정한다.
     session_secret: str = ""
