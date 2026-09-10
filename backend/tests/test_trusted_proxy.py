@@ -10,9 +10,23 @@ from fastapi.testclient import TestClient
 from app.middleware import RateLimitMiddleware, is_trusted_proxy, reset_rate_limits
 
 
+def _with_peer(app, peer: str):
+    """소켓 주소를 정해 주는 얇은 ASGI 래퍼.
+
+    TestClient 의 client 인자는 starlette 버전에 따라 없어서 쓰지 않는다.
+    """
+
+    async def wrapped(scope, receive, send):
+        if scope["type"] == "http":
+            scope = {**scope, "client": (peer, 51234)}
+        await app(scope, receive, send)
+
+    return wrapped
+
+
 def _client(limit: int = 3, peer: str = "127.0.0.1") -> TestClient:
     """peer 는 백엔드가 보는 소켓 주소(= 프록시 또는 직접 접속자)."""
-    return TestClient(_app(limit), client=(peer, 51234))
+    return TestClient(_with_peer(_app(limit), peer))
 
 
 def _app(limit: int = 3):
