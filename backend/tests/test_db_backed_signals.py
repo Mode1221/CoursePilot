@@ -105,3 +105,49 @@ def test_대화가_코스별로_저장된다(db):
     assert [m.role for m in chat_store.list("c1")] == ["user", "ai"]
     chat_store.clear("c1")
     assert chat_store.list("c1") == []
+
+
+def test_시간대_신호가_DB_에_쌓인다(db):
+    from app.timecontext import daypart_of, time_context_store
+
+    assert daypart_of(9) == "morning"
+    time_context_store.bump("p1", "morning")
+    time_context_store.bump_many(["p1", "p2"], "morning", weight=2)
+    scores = time_context_store.scores(["p1", "p2", "p3"], "morning")
+    assert scores["p1"] == 3
+    assert scores["p2"] == 2
+    assert scores["p3"] == 0  # 기록 없는 장소도 0 으로 채워 준다
+
+
+def test_시딩_전략_채택수가_DB_에_누적된다(db):
+    from app.strategy import strategy_store
+
+    strategy_store.bump("route")
+    strategy_store.bump("route", weight=2)
+    strategy_store.bump("template")
+    counts = strategy_store.counts()
+    assert counts["route"] == 3
+    assert counts["template"] == 1
+
+
+def test_장소_카탈로그가_DB_에_저장되고_지워진다(db):
+    from app.places import place_repo
+    from app.schemas import Place
+
+    places = [
+        Place(id="k1", name="성수 카페", category="카페", address="서울", lat=37.54, lng=127.05),
+        Place(id="k2", name="성수 맛집", category="맛집", address="서울", lat=37.55, lng=127.06),
+    ]
+    place_repo.upsert_many(places)
+    found = place_repo.get_many(["k1", "k2", "없음"])
+    assert found["k1"].name == "성수 카페"
+    assert "없음" not in found
+
+    # 같은 id 로 다시 넣으면 갱신(중복 행이 생기지 않는다)
+    places[0].name = "성수 카페(이전)"
+    place_repo.upsert_many(places)
+    assert place_repo.get_many(["k1"])["k1"].name == "성수 카페(이전)"
+
+    assert [p.id for p in place_repo.all()] != []
+    assert place_repo.delete_many(["k1"]) == 1
+    assert place_repo.get_many(["k1"]) == {}
