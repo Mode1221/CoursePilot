@@ -288,9 +288,25 @@ export default function ChatPanel({ courseId }: { courseId: string }) {
         )}
 
         {error && (
-          <p className="cp-enter" style={{ color: "var(--danger)", fontSize: "var(--fs-sm)", margin: 0 }}>
-            {error}
-          </p>
+          <div
+            className="cp-enter"
+            role="alert"
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: "var(--sp-2)",
+              color: "var(--danger)",
+              fontSize: "var(--fs-sm)",
+            }}
+          >
+            <span>{error}</span>
+            {/* 실패해도 입력한 문장은 남아 있으니, 그대로 한 번 더 보낼 수 있게 한다 */}
+            {text.trim() && (
+              <Button size="sm" disabled={sending} onClick={send}>
+                다시 시도
+              </Button>
+            )}
+          </div>
         )}
       </div>
 

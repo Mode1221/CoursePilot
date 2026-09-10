@@ -28,9 +28,31 @@ interface RequestOptions {
 
 // detail 이 없거나 사람이 읽을 수 없는 형태일 때 쓰는 기본 문구
 const DEFAULT_ERROR = "요청을 처리하지 못했어요. 잠시 후 다시 시도해주세요.";
+// 네트워크가 끊긴 채로 응답이 오지 않으면 화면이 '처리 중'에 영영 갇힌다.
+const TIMEOUT_MS = 20_000;
+const TIMEOUT_ERROR = "응답이 너무 늦어요. 네트워크를 확인하고 다시 시도해주세요.";
+// 조회(GET)는 부작용이 없으니 일시적 실패는 조용히 한 번 더 시도한다.
+const RETRY_DELAY_MS = 400;
 
-// 모든 API 호출 공통 처리: BASE, JSON 헤더, X-User-Id, 에러→ApiError, 파싱.
+function sleep(ms: number) {
+  return new Promise((r) => setTimeout(r, ms));
+}
+
+/** 조회 요청은 네트워크/서버 일시 오류(0·5xx)에 한해 한 번만 다시 시도한다. */
 async function request<T>(path: string, opts: RequestOptions = {}): Promise<T> {
+  const method = opts.method ?? "GET";
+  try {
+    return await requestOnce<T>(path, opts);
+  } catch (e) {
+    const transient = e instanceof ApiError && (e.status === 0 || e.status >= 500);
+    if (method !== "GET" || !transient) throw e;
+    await sleep(RETRY_DELAY_MS);
+    return requestOnce<T>(path, opts);
+  }
+}
+
+// 실제 호출 1회: BASE, JSON 헤더, X-User-Id, 에러→ApiError, 파싱.
+async function requestOnce<T>(path: string, opts: RequestOptions = {}): Promise<T> {
   const headers: Record<string, string> = {};
   if (opts.body !== undefined) headers["Content-Type"] = "application/json";
   if (opts.userId) {
@@ -40,11 +62,19 @@ async function request<T>(path: string, opts: RequestOptions = {}): Promise<T> {
     if (token) headers["X-User-Token"] = token;
   }
 
-  const res = await fetch(`${BASE}${path}`, {
-    method: opts.method ?? "GET",
-    headers,
-    body: opts.body !== undefined ? JSON.stringify(opts.body) : undefined,
-  });
+  const method = opts.method ?? "GET";
+  let res: Response;
+  try {
+    res = await fetch(`${BASE}${path}`, {
+      method,
+      headers,
+      body: opts.body !== undefined ? JSON.stringify(opts.body) : undefined,
+      signal: AbortSignal.timeout(TIMEOUT_MS),
+    });
+  } catch (e) {
+    const timedOut = e instanceof DOMException && e.name === "TimeoutError";
+    throw new ApiError(0, timedOut ? TIMEOUT_ERROR : DEFAULT_ERROR);
+  }
   if (!res.ok) {
     const detail = await res.json().then((b) => b?.detail).catch(() => null);
     const requestId = res.headers.get("X-Request-Id") ?? undefined;
