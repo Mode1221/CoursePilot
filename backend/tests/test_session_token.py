@@ -89,3 +89,28 @@ def test_북마크도_토큰을_본다(secret):
         ).status_code
         == 200
     )
+
+
+def test_토큰_없이는_남의_코스를_고칠_수_없다(monkeypatch):
+    """코스 id 와 사용자 id 만 알아도 생성자 권한을 흉내낼 수 없어야 한다."""
+    from app.config import settings
+
+    monkeypatch.setattr(settings, "session_secret", "test-secret")
+    body = client.post("/signup", json={"phone": "010-4444-0002"}).json()
+    owner, token = body["user_id"], body["token"]
+    course_id = client.post(
+        "/courses", headers={"X-User-Id": owner, "X-User-Token": token}
+    ).json()["id"]
+
+    # id 만 아는 제3자
+    stolen = client.patch(
+        f"/courses/{course_id}", json={"title": "탈취"}, headers={"X-User-Id": owner}
+    )
+    assert stolen.status_code == 401
+
+    ok = client.patch(
+        f"/courses/{course_id}",
+        json={"title": "정상"},
+        headers={"X-User-Id": owner, "X-User-Token": token},
+    )
+    assert ok.status_code == 200

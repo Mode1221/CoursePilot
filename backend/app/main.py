@@ -269,10 +269,13 @@ class RenameRequest(BaseModel):
 
 @api.patch("/courses/{course_id}", response_model=Course)
 async def rename_course(
-    course_id: str, req: RenameRequest, x_user_id: str | None = Header(default=None)
+    course_id: str,
+    req: RenameRequest,
+    x_user_id: str | None = Header(default=None),
+    x_user_token: str | None = Header(default=None),
 ) -> Course:
     """코스 이름 변경. 생성자가 있는 코스는 생성자만 변경할 수 있다."""
-    course = _owned_course(course_id, x_user_id)
+    course = _owned_course(course_id, x_user_id, x_user_token)
     course.title = req.title.strip()
     store.save(course)
     await broadcast_state(course_id, course.model_dump(mode="json"))
@@ -280,19 +283,29 @@ async def rename_course(
 
 
 @api.delete("/courses/{course_id}")
-async def delete_course(course_id: str, x_user_id: str | None = Header(default=None)) -> dict:
+async def delete_course(
+    course_id: str,
+    x_user_id: str | None = Header(default=None),
+    x_user_token: str | None = Header(default=None),
+) -> dict:
     """코스 삭제. 생성자가 있는 코스는 생성자만 삭제할 수 있다."""
-    _owned_course(course_id, x_user_id)
+    _owned_course(course_id, x_user_id, x_user_token)
     store.delete(course_id)
     return {"ok": True}
 
 
-def _owned_course(course_id: str, user_id: str | None) -> Course:
+def _owned_course(course_id: str, user_id: str | None, token: str | None = None) -> Course:
+    """생성자 본인만 통과. 코스 id 는 공유 링크로 새어 나가고 사용자 id 도 마찬가지라,
+    비밀키가 설정된 환경에서는 서명 토큰까지 맞아야 한다."""
+    from app.session_token import verify
+
     course = store.get(course_id)
     if course is None:
         raise HTTPException(status_code=404, detail="코스를 찾을 수 없어요")
     if course.owner_id is not None and course.owner_id != user_id:
         raise HTTPException(status_code=403, detail="코스 생성자만 변경할 수 있어요")
+    if course.owner_id is not None and not verify(course.owner_id, token):
+        raise HTTPException(status_code=401, detail="다시 로그인해 주세요")
     return course
 
 
@@ -413,7 +426,11 @@ class GenerateResponse(BaseModel):
 
 
 @api.post("/courses/{course_id}/relax", response_model=GenerateResponse)
-async def relax(course_id: str, x_user_id: str | None = Header(default=None)) -> GenerateResponse:
+async def relax(
+    course_id: str,
+    x_user_id: str | None = Header(default=None),
+    x_user_token: str | None = Header(default=None),
+) -> GenerateResponse:
     """"조건을 완화해도 좋다"는 답변에 대한 재시도.
 
     직전 요청 문장을 그대로 다시 쓰되 완화를 강제한다. 사용자가 새 질문을 한 게
@@ -421,7 +438,7 @@ async def relax(course_id: str, x_user_id: str | None = Header(default=None)) ->
     """
     if x_user_id is None:
         raise HTTPException(status_code=403, detail="AI 챗봇은 생성자만 사용할 수 있습니다")
-    _owned_course(course_id, x_user_id)  # 공유받은 사람이 남의 코스를 갈아엎지 못하게
+    _owned_course(course_id, x_user_id, x_user_token)  # 공유받은 사람이 남의 코스를 갈아엎지 못하게
     last_user_text = next(
         (m.text for m in reversed(chat_store.list(course_id)) if m.role == "user"), None
     )
@@ -487,6 +504,7 @@ async def generate(
     course_id: str,
     req: GenerateRequest,
     x_user_id: str | None = Header(default=None),
+    x_user_token: str | None = Header(default=None),
 ) -> GenerateResponse:
     """챗봇 명령: AI 파이프라인 실행. 액션 큐 직렬화 + Lock broadcast.
 
@@ -496,7 +514,7 @@ async def generate(
     # 존재 확인은 큐 밖에서 빠르게(단, 실제 상태는 lock 안에서 재조회한다)
     if x_user_id is None:
         raise HTTPException(status_code=403, detail="AI 챗봇은 생성자만 사용할 수 있습니다")
-    _owned_course(course_id, x_user_id)  # 생성자만 AI 명령 가능(참여자는 수동 편집만)
+    _owned_course(course_id, x_user_id, x_user_token)  # 생성자만 AI 명령 가능(참여자는 수동 편집만)
 
     async def action() -> GenerateResponse:
         # 최신 상태를 lock 안에서 재조회 → 동시 요청 간 lost update 방지
