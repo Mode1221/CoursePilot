@@ -19,10 +19,27 @@ services:
       timeout: 5s
       retries: 10
 
+  # 다중 인스턴스로 늘릴 때만 띄운다: `docker compose --profile scale up -d`
+  # (단일 인스턴스면 REDIS_URL 을 비워 두고 이 서비스도 뜨지 않는다)
+  redis:
+    image: redis:7-alpine
+    profiles: ["scale"]
+    restart: unless-stopped
+    command: ["redis-server", "--save", "", "--appendonly", "no"]
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
   backend:
     build: ./backend
     restart: unless-stopped
     environment:
+      ENV: ${ENV:-production}
+      # 없으면 X-User-Id 헤더만으로 남의 계정이 된다 — 반드시 채운다
+      SESSION_SECRET: ${SESSION_SECRET:?set in .env}
+      RATE_LIMIT_PER_MIN: ${RATE_LIMIT_PER_MIN:-60}
       DATABASE_URL: postgresql+psycopg://${POSTGRES_USER:-coursepilot}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB:-coursepilot}
       CORS_ORIGINS: '["https://${DOMAIN}"]'
       LLM_PROVIDER: ${LLM_PROVIDER:-anthropic}

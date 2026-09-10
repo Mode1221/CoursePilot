@@ -96,6 +96,16 @@ curl -X POST http://localhost:8000/courses # 코스 생성
 이 비어 있을 때 **503** 을 낸다. 로드밸런서·오케스트레이터의 readiness probe 는
 `/health` 가 아니라 `/health/ready` 를 봐야 미완성 인스턴스로 트래픽이 가지 않는다.
 
+## 다중 인스턴스로 늘리기
+`REDIS_URL` 을 채우고 redis 서비스를 함께 띄우면 Socket.IO 브로드캐스트가 인스턴스 간에 전달된다.
+```bash
+# .env: REDIS_URL=redis://redis:6379/0
+docker compose --profile scale up -d            # redis 포함 기동
+docker compose --profile scale up -d --scale backend=2
+```
+프로필을 쓰지 않으면 redis 는 뜨지 않고 단일 프로세스로 동작한다(기본값).
+크레딧 차감은 DB 행 잠금에 의존하므로 다중 인스턴스에서는 DB 영속이 필수다.
+
 ## 운영 주의
 - **`SESSION_SECRET` 을 반드시 설정한다.** 없으면 `X-User-Id` 헤더만으로 신원이 인정돼, 사용자 id 를 아는 사람이 남의 크레딧을 쓰고 계정을 지울 수 있다(가입 시 내려주는 서명 토큰을 서버가 검증하지 않는다).
 - Socket.IO는 WebSocket 사용 — 리버스 프록시(Nginx 등)에서 `Upgrade` 헤더 전달 필요.
