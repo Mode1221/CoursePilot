@@ -119,6 +119,13 @@ def parse_edit(text: str) -> EditCommand:
         if len(picked) >= 2:
             return EditCommand(action="swap", index=picked[0], index2=picked[1])
         return EditCommand(action="reorder")
+    # "1번과 3번 바꿔" — '순서'라는 말이 없어도 두 자리를 집었고 바꿀 대상 성격이
+    # 없으면 맞바꾸라는 뜻이다(예전엔 한 자리를 다른 곳으로 교체해 버렸다).
+    if _REPLACE_RE.search(text) and not _find_category(text)[0]:
+        picked = _find_indices(text)
+        if len(picked) >= 2:
+            return EditCommand(action="swap", index=picked[0], index2=picked[1])
+
     idx = _find_index(text)
     match = ""
     # 추가는 순서 지목이 없어도 성립한다(맨 뒤에 덧붙임)
@@ -140,7 +147,7 @@ def parse_edit(text: str) -> EditCommand:
             return EditCommand(action="replace", index=idx, keyword=keyword, match=cat)
 
     other_kind = _other_kind(text)
-    if idx < 0 and idx != LAST_INDEX:
+    if idx == -1:
         # 순서를 못 찾았으면 "카페 빼줘"처럼 카테고리로 지목했는지 본다
         _, match = _find_category(text)
         if not match:
@@ -171,12 +178,42 @@ def parse_edit(text: str) -> EditCommand:
     return EditCommand(action="none")
 
 
-# "마지막"은 호출측에서 코스 길이를 알아야 하므로 특별값으로 표시
+# "마지막"은 호출측에서 코스 길이를 알아야 하므로 특별값으로 표시.
 LAST_INDEX = -2
+# 뒤에서 센 자리는 -(100+n) 으로 표시한다(끝에서 두 번째 = -102).
+# 작은 음수는 이미 MATCH_INDEX 등이 쓰고 있어 겹치지 않게 떨어뜨려 둔다.
+FROM_END_BASE = -100
+# "마지막에서 두 번째", "끝에서 두 번째" — 앞이 아니라 뒤에서 세는 지목
+_FROM_END_RE = re.compile(
+    r"(?:마지막|맨\s*뒤|끝)\s*(?:에서|부터)\s*(\d+|" + "|".join(_ORDINALS) + r")\s*번(?:째)?"
+)
+
+
+def _from_end_index(text: str) -> int | None:
+    """뒤에서 센 자리를 특별값으로. 못 찾으면 None."""
+    m = _FROM_END_RE.search(text)
+    if m is None:
+        return None
+    token = m.group(1)
+    n = max(1, int(token) if token.isdigit() else _ORDINALS[token])
+    return LAST_INDEX if n == 1 else FROM_END_BASE - n
+
+
+def resolve_index(i: int, length: int) -> int:
+    """특별값(뒤에서 센 자리)을 실제 인덱스로. 보통 값은 그대로."""
+    if i == LAST_INDEX:
+        return length - 1
+    if i <= FROM_END_BASE:
+        return length - (FROM_END_BASE - i)
+    return i
 
 
 def _find_indices(text: str) -> list[int]:
     """문장에 등장한 순번을 나온 순서대로 모은다("첫번째랑 두번째" → [0, 1])."""
+    from_end = _from_end_index(text)
+    if from_end is not None:
+        # "마지막에서 두 번째"는 한 자리를 가리킨다 — '마지막'과 '두 번째'로 쪼개면 안 된다
+        return [from_end]
     found: list[tuple[int, int]] = []
     for m in re.finditer(r"(\d+)\s*번(?:째)?", text):
         found.append((m.start(), int(m.group(1)) - 1))
@@ -193,6 +230,9 @@ def _find_indices(text: str) -> list[int]:
 
 
 def _find_index(text: str) -> int:
+    from_end = _from_end_index(text)
+    if from_end is not None:
+        return from_end
     # "3번째" / "3번" 처럼 숫자
     m = re.search(r"(\d+)\s*번(?:째)?", text)
     if m:
@@ -226,8 +266,8 @@ async def apply_edit(
             (i for i, it in enumerate(items) if it.place.category == cmd.match),
             -1,
         )
-    elif cmd.index == LAST_INDEX:
-        index = len(items) - 1
+    elif cmd.index == LAST_INDEX or cmd.index <= FROM_END_BASE:
+        index = resolve_index(cmd.index, len(items))
     else:
         index = cmd.index
     if not (0 <= index < len(items)):
@@ -237,7 +277,7 @@ async def apply_edit(
         if cmd.indexes:
             # 뒤에서부터 지워야 앞 인덱스가 밀리지 않는다
             resolved = sorted(
-                {len(items) - 1 if i == LAST_INDEX else i for i in cmd.indexes},
+                {resolve_index(i, len(items)) for i in cmd.indexes},
                 reverse=True,
             )
             for i in resolved:
@@ -288,10 +328,7 @@ async def _apply_swap(
     items: list[TimelineItem], cmd: EditCommand, map_service: MapService
 ) -> list[TimelineItem]:
     """지목한 두 자리를 맞바꾼다."""
-    def _resolve(i: int) -> int:
-        return len(items) - 1 if i == LAST_INDEX else i
-
-    a, b = _resolve(cmd.index), _resolve(cmd.index2)
+    a, b = resolve_index(cmd.index, len(items)), resolve_index(cmd.index2, len(items))
     if not (0 <= a < len(items) and 0 <= b < len(items)) or a == b:
         return items
     places = [it.place for it in items]
