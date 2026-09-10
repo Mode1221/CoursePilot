@@ -83,6 +83,12 @@ echo "✓ 백엔드 정상"
 echo "▶ 이전 이미지 정리..."
 docker image prune -f >/dev/null 2>&1 || true
 
+# 크론(배치·백업·디스크 점검) 설치. 이미 있으면 갱신한다.
+if [ "${INSTALL_CRON:-true}" = "true" ]; then
+  echo "▶ 운영 크론 설치..."
+  ./scripts/ops/install_cron.sh || echo "  (크론 설치 실패 — 나중에 ./scripts/ops/install_cron.sh 로 다시)" >&2
+fi
+
 echo "✓ 배포 완료"
 echo "   프론트:  https://${DOMAIN}"
 echo "   API:     https://api.${DOMAIN}/health"

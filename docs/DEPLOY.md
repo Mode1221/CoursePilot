@@ -177,6 +177,46 @@ python scripts/smoke_all.py        # 전부 한 번에(요약 표)
 - `smoke_google.py` 는 어댑터를 그대로 타므로 `quota.py` 무료 한도에 카운트되고,
   필드마스크가 티어별로 분리돼 있는지(과금 티어 상승 방지)도 함께 본다.
 
+## 첫 기동 체크리스트
+서버에 처음 올릴 때 이 순서로 확인한다. 각 단계가 끝나야 다음이 의미가 있다.
+
+1. **컨테이너가 다 healthy 인가**
+   ```bash
+   docker compose -f docker-compose.prod.yml ps      # 전부 (healthy)
+   curl -s https://api.${DOMAIN}/health | jq         # db·integrations 확인
+   curl -s -o /dev/null -w '%{http_code}\n' https://api.${DOMAIN}/health/ready   # 200
+   ```
+   `/health/ready` 가 503 이면 DB 미연결이거나 필수 설정이 빠진 것이다.
+2. **외부 연동 스모크** — 키를 넣은 만큼만 PASS, 나머지는 SKIP
+   ```bash
+   docker compose -f docker-compose.prod.yml exec -T backend python scripts/smoke_all.py
+   ```
+3. **폐업 대장 내려받기 + 시군구 커버리지**
+   ```bash
+   docker compose -f docker-compose.prod.yml exec -T backend python scripts/fetch_localdata.py
+   ```
+4. **백업 한 번 손으로 돌려 본다** — 크론이 처음 도는 새벽에 실패를 발견하면 늦다
+   ```bash
+   ./scripts/ops/backup.sh && ls -lh /var/backups/coursepilot
+   ```
+5. **크론 확인** — `deploy.sh` 가 설치한다
+   ```bash
+   crontab -l | sed -n '/coursepilot/,/coursepilot/p'
+   ```
+6. 여기까지 통과하면 상권 수집(`scripts/build_places.py`)을 돌린다.
+
+## 운영 스크립트 (`scripts/ops/`)
+| 스크립트 | 하는 일 |
+|---|---|
+| `backup.sh` | `pg_dump` → gzip, `BACKUP_DIR`(기본 `/var/backups/coursepilot`)에 보관. `BACKUP_KEEP_DAYS`(기본 7)일 초과분 삭제. 어느 단계에서 실패해도 웹훅 알림 |
+| `disk_check.sh` | `DISK_ALERT_PERCENT`(기본 85%) 초과 시 웹훅 알림 |
+| `notify.sh` | 위 둘이 쓰는 알림 전송(`ALERT_WEBHOOK_URL`, 미설정 시 로그) |
+| `crontab.txt` | 크론 항목 원본(`{{ROOT}}` 치환) |
+| `install_cron.sh` | crontab 설치·갱신(기존 사용자 항목은 보존, CoursePilot 블록만 교체) |
+
+크론은 `deploy.sh` 가 자동 설치한다(`INSTALL_CRON=false` 로 끌 수 있다).
+로그는 `/var/log/coursepilot/` 아래에 쌓인다.
+
 ## 첫 데이터 구축 순서
 ```bash
 cd backend
@@ -208,16 +248,16 @@ python scripts/verify_places.py
 장소 DB 는 검색 API 로 즉석에서 만드는 대신 배치로 쌓고 주기적으로 갱신한다.
 유료 콜은 무료 한도 안에서 페이싱되며, 한도를 넘기면 호출 자체가 차단된다(`app/quota.py`).
 
-```cron
-# 폐업 대장(LOCALDATA) 내려받기 — 주 1회
-0 3 * * 1 cd /srv/coursepilot/backend && python scripts/fetch_localdata.py
+실제 항목은 `scripts/ops/crontab.txt` 에 있고 `deploy.sh` 가 설치한다.
+배치는 백엔드 컨테이너 안에서 돈다(파이썬·의존성이 거기 있다).
 
-# 상권 수집·보강 — 매일(영업시간 160건/일, 평점 11건/일로 나눠 채운다)
-0 4 * * * cd /srv/coursepilot/backend && python scripts/build_places.py
-
-# 저장된 장소 갱신 — 매일(폐업 전체 / 영업시간 30일 / 평점 90일 TTL)
-30 4 * * * cd /srv/coursepilot/backend && python scripts/refresh_places.py
-```
+| 시각 | 작업 |
+|---|---|
+| 월 02:00 | 폐업 대장(LOCALDATA) 내려받기 |
+| 매일 03:00 | 상권 수집·보강 |
+| 매일 04:30 | 저장된 장소 갱신(TTL 기준) |
+| 매일 05:00 | DB 백업 |
+| 6시간마다 | 디스크 사용률 점검 |
 
 - 실행이 겹치면 뒤에 뜬 쪽이 종료 코드 1 로 빠진다(`batch_lock`). 크론 중복은 걱정하지 않아도 된다.
 - 초기 구축은 며칠 걸린다 — 영업시간·평점을 하루 할당량씩 채우는 것이 설계 전제다.

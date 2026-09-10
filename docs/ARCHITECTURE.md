@@ -114,7 +114,14 @@
 - `refresh.py` — 주기 갱신: 폐업 주 1회(전체) / 영업시간 30일 TTL(최근 90일 내 추천된 활성 집합) / 평점 90일(인기 상위).
   실행: `python scripts/refresh_places.py` (하루 1회). 활성 집합 밖 장소는 재등장 시 즉석 갱신.
 
-### 운영 스크립트 (`backend/scripts/`)
+### 운영 스크립트 (`scripts/ops/`)
+- `backup.sh` — `pg_dump` → gzip, 7일 보관. pg_dump·gzip·파일 크기를 각각 확인하고
+  어느 단계에서 실패하든 웹훅으로 알린다(조용한 실패가 가장 위험하다).
+- `disk_check.sh` — 사용률 임계(기본 85%) 초과 시 알림. `notify.sh` 가 발송을 맡는다.
+- `crontab.txt` + `install_cron.sh` — 배치 3종·백업·디스크 점검을 설치(`deploy.sh` 가 호출).
+  사용자의 기존 crontab 항목은 남기고 CoursePilot 블록만 교체한다.
+
+### 배치 스크립트 (`backend/scripts/`)
 - `smoke_{kakao,naver,google,tourapi,kopis,localdata}.py` + `smoke_all.py` — 실키로 1~2콜만 부르고
   응답 필드명·타입을 코드가 읽는 것과 대조(PASS/FAIL). 키 없으면 SKIP·exit 0.
   Google 은 어댑터를 그대로 타 `quota.py` 에 카운트되고, 필드마스크 티어 분리도 확인한다.
