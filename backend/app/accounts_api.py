@@ -6,7 +6,7 @@
 from __future__ import annotations
 
 from fastapi import APIRouter, Header, HTTPException
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 
 from app.config import settings
 from app.session_token import issue
@@ -15,21 +15,32 @@ from app.users import Preferences, user_store
 accounts_router = APIRouter(tags=["accounts"])
 
 
-class SignupRequest(BaseModel):
-    # 전화번호 인증은 별도 프로세스 가정, 여기선 인증 완료 후 호출
+class _PhoneBody(BaseModel):
+    """전화번호를 받는 요청의 공통 규칙. 표기가 달라도 같은 번호로 다룬다."""
+
     phone: str = Field(min_length=9, max_length=20, pattern=r"^[0-9\-+ ]+$")
+
+    @field_validator("phone")
+    @classmethod
+    def _normalize(cls, v: str) -> str:
+        from app.auth import normalize_phone
+
+        return normalize_phone(v)
+
+
+class SignupRequest(_PhoneBody):
+    # 전화번호 인증은 별도 프로세스 가정, 여기선 인증 완료 후 호출
     referrer_id: str | None = Field(default=None, max_length=64)  # 9-4 레퍼럴
 
 
 REFERRAL_BONUS = 1
 
 
-class SmsRequestBody(BaseModel):
-    phone: str = Field(min_length=9, max_length=20, pattern=r"^[0-9\-+ ]+$")
+class SmsRequestBody(_PhoneBody):
+    pass
 
 
-class SmsVerifyBody(BaseModel):
-    phone: str = Field(min_length=9, max_length=20, pattern=r"^[0-9\-+ ]+$")
+class SmsVerifyBody(_PhoneBody):
     code: str = Field(min_length=6, max_length=6, pattern=r"^[0-9]{6}$")
 
 

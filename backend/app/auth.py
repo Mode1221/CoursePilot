@@ -18,6 +18,18 @@ RESEND_COOLDOWN = 60   # 같은 번호로 재발송 최소 간격(초)
 MAX_SENDS_PER_HOUR = 5  # 번호당 시간당 발송 상한(문자 폭탄·비용 방지)
 
 
+def normalize_phone(phone: str) -> str:
+    """전화번호를 숫자만 남긴 한 가지 표기로 맞춘다.
+
+    "010-1234-5678", "01012345678", "+82 10-1234-5678" 이 각각 다른 계정이 되면
+    사용자는 지난 코스·크레딧을 잃고, 번호별 발송 제한도 우회된다.
+    """
+    digits = "".join(ch for ch in phone if ch.isdigit())
+    if digits.startswith("82") and len(digits) >= 11:
+        digits = "0" + digits[2:]
+    return digits
+
+
 class TooManyRequests(Exception):
     """발송 쿨다운/상한 초과."""
 
