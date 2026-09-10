@@ -1,0 +1,5 @@
+{"response": {"header": {"resultCode": "0000", "resultMsg": "OK"},
+ "body": {"items": {"item": {"contentid": "126508", "contenttypeid": "14",
+  "title": "서울숲", "addr1": "서울특별시 성동구 뚝섬로 273",
+  "mapx": "127.0374", "mapy": "37.5444"}},
+  "numOfRows": 1, "pageNo": 1, "totalCount": 1}}}
