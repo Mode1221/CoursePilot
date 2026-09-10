@@ -111,7 +111,11 @@ class NaverMapService(MapService):
         headers = _directions_headers()
         resp = await self._client.get(_DIRECTIONS_URL, params=params, headers=headers)
         resp.raise_for_status()
-        summary = resp.json()["route"]["traoptimal"][0]["summary"]
+        # 경로를 못 찾으면 code != 0 으로 route 자체가 없다("출발지와 도착지가 동일"
+        # 같은 경우). 그때는 예외 대신 직선거리 근사로 이어 간다.
+        summary = _route_summary(resp.json())
+        if summary is None:
+            return _straight_line_route(origin, dest, TravelMode.CAR)
         return Route(
             from_place_id=origin.id,
             to_place_id=dest.id,
@@ -119,6 +123,16 @@ class NaverMapService(MapService):
             duration_min=round(summary["duration"] / 60000),  # ms → 분
             distance_m=summary["distance"],
         )
+
+
+def _route_summary(body: dict) -> dict | None:
+    """Directions 응답에서 요약 구간을 꺼낸다. 경로가 없으면 None."""
+    routes = (body or {}).get("route") or {}
+    for key in ("traoptimal", "trafast", "tracomfort"):
+        found = routes.get(key) or []
+        if found and isinstance(found[0], dict) and found[0].get("summary"):
+            return found[0]["summary"]
+    return None
 
 
 def _directions_headers() -> dict[str, str]:

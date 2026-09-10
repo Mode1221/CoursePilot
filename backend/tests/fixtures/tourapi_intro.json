@@ -1,0 +1,5 @@
+{"response": {"header": {"resultCode": "0000", "resultMsg": "OK"},
+ "body": {"items": {"item": [{"contentid": "126508", "contenttypeid": "14",
+  "usetimeculture": "09:00 ~ 12:00, 13:00 ~ 18:00", "restdateculture": "매주 월요일",
+  "parkingculture": "가능", "infocenterculture": "02-000-0000"}]},
+  "numOfRows": 1, "pageNo": 1, "totalCount": 1}}}

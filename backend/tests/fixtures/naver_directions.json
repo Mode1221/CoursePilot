@@ -1,0 +1,20 @@
+{
+  "code": 0,
+  "message": "길찾기를 성공하였습니다.",
+  "currentDateTime": "2026-09-10T09:00:00",
+  "route": {
+    "traoptimal": [
+      {
+        "summary": {
+          "start": {"location": [127.0557, 37.5445]},
+          "goal": {"location": [127.0276, 37.4979]},
+          "distance": 8200,
+          "duration": 1380000,
+          "tollFare": 0,
+          "taxiFare": 12000,
+          "fuelPrice": 1100
+        }
+      }
+    ]
+  }
+}
