@@ -622,7 +622,9 @@ async def generate(
                 from app.pipeline.planner import course_score
 
                 course.predicted_score = course_score(course.items)
-        except Exception:
+        except (Exception, asyncio.CancelledError):
+            # 큐 타임아웃은 CancelledError 로 들어온다(BaseException 이라 Exception 에 안 걸린다).
+            # 그때도 크레딧은 돌려줘야 한다 — 결과를 못 받았으니까.
             user_store.refund_credit(x_user_id)  # 실패 시 소비 크레딧 되돌림
             course.locked = False
             await broadcast_lock(course_id, False)
