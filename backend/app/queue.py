@@ -11,6 +11,16 @@ from typing import TypeVar
 
 T = TypeVar("T")
 
+# 한 코스에 동시에 밀어 넣을 수 있는 액션 수. 넘으면 무한정 기다리게 두지 않고 거절한다
+# (연타·재전송으로 큐가 길어지면 앞선 요청까지 늦어진다).
+MAX_QUEUED_PER_SESSION = 8
+# 액션 1건의 상한. 외부 호출이 물리면 코스 큐 전체가 잠기므로 끊어 준다.
+ACTION_TIMEOUT_SEC = 60.0
+
+
+class QueueOverflow(Exception):
+    """세션 큐가 가득 찼다 — 호출부에서 429 로 변환한다."""
+
 
 class SessionQueues:
     """세션(코스)별 asyncio.Lock으로 액션을 직렬화한다.
@@ -27,15 +37,24 @@ class SessionQueues:
         lock = self._locks.get(session_id)
         return lock is not None and lock.locked()
 
+    def depth(self, session_id: str) -> int:
+        """현재 실행/대기 중인 액션 수."""
+        return self._users.get(session_id, 0)
+
     async def run(self, session_id: str, action: Callable[[], Awaitable[T]]) -> T:
-        """세션 큐에 액션을 넣고 도착 순서대로 실행."""
+        """세션 큐에 액션을 넣고 도착 순서대로 실행.
+
+        큐가 가득 차면 QueueOverflow, 액션이 상한을 넘기면 asyncio.TimeoutError.
+        """
+        if self._users.get(session_id, 0) >= MAX_QUEUED_PER_SESSION:
+            raise QueueOverflow(session_id)
         lock = self._locks.get(session_id)
         if lock is None:
             lock = self._locks[session_id] = asyncio.Lock()
         self._users[session_id] = self._users.get(session_id, 0) + 1
         try:
             async with lock:
-                return await action()
+                return await asyncio.wait_for(action(), timeout=ACTION_TIMEOUT_SEC)
         finally:
             remaining = self._users[session_id] - 1
             if remaining <= 0:

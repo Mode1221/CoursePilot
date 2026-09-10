@@ -4,6 +4,7 @@
 """
 from __future__ import annotations
 
+import asyncio
 import logging
 import re
 from contextlib import asynccontextmanager
@@ -29,7 +30,7 @@ from app.pipeline.agent import generate_course
 from app.pipeline.decomposition import is_actionable, parse_constraints
 from app.pipeline.edit import EditCommand, apply_edit, parse_edit
 from app.popularity import popularity_store
-from app.queue import queues
+from app.queue import QueueOverflow, queues
 from app.realtime import (
     broadcast_lock,
     broadcast_message,
@@ -84,6 +85,24 @@ api.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+
+@api.exception_handler(QueueOverflow)
+async def queue_overflow(_request: Request, _exc: QueueOverflow) -> JSONResponse:
+    """연타로 큐가 밀린 경우. 앞선 요청은 그대로 처리되므로 잠시 뒤 다시 보내면 된다."""
+    return JSONResponse(
+        status_code=429,
+        content={"detail": "요청이 밀려 있어요. 잠시 후 다시 시도해주세요."},
+    )
+
+
+@api.exception_handler(asyncio.TimeoutError)
+async def action_timeout(_request: Request, _exc: asyncio.TimeoutError) -> JSONResponse:
+    """외부 호출이 물려 상한을 넘긴 경우. 코스 큐는 이미 풀린 상태다."""
+    return JSONResponse(
+        status_code=504,
+        content={"detail": "처리가 너무 오래 걸려 중단했어요. 잠시 후 다시 시도해주세요."},
+    )
 
 
 @api.exception_handler(Exception)
