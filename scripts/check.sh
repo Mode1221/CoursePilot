@@ -12,7 +12,7 @@ echo "▶ backend: pytest"
 (cd "$root/backend" && python -m pytest -q)
 
 echo "▶ backend: ruff"
-(cd "$root/backend" && ruff check app tests)
+(cd "$root/backend" && ruff check app tests scripts)
 
 echo "▶ frontend: tsc"
 (cd "$root/frontend" && npx tsc --noEmit)
