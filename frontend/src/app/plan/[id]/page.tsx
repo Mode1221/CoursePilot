@@ -99,14 +99,30 @@ export default function PlanPage({ params }: { params: { id: string } }) {
   // 좁은 화면(웹뷰/모바일): 지도·챗봇을 탭 전환식 세로 레이아웃으로
   if (narrow) {
     return (
-      <div style={{ display: "flex", flexDirection: "column", height: "100vh" }}>
+      <div style={{ display: "flex", flexDirection: "column", height: "100dvh" }}>
         <ConnectionBanner />
-        <div role="tablist" aria-label="화면 전환" style={{ display: "flex", borderBottom: "1px solid var(--border)" }}>
+        <div
+          role="tablist"
+          aria-label="화면 전환"
+          onKeyDown={(e) => {
+            // 좌우 화살표로 탭을 옮기는 건 탭 위젯의 기본 조작이다
+            if (e.key !== "ArrowLeft" && e.key !== "ArrowRight") return;
+            e.preventDefault();
+            const next = tab === "map" ? "chat" : "map";
+            setTab(next);
+            document.getElementById(`tab-${next}`)?.focus();
+          }}
+          style={{ display: "flex", borderBottom: "1px solid var(--border)" }}
+        >
           {(["map", "chat"] as const).map((t) => (
             <button
               key={t}
+              id={`tab-${t}`}
               role="tab"
               aria-selected={tab === t}
+              aria-controls={`panel-${t}`}
+              // 선택되지 않은 탭은 Tab 키 순회에서 빼는 게 탭 위젯 규칙(로빙 tabindex)
+              tabIndex={tab === t ? 0 : -1}
               onClick={() => setTab(t)}
               style={{
                 flex: 1,
@@ -123,10 +139,20 @@ export default function PlanPage({ params }: { params: { id: string } }) {
             </button>
           ))}
         </div>
-        <div style={{ flex: 1, overflow: "auto", display: tab === "map" ? "block" : "none" }}>
+        <div
+          id="panel-map"
+          role="tabpanel"
+          aria-labelledby="tab-map"
+          style={{ flex: 1, overflow: "auto", display: tab === "map" ? "block" : "none" }}
+        >
           <MapPanel />
         </div>
-        <div style={{ flex: 1, overflow: "hidden", display: tab === "chat" ? "flex" : "none", flexDirection: "column" }}>
+        <div
+          id="panel-chat"
+          role="tabpanel"
+          aria-labelledby="tab-chat"
+          style={{ flex: 1, overflow: "hidden", display: tab === "chat" ? "flex" : "none", flexDirection: "column" }}
+        >
           <ChatPanel courseId={id} />
         </div>
       </div>
@@ -134,7 +160,7 @@ export default function PlanPage({ params }: { params: { id: string } }) {
   }
 
   return (
-    <div style={{ display: "flex", flexDirection: "column", height: "100vh" }}>
+    <div style={{ display: "flex", flexDirection: "column", height: "100dvh" }}>
       <ConnectionBanner />
       <div style={{ display: "flex", flex: 1, overflow: "hidden" }}>
         <div style={{ flex: 1, borderRight: "1px solid var(--border)", overflow: "auto" }}>

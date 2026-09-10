@@ -94,7 +94,7 @@ export default function MapPanel({ readOnly = false }: { readOnly?: boolean }) {
         />
       )}
 
-      <ol style={{ listStyle: "none", padding: 0 }}>
+      <ol aria-label="코스 타임라인" style={{ listStyle: "none", padding: 0 }}>
         {course.items.map((item, i) => (
           <li
             key={item.place.id}

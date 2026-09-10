@@ -106,3 +106,12 @@ p  { margin: 0 0 var(--sp-3); }
 /* 진입 애니메이션 */
 @keyframes cp-fade-up { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: none; } }
 .cp-enter { animation: cp-fade-up var(--dur) var(--ease); }
+
+/* 손가락 조작 기기: 최소 44px 터치 타깃(WCAG 2.5.5). 마우스에서는 기존 크기 유지 */
+@media (pointer: coarse) {
+  button, [role="tab"], a[href] > button, select, input[type="submit"] {
+    min-height: 44px;
+  }
+  /* 아이콘만 있는 작은 버튼은 가로도 함께 넓힌다 */
+  button[aria-label] { min-width: 44px; }
+}
