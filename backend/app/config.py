@@ -71,6 +71,14 @@ class Settings(BaseSettings):
 
     cors_origins: list[str] = ["http://localhost:3000"]
 
+    # 배포 환경 표식. "production" 이면 시작 시 필수 설정(세션/관리 토큰)을 점검하고
+    # /health/ready 가 DB 연결을 필수로 본다(로드밸런서가 미완성 인스턴스를 빼도록).
+    env: str = "development"
+
+    @property
+    def is_production(self) -> bool:
+        return self.env.lower() in ("production", "prod")
+
     @property
     def multi_instance(self) -> bool:
         return bool(self.redis_url)
