@@ -1,11 +1,17 @@
 # 프로덕션(단일 VM) 배포용 compose.
+#   - 이미지 태그는 모두 고정한다. 전부 linux/arm64 빌드가 있어 Oracle Cloud
+#     Ampere(aarch64) VM 에서 그대로 뜬다(2026-09 확인).
 #   - Caddy: 자동 HTTPS(Let's Encrypt) + 리버스 프록시 + WebSocket
 #   - 도메인: ${DOMAIN} → 프론트, api.${DOMAIN} → 백엔드(Socket.IO 포함)
 #   - db: pgvector 컨테이너(볼륨 영속). 별도 관리형 DB 불필요.
 # 사용: `.env.prod` 를 `.env` 로 복사해 값 채운 뒤 `./deploy.sh`
 services:
   db:
-    image: pgvector/pgvector:pg16
+    image: pgvector/pgvector:0.8.0-pg16  # arm64 지원 확인
+    # DB 는 공개 IP 에 절대 노출하지 않는다. Tailscale 인터페이스에만 바인딩하고,
+    # TAILSCALE_IP 를 비워 두면 루프백으로 떨어져 외부에서 닿지 않는다.
+    ports:
+      - "${TAILSCALE_IP:-127.0.0.1}:5432:5432"
     restart: unless-stopped
     environment:
       POSTGRES_USER: ${POSTGRES_USER:-coursepilot}
@@ -22,7 +28,7 @@ services:
   # 다중 인스턴스로 늘릴 때만 띄운다: `docker compose --profile scale up -d`
   # (단일 인스턴스면 REDIS_URL 을 비워 두고 이 서비스도 뜨지 않는다)
   redis:
-    image: redis:7-alpine
+    image: redis:7.4.1-alpine  # arm64 지원 확인
     profiles: ["scale"]
     restart: unless-stopped
     command: ["redis-server", "--save", "", "--appendonly", "no"]
@@ -72,7 +78,7 @@ services:
       - backend
 
   caddy:
-    image: caddy:2
+    image: caddy:2.8.4  # arm64 지원 확인
     restart: unless-stopped
     ports:
       - "80:80"

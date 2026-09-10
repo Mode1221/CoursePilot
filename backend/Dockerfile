@@ -1,4 +1,4 @@
-FROM python:3.11-slim
+FROM python:3.11.13-slim-bookworm  # arm64 지원 확인
 
 WORKDIR /app
 
