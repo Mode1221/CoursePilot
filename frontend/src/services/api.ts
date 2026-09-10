@@ -1,3 +1,4 @@
+import { storedUserToken } from "@/store/userStore";
 import type { Course } from "@/types";
 
 export interface GenerateResponse {
@@ -32,7 +33,12 @@ const DEFAULT_ERROR = "요청을 처리하지 못했어요. 잠시 후 다시 �
 async function request<T>(path: string, opts: RequestOptions = {}): Promise<T> {
   const headers: Record<string, string> = {};
   if (opts.body !== undefined) headers["Content-Type"] = "application/json";
-  if (opts.userId) headers["X-User-Id"] = opts.userId;
+  if (opts.userId) {
+    headers["X-User-Id"] = opts.userId;
+    // 서명 토큰이 있으면 함께 보낸다(서버가 비밀키를 쓰는 환경에서는 필수)
+    const token = storedUserToken();
+    if (token) headers["X-User-Token"] = token;
+  }
 
   const res = await fetch(`${BASE}${path}`, {
     method: opts.method ?? "GET",
@@ -87,7 +93,10 @@ export const api = {
     }),
 
   signup: (phone: string) =>
-    request<{ user_id: string; credits_left: number }>("/signup", { method: "POST", body: { phone } }),
+    request<{ user_id: string; credits_left: number; token?: string }>("/signup", {
+      method: "POST",
+      body: { phone },
+    }),
 
   reorder: (id: string, placeIds: string[]) =>
     request<Course>(`/courses/${id}/reorder`, { method: "POST", body: { place_ids: placeIds } }),

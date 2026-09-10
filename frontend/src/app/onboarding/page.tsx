@@ -136,7 +136,7 @@ export default function Onboarding() {
     try {
       if (!id) {
         const res = await api.signup(phone.trim());
-        setUser(res.user_id);
+        setUser(res.user_id, res.token);
         id = res.user_id;
       }
       await api.setPreferences(id, {
