@@ -42,7 +42,14 @@ def SessionLocal() -> Session:
 
 
 def init_db() -> bool:
-    """테이블 및 pgvector 확장 생성. 성공 여부 반환(실패 시 인메모리 폴백)."""
+    """테이블 및 pgvector 확장 생성. 성공 여부 반환(실패 시 인메모리 폴백).
+
+    pgvector 확장은 없어도 나머지 기능은 다 돌아간다(임베딩 검색만 폴백).
+    확장 생성 실패로 테이블까지 못 만들면, 코스·장소가 통째로 인메모리로
+    떨어져 재시작마다 사라진다 → 확장 실패는 삼키고 테이블 생성만 본다.
+    """
+    import logging
+
     from sqlalchemy import text
 
     from app import models  # noqa: F401  (모델 등록)
@@ -50,8 +57,16 @@ def init_db() -> bool:
     try:
         _ensure_engine()
         assert _engine is not None
+    except Exception:
+        return False
+    try:
         with _engine.begin() as conn:
             conn.execute(text("CREATE EXTENSION IF NOT EXISTS vector"))
+    except Exception:
+        logging.getLogger("coursepilot").warning(
+            "pgvector 확장을 만들지 못했습니다 — 임베딩 검색만 폴백하고 나머지는 그대로 씁니다."
+        )
+    try:
         Base.metadata.create_all(_engine)
         return True
     except Exception:
