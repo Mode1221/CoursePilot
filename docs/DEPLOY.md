@@ -116,6 +116,14 @@ curl -X POST http://localhost:8000/courses # 코스 생성
 - 초기 구축은 며칠 걸린다 — 영업시간·평점을 하루 할당량씩 채우는 것이 설계 전제다.
 - 사용량은 `GET /admin/metrics` 의 `quotas` 로 확인하고, 80%·소진 시점에는 `ALERT_WEBHOOK_URL` 로 알림이 간다.
 
+### 키 오기 전 리허설
+```bash
+# 합성 데이터로 수집→필터→저장 전 구간을 돌려 스키마·용량·페이싱을 확인한다
+python scripts/build_places.py --sample --district 성수 연남
+```
+실제 장소가 아니므로 운영에서는 쓰지 않는다. 배치는 앱과 별개 프로세스라
+`DATABASE_URL` 이 있어야 결과가 남는다(없으면 경고만 남기고 인메모리로 끝난다).
+
 ### 키 주의
 - Google Cloud 콘솔에서 **키 제한(IP/HTTP 리퍼러)과 일일 할당량 상한**을 반드시 설정한다. 코드 쪽 한도는 인스턴스 기준이라 최후 방어선이 아니다.
 - 네이버 경로는 NCP 전용 키(`NCP_API_KEY_ID/KEY`)를 쓴다. 개발자센터 키(`NAVER_CLIENT_ID/SECRET`)는 지역·블로그 검색용이다.

@@ -15,6 +15,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
+from app.batch.db_setup import connect_db  # noqa: E402
 from app.batch.localdata_fetch import fetch_all  # noqa: E402
 from app.config import settings  # noqa: E402
 
@@ -24,6 +25,7 @@ def main() -> int:
     ap.add_argument("--url", action="append", help="CSV URL(여러 번 지정 가능)")
     ap.add_argument("--dir", help="저장 디렉터리(기본: LOCALDATA_CSV_DIR)")
     args = ap.parse_args()
+    connect_db()  # 배치는 앱과 별개 프로세스라 DB 를 직접 열어야 한다
 
     target = args.dir or settings.localdata_csv_dir
     if not target:

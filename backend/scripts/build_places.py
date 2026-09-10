@@ -18,6 +18,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from app.batch.districts import DISTRICTS  # noqa: E402
 from app.batch.lock import LockBusy, batch_lock  # noqa: E402
+from app.batch.db_setup import connect_db  # noqa: E402
 from app.batch.places_build import HOURS_PER_DAY, RATINGS_PER_DAY, run  # noqa: E402
 
 
@@ -26,7 +27,13 @@ def main() -> int:
     ap.add_argument("--district", nargs="*", help="상권 이름(기본: 전체)")
     ap.add_argument("--hours-limit", type=int, default=HOURS_PER_DAY)
     ap.add_argument("--ratings-limit", type=int, default=RATINGS_PER_DAY)
+    ap.add_argument(
+        "--sample",
+        action="store_true",
+        help="키 없이 합성 데이터로 리허설(스키마·용량·페이싱 확인용, 운영 금지)",
+    )
     args = ap.parse_args()
+    connect_db()  # 배치는 앱과 별개 프로세스라 DB 를 직접 열어야 한다
 
     targets = DISTRICTS
     if args.district:
@@ -36,10 +43,21 @@ def main() -> int:
             print(f"알 수 없는 상권: {', '.join(sorted(names))}", file=sys.stderr)
             return 1
 
+    kakao = None
+    if args.sample:
+        from app.batch.sample_source import SamplePlaceSource
+
+        kakao = SamplePlaceSource()
+        print("※ 합성 데이터 리허설 모드 — 실제 장소가 아닙니다", file=sys.stderr)
     try:
         with batch_lock("places_build"):
             report = asyncio.run(
-                run(targets, hours_limit=args.hours_limit, ratings_limit=args.ratings_limit)
+                run(
+                    targets,
+                    hours_limit=args.hours_limit,
+                    ratings_limit=args.ratings_limit,
+                    kakao=kakao,
+                )
             )
     except LockBusy as exc:
         print(exc, file=sys.stderr)

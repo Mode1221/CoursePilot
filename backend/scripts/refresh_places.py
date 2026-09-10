@@ -16,6 +16,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from app.batch.lock import LockBusy, batch_lock  # noqa: E402
+from app.batch.db_setup import connect_db  # noqa: E402
 from app.batch.places_build import HOURS_PER_DAY, RATINGS_PER_DAY  # noqa: E402
 from app.batch.refresh import run  # noqa: E402
 
@@ -25,6 +26,7 @@ def main() -> int:
     ap.add_argument("--hours-limit", type=int, default=HOURS_PER_DAY)
     ap.add_argument("--ratings-limit", type=int, default=RATINGS_PER_DAY)
     args = ap.parse_args()
+    connect_db()  # 배치는 앱과 별개 프로세스라 DB 를 직접 열어야 한다
 
     try:
         with batch_lock("places_refresh"):
