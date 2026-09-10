@@ -20,7 +20,7 @@
 5. **개인화 벡터(pgvector)** (⬜) — 현재 `behavior.py`(카테고리 빈도)로 대체 중. 임베딩 기반 확장 여지.
 
 ## P2 — 운영·확장
-6. **다중 인스턴스 확장** (🔑) — `REDIS_URL` 설정 시 Socket.IO Redis 매니저 사용(미설정=단일 프로세스). 남은 일: compose 에 redis 서비스 추가 + 실제 2인스턴스 검증. `app/realtime.py`.
+6. **다중 인스턴스 확장** (🟡) — `REDIS_URL` 설정 시 Socket.IO Redis 매니저 사용(미설정=단일 프로세스). compose 에 redis 서비스(`--profile scale`) 추가 완료. 남은 일: 실제 2인스턴스 기동 검증(VM 필요). `app/realtime.py`, `docker-compose.prod.yml`.
 7. **관측성 강화** (🟡) — 구조적 로깅 + 인메모리 메트릭(`GET /admin/metrics`, `app/metrics.py`)에 외부 연동 폴백 비율·임계 알림(`alerts`) 포함. 임계 진입·회복 시 경고 로그. 임계 진입·회복 시 웹훅 발송(`app/alerting.py`, `ALERT_WEBHOOK_URL`, 미설정 시 로그 폴백·15분 재알림 억제). 남은 일: 외부 에러 트래킹(Sentry 등) 연동, 다중 인스턴스 집계.
 8. **행정** (코드 밖) — 포트원 가맹계약, SMS 발신번호 등록, 개인정보처리방침(삭제 요청은 회원 탈퇴 API 로 처리 가능).
 
@@ -38,11 +38,6 @@
 - 파서: 지명 접미사 오탐("친구"·"아니면"), 제외 지역 처리
 - 편집: 성격 기준 교체(가격·평점·거리 정렬), 여러 자리 삭제, "남기고" 보호, 추가 위치 지정, 대상 불명확 시 되묻기
 - 오류 문구: 서버·클라이언트 모두 사용자에게 읽히는 한국어로 통일
-
-## 최근 처리 (2026-09-10)
-- 보안: 세션 서명 토큰 도입 — id 헤더만으로 남의 계정 행세하던 문제 차단(SESSION_SECRET)
-- 검증: 벤더 응답 픽스처 기반 계약 테스트(카카오·네이버·Google·TourAPI·KOPIS·LOCALDATA)
-- 장소: 네이버 경로 없음 응답(KeyError)에서 직선거리 근사로 폴백
 
 ## 최근 처리 (2026-09-09, 3차)
 - 데이터 원천: LOCALDATA 폐업 필터 + 인허가일자 업력(`adapters/localdata.py`, `ClosedFilterMapService`)
