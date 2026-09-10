@@ -47,7 +47,8 @@ async def test_planner_prefers_context_match(monkeypatch):
     # 저녁 시간대에 강하게 채택된 장소
     time_context_store.bump(target.id, "evening", weight=100)
 
-    c = PlanConstraints(region="성수동", duration_min=180, start_time=dtime(19, 0))
+    # 술집 체류(2시간)가 들어갈 여유를 준다 — 소요 시간이 짧으면 한 칸밖에 못 들어간다
+    c = PlanConstraints(region="성수동", duration_min=300, start_time=dtime(19, 0))
     tl = await plan_course(cands, c, MockMapService())
     assert target.id in {it.place.id for it in tl}
     time_context_store._mem.clear()

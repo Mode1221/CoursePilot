@@ -127,6 +127,10 @@ async def build_timeline(
     end_dt = _as_datetime(constraints.end_time) if constraints.end_time else None
     if end_dt is not None and end_dt <= cursor:
         end_dt += timedelta(days=1)  # 자정을 넘기는 코스(예: 22시~1시)
+    elif end_dt is None and constraints.duration_min:
+        # 시작 시각을 말하지 않고 "2시간"만 말한 경우에도 그 시간은 지켜야 한다.
+        # (예전엔 종료 시각이 없다는 이유로 소요 시간을 통째로 무시했다)
+        end_dt = cursor + timedelta(minutes=constraints.duration_min)
 
     timeline: list[TimelineItem] = []
     prev: Place | None = None
