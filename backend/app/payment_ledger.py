@@ -26,7 +26,12 @@ class PaymentLedger:
                 return s.get(PaymentModel, imp_uid) is not None
         return imp_uid in self._used
 
-    def mark_used(self, imp_uid: str, user_id: str = "", points: int = 0) -> None:
+    def mark_used(self, imp_uid: str, user_id: str = "", points: int = 0) -> bool:
+        """이 결제를 '처리됨'으로 기록한다. 이미 기록돼 있으면 False.
+
+        is_used() 로 먼저 확인하고 기록하면 그 사이에 들어온 동시 요청이 둘 다
+        통과한다. 지급 여부는 반드시 이 반환값으로 판단할 것.
+        """
         if is_ready():
             from sqlalchemy.exc import IntegrityError
 
@@ -39,11 +44,15 @@ class PaymentLedger:
                     s.commit()
                 except IntegrityError:  # 동시 요청이 먼저 기록 → 이미 처리된 결제
                     s.rollback()
-            return
+                    return False
+            return True
+        if imp_uid in self._used:
+            return False
         self._used[imp_uid] = None
         self._used.move_to_end(imp_uid)
         while len(self._used) > MAX_ENTRIES:
             self._used.popitem(last=False)
+        return True
 
     def clear(self) -> None:
         self._used.clear()

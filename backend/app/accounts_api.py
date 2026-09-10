@@ -177,13 +177,14 @@ async def purchase_points(
         expected = req.points * settings.point_price_krw
         if not result.paid or result.amount < expected:
             raise HTTPException(status_code=402, detail="결제가 확인되지 않았습니다")
-        payment_ledger.mark_used(req.imp_uid, user_id=user_id, points=req.points)
+        # 기록에 실패했다면(동시 요청이 먼저 선점) 지급하지 않는다
+        if not payment_ledger.mark_used(req.imp_uid, user_id=user_id, points=req.points):
+            raise HTTPException(status_code=409, detail="이미 처리된 결제입니다")
     elif req.imp_uid:
         # 결제 키가 없어도(개발/키 누락 배포) 같은 결제 식별자의 반복 충전은 막는다.
         # 금액 검증은 결제사 조회가 필요하므로 이 경로에서는 생략한다.
-        if payment_ledger.is_used(req.imp_uid):
+        if not payment_ledger.mark_used(req.imp_uid, user_id=user_id, points=req.points):
             raise HTTPException(status_code=409, detail="이미 처리된 결제입니다")
-        payment_ledger.mark_used(req.imp_uid, user_id=user_id, points=req.points)
 
     user = user_store.purchase_points(user_id, req.points)
     if user is None:
