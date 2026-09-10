@@ -10,6 +10,7 @@
 ## 코스 생성 요청 흐름 (핵심 경로)
 `POST /courses/{id}/generate` (main.py) →
 1. **큐 직렬화**: `queue.py:queues.run(course_id, action)` — 코스별 액션 직렬화(동시편집 lost update 방지).
+   대기 8건 초과는 429, 액션 60초 초과는 504 로 끊는다(외부 호출이 물려도 코스 큐가 잠기지 않게).
 2. **크레딧 차감**: `users.py:consume_credit` (DB면 `FOR UPDATE` 원자적). 실패 시 402, 예외 시 환불.
 3. **AI Lock 브로드캐스트**: `realtime.py:broadcast_lock` → 참여자 편집 잠금.
 4. **파이프라인**: `pipeline/agent.py:generate_course`
