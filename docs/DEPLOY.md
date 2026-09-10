@@ -88,9 +88,13 @@ cd frontend && pnpm install && pnpm build && pnpm start
 
 ## 헬스체크 / 스모크
 ```bash
-curl http://localhost:8000/health          # {"status":"ok"}
+curl http://localhost:8000/health          # liveness: {"status":"ok"}
+curl http://localhost:8000/health/ready    # readiness: db·env·비어 있는 필수 설정
 curl -X POST http://localhost:8000/courses # 코스 생성
 ```
+`ENV=production` 이면 `/health/ready` 는 DB 미연결이거나 `SESSION_SECRET`/`ADMIN_TOKEN`
+이 비어 있을 때 **503** 을 낸다. 로드밸런서·오케스트레이터의 readiness probe 는
+`/health` 가 아니라 `/health/ready` 를 봐야 미완성 인스턴스로 트래픽이 가지 않는다.
 
 ## 운영 주의
 - **`SESSION_SECRET` 을 반드시 설정한다.** 없으면 `X-User-Id` 헤더만으로 신원이 인정돼, 사용자 id 를 아는 사람이 남의 크레딧을 쓰고 계정을 지울 수 있다(가입 시 내려주는 서명 토큰을 서버가 검증하지 않는다).

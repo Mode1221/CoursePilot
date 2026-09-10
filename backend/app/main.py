@@ -43,11 +43,26 @@ from app.store import store
 from app.users import CreditError, user_store
 
 
+def _production_warnings() -> list[str]:
+    """운영에서 비어 있으면 안 되는 설정을 모은다(값은 절대 로그에 남기지 않는다)."""
+    missing = []
+    if not settings.session_secret:
+        missing.append("SESSION_SECRET")  # 없으면 id 헤더만으로 남의 계정이 된다
+    if not settings.admin_token:
+        missing.append("ADMIN_TOKEN")  # 없으면 /admin/* 이 열린다
+    return missing
+
+
 @asynccontextmanager
 async def lifespan(_app: FastAPI):
     from app.db import init_db, set_ready
 
     set_ready(init_db())  # 전 스토어가 참조하는 단일 readiness
+    if settings.is_production:
+        for name in _production_warnings():
+            logging.getLogger("coursepilot").error(
+                "%s 가 설정되지 않았습니다 — 운영에서는 필수입니다.", name
+            )
     yield
 
 
@@ -94,7 +109,31 @@ class GenerateRequest(BaseModel):
 
 @api.get("/health")
 async def health() -> dict:
+    """살아 있는지만 본다(liveness). 프로세스가 응답하면 항상 200."""
     return {"status": "ok"}
+
+
+@api.get("/health/ready")
+async def readiness(response: Response) -> dict:
+    """트래픽을 받을 준비가 됐는지(readiness).
+
+    운영에서 DB 가 붙지 않았다면 인메모리로 조용히 도는 대신 503 을 내서
+    로드밸런서가 이 인스턴스를 빼도록 한다. 개발에서는 상태만 알려 준다.
+    """
+    from app.db import is_ready
+
+    db_ready = is_ready()
+    missing = _production_warnings() if settings.is_production else []
+    ok = (db_ready or not settings.is_production) and not missing
+    if not ok:
+        response.status_code = 503
+    return {
+        "status": "ok" if ok else "unavailable",
+        "db": db_ready,
+        "env": settings.env,
+        # 값이 아니라 '비어 있다'는 사실만 노출한다
+        "missing_settings": missing,
+    }
 
 
 api.include_router(admin_router)
