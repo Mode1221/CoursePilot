@@ -46,6 +46,8 @@
 - `edit.py` — 편집 명령 파싱/적용(교체·삭제·추가), `_infer_mode`.
 
 ### 어댑터 (`app/adapters/`) — 벤더 직접호출 금지, 반드시 경유
+- `seeded.py` — 벤더 키가 하나도 없고 DB 에 시드 장소가 있으면 검색을 이걸로 대신한다.
+  슬롯을 번갈아 뽑아 코스 칸(밥·카페·술·볼거리)이 한 종류로 쏠리지 않게 한다.
 - `map_service.py` — `MapService` 추상 + `MockMapService` + `SafeMapService`(폴백 래퍼) + `ClosedFilterMapService`(LOCALDATA 폐업 제거·업력 부착) + `CachedSearchMapService(검색 5분 TTL + 경로 캐시)` + `get_map_service()`.
 - `kakao.py` — 카카오 로컬 검색(장소 발견 주 원천, `category_group_code`→슬롯). 경로는 네이버에 위임.
 - `naver.py` — 네이버 지역검색/Directions(`maps.apigw.ntruss.com`, NCP 전용키 우선)/블로그 건수(인지도).
@@ -97,7 +99,11 @@
 5. 학습 스토어는 전역 싱글턴 → 테스트는 `tests/conftest.py` 및 각자 `_mem.clear()` 로 격리.
 
 ### 배치 (`app/batch/`)
-- `districts.py` — 수집 대상 상권 24곳(좌표·반경·소속 시군구).
+- `districts.py` — 수집 대상 상권 24곳(좌표·반경·소속 시군구). 좌표는 대표 역·랜드마크
+  기준이고, 붙어 있는 상권은 같은 원을 두 번 훑지 않도록 반경을 줄여 잡았다
+  (`scripts/districts_map.py` 로 배치·겹침 확인, 테스트가 회귀를 막는다).
+- `seed.py` — 키 없이 전체 흐름을 돌리기 위한 시드 장소(상권당 100~200건). 슬롯 비중·
+  영업시간·가격대·평점 분포를 실제와 비슷하게 만든다. `is_mock` 표시로 한 번에 지운다.
 - `merge.py` — 재수집분에 저장된 보강 값(영업시간·평점·인지도·업력·place_id)을 얹는다.
   **이걸 빼면 매일 재수집이 어제 채운 값을 덮어써 하루 한도로는 영원히 못 채운다.**
   덕분에 Google 키가 나중에 들어와도 남은 것부터 이어서 채워진다.

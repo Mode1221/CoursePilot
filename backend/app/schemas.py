@@ -44,6 +44,9 @@ class Place(BaseModel):
     close_time: time | None = None
     break_start: time | None = None
     break_end: time | None = None
+    # 시드로 만든 가짜 장소. 실데이터가 들어오면 이 표시로 한 번에 지운다
+    # (scripts/seed_mock_places.py --clear).
+    is_mock: bool = False
 
 
 class Route(BaseModel):

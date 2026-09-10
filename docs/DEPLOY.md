@@ -177,6 +177,28 @@ python scripts/smoke_all.py        # 전부 한 번에(요약 표)
 - `smoke_google.py` 는 어댑터를 그대로 타므로 `quota.py` 무료 한도에 카운트되고,
   필드마스크가 티어별로 분리돼 있는지(과금 티어 상승 방지)도 함께 본다.
 
+## 키 없이 전체 흐름 확인 (시드 데이터)
+키가 오기 전에도 프론트~백엔드~DB~실시간이 실제로 도는지 봐야 한다.
+Mock 장소("성수동 장소 1")로는 이름·가격·영업시간이 실제와 달라 확인이 안 된다.
+```bash
+cd backend
+python scripts/seed_mock_places.py --dry-run   # 분포만 확인
+python scripts/seed_mock_places.py             # 상권 24곳에 3,600여 건 투입
+python scripts/verify_places.py                # 상권별 건수·슬롯 분포 확인
+python scripts/seed_mock_places.py --clear     # 실데이터가 들어오면 시드만 삭제
+```
+- 벤더 키가 **하나도 없고** 시드가 DB 에 있으면 검색이 자동으로 시드를 쓴다
+  (`app/adapters/seeded.py`). 키가 하나라도 생기면 그쪽이 우선이다.
+- 시드에는 `is_mock` 표시가 붙어 `--clear` 로 한 번에 지운다(실데이터는 남는다).
+- 같은 시드값이면 id 가 같아 다시 돌려도 중복이 생기지 않는다.
+
+## 상권 배치 확인
+```bash
+python scripts/districts_map.py     # districts_map.html + 겹침 목록
+```
+좌표는 대표 역·랜드마크 기준으로 맞춰 두었고(테스트가 300m 이내로 고정),
+붙어 있는 상권은 같은 원을 두 번 훑지 않도록 반경을 줄여 잡았다.
+
 ## 첫 데이터 구축 순서
 ```bash
 cd backend
