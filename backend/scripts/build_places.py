@@ -16,9 +16,9 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
+from app.batch.db_setup import connect_db  # noqa: E402
 from app.batch.districts import DISTRICTS  # noqa: E402
 from app.batch.lock import LockBusy, batch_lock  # noqa: E402
-from app.batch.db_setup import connect_db  # noqa: E402
 from app.batch.places_build import HOURS_PER_DAY, RATINGS_PER_DAY, run  # noqa: E402
 
 

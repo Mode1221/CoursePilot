@@ -129,18 +129,20 @@ async def duplicate_course(
 
 @api.get("/users/{user_id}/courses", response_model=list[Course])
 async def my_courses(
-    user_id: str, limit: int = 50, x_user_id: str | None = Header(default=None)
+    user_id: str, limit: int = 50, x_user_id: str | None = Header(default=None),
+    x_user_token: str | None = Header(default=None),
 ) -> list[Course]:
     """마이페이지: 내가 생성한 코스 히스토리 (9-4). 최근 limit 개."""
-    _require_self(user_id, x_user_id)
+    _require_self(user_id, x_user_id, x_user_token)
     return store.list_by_owner(user_id, max(1, min(limit, 100)))
 
 
 @api.get("/users/{user_id}/bookmarks", response_model=list[Course])
 async def my_bookmarks(
-    user_id: str, limit: int = 50, x_user_id: str | None = Header(default=None)
+    user_id: str, limit: int = 50, x_user_id: str | None = Header(default=None),
+    x_user_token: str | None = Header(default=None),
 ) -> list[Course]:
-    _require_self(user_id, x_user_id)
+    _require_self(user_id, x_user_id, x_user_token)
     ids = bookmark_store.list_course_ids(user_id, max(1, min(limit, 100)))
     return store.get_many(ids)
 
@@ -150,9 +152,10 @@ BOOKMARK_WEIGHT = 2  # 북마크는 채택보다 강한 관심 신호
 
 @api.put("/users/{user_id}/bookmarks/{course_id}")
 async def add_bookmark(
-    user_id: str, course_id: str, x_user_id: str | None = Header(default=None)
+    user_id: str, course_id: str, x_user_id: str | None = Header(default=None),
+    x_user_token: str | None = Header(default=None),
 ) -> dict:
-    _require_self(user_id, x_user_id)
+    _require_self(user_id, x_user_id, x_user_token)
     course = store.get(course_id)
     if course is None:
         raise HTTPException(status_code=404, detail="코스를 찾을 수 없어요")
@@ -166,14 +169,15 @@ async def add_bookmark(
 
 @api.delete("/users/{user_id}")
 async def delete_account(
-    user_id: str, x_user_id: str | None = Header(default=None)
+    user_id: str, x_user_id: str | None = Header(default=None),
+    x_user_token: str | None = Header(default=None),
 ) -> dict:
     """회원 탈퇴. 계정·전화번호·내 코스·북마크를 지운다(본인만).
 
     개인정보 삭제 요청을 코드로 처리할 수 있게 한다. 남는 것은 개인을 식별할 수
     없는 집계 신호(장소 인기 등)뿐이다.
     """
-    _require_self(user_id, x_user_id)
+    _require_self(user_id, x_user_id, x_user_token)
     if user_store.get(user_id) is None:
         raise HTTPException(status_code=404, detail="계정을 찾을 수 없어요")
     my_courses = store.list_by_owner(user_id, limit=1000)
@@ -187,9 +191,10 @@ async def delete_account(
 
 @api.delete("/users/{user_id}/bookmarks/{course_id}")
 async def remove_bookmark(
-    user_id: str, course_id: str, x_user_id: str | None = Header(default=None)
+    user_id: str, course_id: str, x_user_id: str | None = Header(default=None),
+    x_user_token: str | None = Header(default=None),
 ) -> dict:
-    _require_self(user_id, x_user_id)
+    _require_self(user_id, x_user_id, x_user_token)
     removed = bookmark_store.remove(user_id, course_id)
     course = store.get(course_id)
     if removed and course is not None:
