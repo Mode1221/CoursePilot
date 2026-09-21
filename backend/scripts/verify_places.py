@@ -18,6 +18,9 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from app.adapters.kakao import slot_for  # noqa: E402
 from app.batch.db_setup import connect_db  # noqa: E402
 from app.batch.districts import DISTRICTS  # noqa: E402
+from app.batch.localdata_boot import load_localdata_or_exit  # noqa: E402
+
+MIN_PER_DISTRICT = 300  # 이보다 적으면 수집이 카카오 질의 상한에 걸린 것이다
 
 BAR = "█"
 LIMIT = 100_000  # 스냅샷 상한(상권 24곳 규모에서는 충분)
@@ -66,11 +69,21 @@ def main() -> int:
     print("── 상권별 건수 " + "─" * 40)
     per_district = Counter(_nearest_district(p.lat, p.lng) for p in places)
     widest = max(per_district.values())
+    thin = 0
     for district in DISTRICTS:
         count = per_district.get(district.name, 0)
         bar = BAR * max(0, round(count / widest * 24)) if widest else ""
-        flag = "  ← 비었음" if count == 0 else ""
+        if count == 0:
+            flag = "  ← 비었음"
+        elif count < MIN_PER_DISTRICT:
+            flag = f"  ← {MIN_PER_DISTRICT} 미만"
+            thin += 1
+        else:
+            flag = ""
         print(f"  {district.name:<6} {count:>6,}  {bar}{flag}")
+    if thin:
+        print(f"  ※ {thin}개 상권이 {MIN_PER_DISTRICT}건 미만 — 카카오 질의 상한(45건/질의)에"
+              " 걸렸을 가능성. 격자 수집이 켜진 build_places 로 다시 돌리세요.")
     outside = per_district.get("(범위 밖)", 0)
     if outside:
         print(f"  {'(범위 밖)':<6} {outside:>6,}  ← 상권 중심에서 5km 초과")
@@ -88,10 +101,12 @@ def main() -> int:
     print("\n── 폐업 필터 " + "─" * 42)
     from app.adapters.localdata import get_localdata_registry
 
+    # 검증 스크립트도 별개 프로세스다 — 여기서 동기 적재하지 않으면 늘 "미적재"다
+    load_localdata_or_exit(allow_missing=True)
     registry = get_localdata_registry()
     if not registry.loaded:
         print("  LOCALDATA 미적재 — 폐업 판정이 통째로 빠져 있습니다"
-              " (scripts/fetch_localdata.py 먼저)")
+              " (LOCALDATA_CSV_DIR 설정과 scripts/fetch_localdata.py 확인)")
     else:
         matched = sum(1 for p in places if registry.find(p.name, p.address))
         leaked = sum(1 for p in places if registry.is_closed(p.name, p.address))

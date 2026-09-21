@@ -1,6 +1,6 @@
 """배치 진행 상태 저장 — 중간에 죽어도 이어서 한다.
 
-상권 24곳 × 카테고리 4종 = 96회 수집을 도중에 잃으면(네트워크 오류·rate limit·
+상권 24곳 × 격자 칸 × 카테고리 4종 = 수천 회 수집을 도중에 잃으면(네트워크 오류·rate limit·
 프로세스 종료) 재실행이 처음부터 다시 돈다. 끝낸 조각을 남겨 두고, 재실행 때
 남은 것부터 이어 가게 한다.
 
@@ -66,14 +66,16 @@ class Progress:
 
     # --- 사용 ---------------------------------------------------------
     @staticmethod
-    def key(district: str, group_code: str) -> str:
-        return f"{district}:{group_code}"
+    def key(district: str, group_code: str, cell: str | None = None) -> str:
+        """조각 키. 격자 수집은 (상권, 카테고리, 칸) 단위로 이어받는다."""
+        base = f"{district}:{group_code}"
+        return f"{base}:{cell}" if cell else base
 
-    def is_done(self, district: str, group_code: str) -> bool:
-        return self.key(district, group_code) in self.done
+    def is_done(self, district: str, group_code: str, cell: str | None = None) -> bool:
+        return self.key(district, group_code, cell) in self.done
 
-    def mark(self, district: str, group_code: str) -> None:
-        self.done.add(self.key(district, group_code))
+    def mark(self, district: str, group_code: str, cell: str | None = None) -> None:
+        self.done.add(self.key(district, group_code, cell))
         self._save()
 
     def clear(self) -> None:
