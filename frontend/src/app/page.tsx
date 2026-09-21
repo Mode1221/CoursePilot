@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 
+import SiteFooter from "@/components/SiteFooter";
 import { Button, Card } from "@/components/ui";
 import { api } from "@/services/api";
 import { toast } from "@/store/toastStore";
@@ -102,11 +103,7 @@ export default function Home() {
         ))}
       </ul>
 
-      <p style={{ marginTop: "var(--sp-8)", fontSize: "var(--fs-sm)", color: "var(--text-faint)" }}>
-        <Link href="/onboarding" style={{ color: "var(--text-muted)" }}>선호 설정</Link>
-        {" · "}
-        <Link href="/mypage" style={{ color: "var(--text-muted)" }}>내 코스</Link>
-      </p>
+      <SiteFooter />
     </main>
   );
 }
