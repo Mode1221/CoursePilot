@@ -131,3 +131,75 @@ def test_ready_응답이_결제_활성_여부를_알려_준다():
     # 결제는 기동 조건이 아니지만, 꺼져 있으면 구매가 503 이므로 드러나야 한다.
     body = TestClient(api).get("/health/ready").json()
     assert body["payment_enabled"] is False
+
+
+def test_토큰이_90일_지나면_만료된다(monkeypatch):
+    """만료가 없으면 한 번 새어 나간 토큰이 영원히 유효하다."""
+    import time
+
+    from app import session_token
+
+    monkeypatch.setattr("app.config.settings.session_secret", "s3cret")
+    now = int(time.time())
+    fresh = session_token.issue("u1", now)
+    assert session_token.verify("u1", fresh, now=now) is True
+    assert session_token.verify("u1", fresh, now=now + 89 * 86400) is True
+    assert session_token.verify("u1", fresh, now=now + 91 * 86400) is False
+    assert session_token.expired(fresh, now=now + 91 * 86400) is True
+
+
+def test_발급시각을_위조하면_서명이_깨진다(monkeypatch):
+    import time
+
+    from app import session_token
+
+    monkeypatch.setattr("app.config.settings.session_secret", "s3cret")
+    old = int(time.time()) - 100 * 86400
+    token = session_token.issue("u1", old)
+    forged = f"{int(time.time())}.{token.split('.')[1]}"
+    assert session_token.verify("u1", forged) is False
+
+
+def test_만료_없는_구형_토큰은_거절한다(monkeypatch):
+    import base64
+    import hashlib
+    import hmac
+
+    from app import session_token
+
+    monkeypatch.setattr("app.config.settings.session_secret", "s3cret")
+    mac = hmac.new(b"s3cret", b"u1", hashlib.sha256).digest()
+    legacy = base64.urlsafe_b64encode(mac).decode().rstrip("=")
+    assert session_token.verify("u1", legacy) is False
+
+
+def test_만료된_토큰으로_접근하면_401(monkeypatch):
+    import time
+
+    from app import session_token
+
+    monkeypatch.setattr("app.config.settings.session_secret", "s3cret")
+    client = TestClient(api)
+    uid = client.post("/signup", json={"phone": "010-5555-1111"}).json()["user_id"]
+    old = session_token.issue(uid, int(time.time()) - 200 * 86400)
+    res = client.get(
+        f"/users/{uid}/credits", headers={"X-User-Id": uid, "X-User-Token": old}
+    )
+    assert res.status_code == 401
+
+
+def test_인증하면_토큰을_새로_끊어_준다():
+    """만료로 돌아온 사용자가 인증만 다시 하면 쓰던 계정으로 이어진다."""
+    client = TestClient(api)
+    phone = "010-5555-2222"
+    code = client.post("/auth/sms/request", json={"phone": phone}).json()["dev_code"]
+    client.post("/auth/sms/verify", json={"phone": phone, "code": code})
+    uid = client.post("/signup", json={"phone": phone}).json()["user_id"]
+
+    # 같은 번호로 연달아 요청하면 rate limit 이라, 코드만 직접 발급해 검증한다
+    from app.auth import normalize_phone, verification_store
+
+    code = verification_store.issue(normalize_phone(phone))
+    body = client.post("/auth/sms/verify", json={"phone": phone, "code": code}).json()
+    assert body["verified"] is True
+    assert body["user_id"] == uid

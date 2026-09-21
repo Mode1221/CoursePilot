@@ -79,6 +79,15 @@ async def sms_verify(req: SmsVerifyBody) -> dict:
     ok = verification_store.verify(req.phone, req.code)
     if not ok:
         raise HTTPException(status_code=400, detail="인증번호가 올바르지 않거나 만료되었습니다")
+    # 이미 가입한 번호면 토큰을 새로 끊어 준다 — 만료(90일)로 돌아온 사용자가
+    # 인증만 다시 하면 바로 쓰던 계정으로 이어지게 한다.
+    existing = user_store.find_by_phone(req.phone)
+    if existing is not None:
+        return {
+            "verified": True,
+            "user_id": existing.id,
+            "token": issue(existing.id),
+        }
     return {"verified": True}
 
 
