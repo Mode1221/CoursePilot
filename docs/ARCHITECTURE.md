@@ -119,7 +119,10 @@
 
 - `db_setup.py` — 배치용 DB 연결(앱과 별개 프로세스이므로 직접 연다). `sample_source.py` — 키 없이 돌리는 합성 후보 공급기.
 - `lock.py` — 배치 중복 실행 방지(DB `batch_lock`, 3시간 지난 락은 무시). 스크립트가 이미 실행 중이면 종료 코드 1.
-- `localdata_fetch.py` — LOCALDATA CSV 내려받기(`scripts/fetch_localdata.py`, 주 1회). 부분 실패 허용, 성공 시 캐시 무효화.
+- `localdata_fetch.py` — LOCALDATA CSV 내려받기(`scripts/fetch_localdata.py`, 주 1회).
+  원천은 `file.localdata.go.kr` 고정 URL(브라우저 UA·Referer 필수, 없으면 403).
+  200MB 대 파일이라 1MB 단위 스트리밍 → `.part` 임시파일 → 원자적 교체.
+  HTML 응답은 실패로 보고 원인을 기록, 부분 실패 허용, 성공 시 캐시 무효화.
 - `refresh.py` — 주기 갱신: 폐업 주 1회(전체) / 영업시간 30일 TTL(최근 90일 내 추천된 활성 집합) / 평점 90일(인기 상위).
   실행: `python scripts/refresh_places.py` (하루 1회). 활성 집합 밖 장소는 재등장 시 즉석 갱신.
 

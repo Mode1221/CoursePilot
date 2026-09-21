@@ -4,7 +4,8 @@
     python scripts/fetch_localdata.py
     python scripts/fetch_localdata.py --url <csv-url> --url <csv-url>
 
-URL 을 주지 않으면 LOCALDATA_CSV_URLS 설정을 쓴다. 저장 위치는 LOCALDATA_CSV_DIR.
+URL 을 주지 않으면 LOCALDATA_CSV_URLS 설정을, 그것도 비면 file.localdata.go.kr
+기본 URL(일반음식점·휴게음식점)을 쓴다. 저장 위치는 LOCALDATA_CSV_DIR.
 """
 from __future__ import annotations
 
@@ -17,13 +18,16 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from app.batch.coverage import covered_sigungu, missing_districts  # noqa: E402
 from app.batch.db_setup import connect_db  # noqa: E402
-from app.batch.localdata_fetch import fetch_all  # noqa: E402
+from app.batch.localdata_fetch import DEFAULT_CSV_URLS, fetch_all  # noqa: E402
 from app.config import settings  # noqa: E402
 
 
 def main() -> int:
     ap = argparse.ArgumentParser(description="LOCALDATA CSV 내려받기")
     ap.add_argument("--url", action="append", help="CSV URL(여러 번 지정 가능)")
+    ap.add_argument(
+        "--list-urls", action="store_true", help="내려받을 URL 목록만 출력하고 종료"
+    )
     ap.add_argument("--dir", help="저장 디렉터리(기본: LOCALDATA_CSV_DIR)")
     ap.add_argument(
         "--check-only",
@@ -31,6 +35,10 @@ def main() -> int:
         help="내려받지 않고, 이미 있는 파일이 24개 상권의 시군구를 덮는지만 확인",
     )
     args = ap.parse_args()
+    if args.list_urls:
+        for url in args.url or list(settings.localdata_csv_urls) or list(DEFAULT_CSV_URLS):
+            print(url)
+        return 0
     connect_db()  # 배치는 앱과 별개 프로세스라 DB 를 직접 열어야 한다
 
     target = args.dir or settings.localdata_csv_dir
@@ -41,7 +49,7 @@ def main() -> int:
         report = asyncio.run(fetch_all(args.url, target))
         print(f"저장 {len(report.saved)} / 실패 {len(report.failed)} → {target}")
         for url in report.failed:
-            print(f"  실패: {url}", file=sys.stderr)
+            print(f"  실패: {url}\n    {report.errors.get(url, '')}", file=sys.stderr)
         if report.failed and not report.saved:
             return 1
 
