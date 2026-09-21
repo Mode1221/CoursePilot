@@ -10,7 +10,18 @@ MARK_BEGIN="# >>> coursepilot >>>"
 MARK_END="# <<< coursepilot <<<"
 
 command -v crontab >/dev/null || { echo "✗ crontab 이 없습니다(cron 설치 필요)" >&2; exit 1; }
-sudo mkdir -p /var/log/coursepilot 2>/dev/null || mkdir -p /var/log/coursepilot 2>/dev/null || true
+
+# 로그·백업은 저장소 아래에 둔다. /var/log 로 만들면 root 소유가 되고, 크론은
+# 일반 사용자로 돌기 때문에 >> 리다이렉트가 권한 거부로 죽는다 — 잡 5개가
+# 전부 조용히 실행되지 않는다.
+mkdir -p "$ROOT/logs" "$ROOT/backups"
+# 예전 설치본이 root 소유로 만들어 뒀을 수 있다
+if [ ! -w "$ROOT/logs" ] || [ ! -w "$ROOT/backups" ]; then
+  sudo chown -R "$(id -u):$(id -g)" "$ROOT/logs" "$ROOT/backups" 2>/dev/null || true
+fi
+for dir in "$ROOT/logs" "$ROOT/backups"; do
+  [ -w "$dir" ] || { echo "✗ $dir 에 쓸 수 없습니다(소유자 확인: ls -ld $dir)" >&2; exit 1; }
+done
 
 block="$(sed "s|{{ROOT}}|$ROOT|g" "$SRC")"
 current="$(crontab -l 2>/dev/null || true)"

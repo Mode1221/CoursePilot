@@ -218,25 +218,40 @@ python scripts/districts_map.py     # districts_map.html + 겹침 목록
    ```
 4. **백업 한 번 손으로 돌려 본다** — 크론이 처음 도는 새벽에 실패를 발견하면 늦다
    ```bash
-   ./scripts/ops/backup.sh && ls -lh /var/backups/coursepilot
+   ./scripts/ops/backup.sh && ls -lh ./backups
    ```
 5. **크론 확인** — `deploy.sh` 가 설치한다
    ```bash
    crontab -l | sed -n '/coursepilot/,/coursepilot/p'
    ```
-6. 여기까지 통과하면 상권 수집(`scripts/build_places.py`)을 돌린다.
+6. **크론 사용자 권한으로 5개 잡을 한 번씩 돌려 로그가 실제로 쌓이는지 확인**
+   크론은 로그인 셸이 아니라 그 사용자 권한으로 돈다. 로그 디렉터리가 root 소유면
+   `>>` 리다이렉트가 권한 거부로 죽고 **5개 잡이 전부 조용히 실행되지 않는다.**
+   ```bash
+   ls -ld ./logs ./backups          # 소유자가 크론 사용자(보통 ubuntu)인지
+   cd /opt/coursepilot
+   crontab -l | sed -n '/>>> coursepilot/,/<<< coursepilot/p' \
+     | grep '^[0-9*]' | sed 's/^[^ ]* [^ ]* [^ ]* [^ ]* [^ ]* //' \
+     | while read -r cmd; do echo "▶ $cmd"; bash -lc "$cmd"; echo "  exit=$?"; done
+   ls -lh ./logs                    # 5개 로그 파일이 생기고 크기가 0 이 아닌지
+   ```
+   한 줄이라도 `Permission denied` 가 보이면 소유자를 고친다:
+   `sudo chown -R "$(id -u):$(id -g)" ./logs ./backups`
+7. 여기까지 통과하면 상권 수집(`scripts/build_places.py`)을 돌린다.
 
 ## 운영 스크립트 (`scripts/ops/`)
 | 스크립트 | 하는 일 |
 |---|---|
-| `backup.sh` | `pg_dump` → gzip, `BACKUP_DIR`(기본 `/var/backups/coursepilot`)에 보관. `BACKUP_KEEP_DAYS`(기본 7)일 초과분 삭제. 어느 단계에서 실패해도 웹훅 알림 |
+| `backup.sh` | `pg_dump` → gzip, `BACKUP_DIR`(기본 `<저장소>/backups`)에 보관. `BACKUP_KEEP_DAYS`(기본 7)일 초과분 삭제. 어느 단계에서 실패해도 웹훅 알림 |
 | `disk_check.sh` | `DISK_ALERT_PERCENT`(기본 85%) 초과 시 웹훅 알림 |
 | `notify.sh` | 위 둘이 쓰는 알림 전송(`ALERT_WEBHOOK_URL`, 미설정 시 로그) |
 | `crontab.txt` | 크론 항목 원본(`{{ROOT}}` 치환) |
 | `install_cron.sh` | crontab 설치·갱신(기존 사용자 항목은 보존, CoursePilot 블록만 교체) |
 
 크론은 `deploy.sh` 가 자동 설치한다(`INSTALL_CRON=false` 로 끌 수 있다).
-로그는 `/var/log/coursepilot/` 아래에 쌓인다.
+로그는 **저장소 아래 `logs/`** 에 쌓인다(`backups/` 도 마찬가지). `/var/log`·`/var/backups`
+는 root 소유로 만들어져 크론 사용자가 못 쓰기 때문에 쓰지 않는다 — 옮기고 싶다면
+그 디렉터리를 크론 사용자 소유로 먼저 만들어 두고 `BACKUP_DIR` 을 바꾼다.
 
 ## LOCALDATA 저장 위치(컨테이너)
 `backend` 컨테이너에 호스트 디렉터리를 마운트해 둔다.
