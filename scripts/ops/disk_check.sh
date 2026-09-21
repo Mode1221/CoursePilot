@@ -21,6 +21,11 @@ fi
 
 echo "디스크 $MOUNT: ${used}% 사용, ${avail} 남음 (임계 ${THRESHOLD}%)"
 if [ "$used" -ge "$THRESHOLD" ]; then
-  "$NOTIFY" "디스크 사용률 ${used}% (임계 ${THRESHOLD}%), 남은 공간 ${avail} — 백업·도커 이미지 정리 필요"
+  # LOCALDATA CSV 는 주 1회 다시 받을 수 있는 파생 데이터라 가장 먼저 지워도 된다.
+  csv_dir="${LOCALDATA_HOST_DIR:-$ROOT/data/localdata}"
+  csv_size=$(du -sh "$csv_dir" 2>/dev/null | awk '{print $1}')
+  hint=""
+  [ -n "$csv_size" ] && hint=" (LOCALDATA CSV ${csv_size} 는 재다운로드 가능 — 먼저 정리 가능)"
+  "$NOTIFY" "디스크 사용률 ${used}% (임계 ${THRESHOLD}%), 남은 공간 ${avail} — 백업·도커 이미지 정리 필요${hint}"
 fi
 exit 0

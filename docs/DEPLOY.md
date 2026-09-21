@@ -238,11 +238,24 @@ python scripts/districts_map.py     # districts_map.html + 겹침 목록
 크론은 `deploy.sh` 가 자동 설치한다(`INSTALL_CRON=false` 로 끌 수 있다).
 로그는 `/var/log/coursepilot/` 아래에 쌓인다.
 
+## LOCALDATA 저장 위치(컨테이너)
+`backend` 컨테이너에 호스트 디렉터리를 마운트해 둔다.
+
+| .env 키 | 기본값 | 뜻 |
+| --- | --- | --- |
+| `LOCALDATA_HOST_DIR` | `./data/localdata` | 호스트 쪽 저장 경로(수백 MB) |
+| `LOCALDATA_CSV_DIR` | `/data/localdata` | 컨테이너 안에서 보는 경로 |
+| `LOCALDATA_CSV_URLS` | `[]` | 비우면 일반음식점·휴게음식점 기본 URL |
+
+주 1회 다시 받을 수 있는 파생 데이터라 **백업 대상이 아니다**(`backup.sh` 는 DB 만 뜬다).
+디스크가 차면 이 디렉터리를 가장 먼저 지워도 된다 — `disk_check.sh` 경보에 크기가 함께 찍힌다.
+
 ## 첫 데이터 구축 순서
 ```bash
 cd backend
 # ① 폐업 대장 먼저 — 이게 없으면 문 닫은 가게가 그대로 코스에 들어간다
 python scripts/fetch_localdata.py                 # 내려받기 + 시군구 커버리지 확인
+python scripts/localdata_status_dist.py          # 영업상태 값 분포(폐업 판정 근거)
 python scripts/fetch_localdata.py --check-only    # 이미 받아 둔 파일만 점검
 # ② 상권 수집(카카오 키만 있으면 된다. Google 단계는 자동으로 건너뛴다)
 python scripts/build_places.py
