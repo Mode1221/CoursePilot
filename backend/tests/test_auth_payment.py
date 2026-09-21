@@ -110,3 +110,24 @@ def test_SMS_발송_실패는_502_로_알린다(monkeypatch):
     client = TestClient(api)
     res = client.post("/auth/sms/request", json={"phone": "010-5555-3333"})
     assert res.status_code == 502
+
+
+def test_운영에서_결제_키가_없으면_지급하지_않는다(monkeypatch):
+    """검증 없이 포인트를 찍어 주면 누구나 공짜로 충전할 수 있다."""
+    client = TestClient(api)
+    from app.users import user_store
+
+    uid = client.post("/signup", json={"phone": "010-7777-8888"}).json()["user_id"]
+    before = user_store.get(uid).credits_left
+
+    monkeypatch.setattr("app.config.settings.env", "production")
+    res = client.post(f"/users/{uid}/purchase", json={"points": 5}, headers={"X-User-Id": uid})
+    assert res.status_code == 503
+
+    assert user_store.get(uid).credits_left == before  # 한 푼도 늘지 않았다
+
+
+def test_ready_응답이_결제_활성_여부를_알려_준다():
+    # 결제는 기동 조건이 아니지만, 꺼져 있으면 구매가 503 이므로 드러나야 한다.
+    body = TestClient(api).get("/health/ready").json()
+    assert body["payment_enabled"] is False

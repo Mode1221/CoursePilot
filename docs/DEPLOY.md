@@ -288,6 +288,9 @@ python scripts/verify_places.py
 - `verify_places.py` 는 상권별 건수 / 슬롯 미매핑 / 폐업 잔존 / Google 매핑률을 보여 준다.
 
 ## 프로덕션 안전장치
+- **결제 미설정 시 지급 차단** — 운영에서 포트원 키가 없으면 `POST /users/{id}/purchase`
+  가 503 이다(검증 없이 포인트를 찍어 주지 않는다). 결제 없이도 서비스는 기동하므로
+  기동 조건은 아니고, `/health/ready` 의 `payment_enabled` 로 켜졌는지 확인한다.
 - **기동 거부(fail fast)** — `ENV`(또는 `APP_ENV`)`=production` 인데 `SESSION_SECRET`,
   `ADMIN_TOKEN` 이 비었거나 DB 비밀번호가 개발 기본값(`coursepilot:coursepilot`)이면
   **앱이 뜨지 않는다.** 경고만 남기고 뜨면 아무도 안 보고, 그 사이 관리 엔드포인트가 열린다.
