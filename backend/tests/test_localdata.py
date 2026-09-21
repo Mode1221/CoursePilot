@@ -123,3 +123,21 @@ def test_휴업도_영업하지_않는_것으로_본다():
         )
     )
     assert reg.is_closed("쉬는집") is True
+
+
+def test_검색_경로에서는_적재하지_않는다(monkeypatch):
+    """요청 경로에서 reload_if_stale 을 부르면 첫 사용자가 수십 초를 기다리고,
+    적재 중인 인덱스까지 비워진다. 비어 있으면 그냥 필터 없이 통과한다."""
+    import inspect
+
+    from app.adapters import map_service
+
+    source = inspect.getsource(map_service.ClosedFilterMapService)
+    assert "reload_if_stale" not in source
+
+
+def test_대상_시군구_목록에_시도가_붙어_있다():
+    from app.adapters.localdata import TARGET_AREAS
+
+    assert ("서울특별시", "성동구") in TARGET_AREAS
+    assert ("경기도", "분당구") in TARGET_AREAS
