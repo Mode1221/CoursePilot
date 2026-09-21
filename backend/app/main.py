@@ -163,7 +163,7 @@ async def health() -> dict:
         # 어떤 외부 연동이 살아 있는지 — 키가 없으면 폴백으로 도는 중이다
         "integrations": {
             "kakao": bool(settings.kakao_rest_api_key),
-            "naver": bool(settings.naver_client_id),
+            "naver": settings.naver_search_enabled,
             "google": bool(settings.google_maps_api_key),
             "tourapi": bool(settings.tourapi_service_key),
             "llm": bool(settings.anthropic_api_key or settings.openai_api_key),

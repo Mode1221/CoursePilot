@@ -2,7 +2,7 @@
 
 > 이 문서는 기능 추가/변경 시 **같은 PR 에서** 함께 갱신한다.
 > 문서를 건드리지 않은 PR 은 설명에 "문서 변경 불필요" 이유를 한 줄 남긴다.
-> 최종 갱신: 2026-09-21 (PR #405까지 반영)
+> 최종 갱신: 2026-09-21 (PR #406까지 반영)
 
 상태 표기
 - ✅ 완료 — 구현 + 테스트 + CI 통과 (키 없으면 폴백 동작)
@@ -117,7 +117,11 @@
 ## 7. 지도·장소
 - ✅ 어댑터 레이어(벤더 직접호출 금지 원칙)
 - 🔑 카카오 로컬 검색 — 장소 발견 주 원천, `category_group_code` 기반 슬롯 분류
-- 🔑 네이버 지역검색 / Directions(`maps.apigw.ntruss.com`, NCP 전용 키 우선) / 블로그 건수
+- 🔑 네이버 지역검색·블로그 — **NAVER API HUB**(`naverapihub.apigw.ntruss.com/search/v1/*`,
+  `X-NCP-APIGW-API-KEY-ID/KEY`, `NAVER_APIHUB_KEY_ID/KEY`) 우선, 개발자센터 키는 레거시 폴백.
+  개발자센터 검색 API 는 2026-07-31 신규 발급 종료·2027-06-30 전면 종료(실측: 신규 앱의 사용 API
+  목록에 "검색"이 없다). API HUB 는 한시적 무료(월 775,000 검색, 초과 시 자동 차단)
+- 🔑 Directions(`maps.apigw.ntruss.com`, NCP Maps 전용 키)
 - 🔑 Google Places v1 — SKU 분리(IDs-only 매핑 / Place Details **Enterprise**).
   영업시간·평점은 같은 SKU 라 **한 콜로 함께** 받는다(월 1,000 합산 한도).
   영업시간 30일·평점 90일 TTL, 확정 코스만 런타임 갱신.
@@ -235,7 +239,7 @@
 1. **실배포** (🔑) — VM 준비 후 `./deploy.sh`, 첫 기동 실호출 검증.
 2. **외부 연동 실호출 검증** (🔑) — 키를 발급받는 대로 `python scripts/smoke_<벤더>.py`.
    응답 형태 계약은 픽스처 테스트로 고정했고, 스모크가 실키 응답과 대조한다.
-   발급 순서: 카카오 → 네이버 → 공공데이터포털 → Google.
+   발급 순서: 카카오 → 네이버(NCP 콘솔의 NAVER API HUB + Maps) → 공공데이터포털 → Google.
 3. **실데이터 구축** (🔑) — 카카오 키가 들어오면 `fetch_localdata.py` → `build_places.py`
    → `verify_places.py`. Google 키는 나중에 넣어도 이어서 채워진다(멱등).
 4. **리뷰 RAG 고도화** (🟡/⬜) — 약관 준수 범위 내 데이터 강화.

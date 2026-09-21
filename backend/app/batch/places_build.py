@@ -224,7 +224,7 @@ async def fill_awareness(places: list[Place], limit: int = AWARENESS_PER_RUN) ->
     from app.config import settings
     from app.reviews.fact_tags import blog_signals, tags_from_snippets
 
-    if not settings.naver_client_id:
+    if not settings.naver_search_enabled:
         return 0
     targets = [p for p in places if p.blog_mentions is None][:limit]
     if not targets:

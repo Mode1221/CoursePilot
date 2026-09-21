@@ -10,9 +10,7 @@ import re
 
 import httpx
 
-from app.config import settings
-
-_BLOG_URL = "https://openapi.naver.com/v1/search/blog.json"
+from app.adapters.naver_search import search_endpoint
 
 # 코스를 짤 때 실제로 판단이 갈리는 '사실' 축만 남긴다(맛·분위기 같은 주관 축 제외).
 FACT_TAGS = ("주차", "웨이팅", "단체석", "콘센트", "반려동물", "예약", "좌석")
@@ -41,16 +39,12 @@ async def fetch_snippets(
     client: httpx.AsyncClient, query: str, limit: int = SNIPPET_LIMIT
 ) -> list[str]:
     """블로그 스니펫을 가져온다. 호출자는 태그만 남기고 원문을 버려야 한다."""
-    if not settings.naver_client_id:
+    endpoint = search_endpoint("blog")
+    if endpoint is None:
         return []
-    headers = {
-        "X-Naver-Client-Id": settings.naver_client_id,
-        "X-Naver-Client-Secret": settings.naver_client_secret,
-    }
+    url, headers = endpoint
     try:
-        resp = await client.get(
-            _BLOG_URL, params={"query": query, "display": limit}, headers=headers
-        )
+        resp = await client.get(url, params={"query": query, "display": limit}, headers=headers)
         resp.raise_for_status()
         items = resp.json().get("items") or []
     except Exception:
@@ -65,16 +59,12 @@ async def blog_signals(
 
     스니펫은 태그 추출에만 쓰고 저장하지 않는다.
     """
-    if not settings.naver_client_id:
+    endpoint = search_endpoint("blog")
+    if endpoint is None:
         return None, []
-    headers = {
-        "X-Naver-Client-Id": settings.naver_client_id,
-        "X-Naver-Client-Secret": settings.naver_client_secret,
-    }
+    url, headers = endpoint
     try:
-        resp = await client.get(
-            _BLOG_URL, params={"query": query, "display": limit}, headers=headers
-        )
+        resp = await client.get(url, params={"query": query, "display": limit}, headers=headers)
         resp.raise_for_status()
         body = resp.json()
     except Exception:

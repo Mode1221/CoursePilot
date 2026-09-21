@@ -298,7 +298,7 @@ def get_map_service() -> MapService:
     장소 발견은 카카오(무료·정확한 카테고리 코드)를 우선하고, 경로는 네이버가 맡는다.
     """
     naver: MapService | None = None
-    if settings.naver_client_id:
+    if settings.naver_search_enabled:
         from app.adapters.naver import NaverMapService
 
         naver = NaverMapService()

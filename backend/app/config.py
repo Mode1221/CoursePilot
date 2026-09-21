@@ -19,7 +19,12 @@ class Settings(BaseSettings):
 
     # 지도/장소 API 어댑터 (초기 구현체: Naver)
     map_provider: str = "naver"
-    naver_client_id: str = ""
+    # 네이버 검색(지역·블로그). 2026-07-31 부로 개발자센터 신규 발급이 끝나 신규는
+    # 네이버 클라우드 NAVER API HUB 키만 가능하다(호스트·헤더가 다르다). 둘 중 하나만
+    # 있으면 되고, 둘 다 있으면 API HUB 를 우선한다(개발자센터 키는 2027-06-30 종료).
+    naver_apihub_key_id: str = ""
+    naver_apihub_key: str = ""
+    naver_client_id: str = ""  # 개발자센터(레거시, 2027-06-30 까지)
     naver_client_secret: str = ""
 
     # 경로(네이버 클라우드 플랫폼 Maps). 개발자센터 키와 별개이므로 분리해서 받는다.
@@ -91,6 +96,11 @@ class Settings(BaseSettings):
     @property
     def multi_instance(self) -> bool:
         return bool(self.redis_url)
+
+    @property
+    def naver_search_enabled(self) -> bool:
+        """지역·블로그 검색을 부를 수 있는가(API HUB 또는 레거시 키)."""
+        return bool((self.naver_apihub_key_id and self.naver_apihub_key) or self.naver_client_id)
 
     @property
     def sms_enabled(self) -> bool:
