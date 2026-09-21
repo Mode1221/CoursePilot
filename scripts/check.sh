@@ -8,6 +8,9 @@ root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 run_e2e=false
 [[ "${1:-}" == "--e2e" ]] && run_e2e=true
 
+echo "▶ 충돌 마커"
+"$root/scripts/check_conflict_markers.sh"
+
 echo "▶ backend: pytest"
 (cd "$root/backend" && python -m pytest -q)
 

@@ -6,6 +6,13 @@ on:
   pull_request:
 
 jobs:
+  hygiene:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      # 문서·설정의 충돌 마커는 테스트가 잡아 주지 않는다
+      - run: ./scripts/check_conflict_markers.sh
+
   backend:
     runs-on: ubuntu-latest
     defaults:

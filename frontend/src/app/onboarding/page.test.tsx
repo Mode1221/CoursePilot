@@ -59,6 +59,8 @@ describe("온보딩", () => {
     await waitFor(() => expect(api.requestSmsCode).toHaveBeenCalledWith(phone));
     fireEvent.click(await screen.findByText("확인"));
     await screen.findByText("휴대폰 인증 완료");
+    // 신규 가입에는 약관·처리방침 동의가 필요하다
+    fireEvent.click(screen.getByLabelText("약관 및 개인정보처리방침 동의"));
   }
 
   it("인증 전에는 가입하지 않는다", async () => {
@@ -176,5 +178,19 @@ describe("온보딩", () => {
     await waitFor(() => expect(screen.getByRole("alert")).toBeTruthy());
     expect(push).not.toHaveBeenCalled();
     expect(screen.getByText("저장")).toBeTruthy(); // 버튼이 다시 활성 상태
+  });
+
+  it("동의하지 않으면 가입하지 않는다", async () => {
+    render(<Onboarding />);
+    fireEvent.change(screen.getByPlaceholderText("010-0000-0000"), {
+      target: { value: "010-1234-5678" },
+    });
+    fireEvent.click(screen.getByText("인증번호 받기"));
+    fireEvent.change(await screen.findByPlaceholderText("6자리"), { target: { value: "123456" } });
+    fireEvent.click(await screen.findByText("확인"));
+    await screen.findByText("휴대폰 인증 완료");
+    fireEvent.click(screen.getByText("저장"));
+    expect((await screen.findByRole("alert")).textContent).toContain("동의");
+    expect(api.signup).not.toHaveBeenCalled();
   });
 });

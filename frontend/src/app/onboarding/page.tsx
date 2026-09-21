@@ -1,8 +1,10 @@
 "use client";
 
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 
+import SiteFooter from "@/components/SiteFooter";
 import { Button, Input } from "@/components/ui";
 import { ApiError, api } from "@/services/api";
 import { toast } from "@/store/toastStore";
@@ -46,6 +48,8 @@ export default function Onboarding() {
   const [code, setCode] = useState("");
   const [codeSent, setCodeSent] = useState(false);
   const [verified, setVerified] = useState(false);
+  // 신규 가입에만 필요하다(이미 가입한 사용자가 설정을 고칠 때는 묻지 않는다)
+  const [agreed, setAgreed] = useState(false);
   const [sending, setSending] = useState(false);
 
   useEffect(() => {
@@ -129,6 +133,10 @@ export default function Onboarding() {
       }
       if (!verified) {
         setError("휴대폰 인증을 먼저 완료해 주세요.");
+        return;
+      }
+      if (!agreed) {
+        setError("이용약관과 개인정보처리방침에 동의해 주세요.");
         return;
       }
     }
@@ -297,6 +305,31 @@ export default function Onboarding() {
         </fieldset>
       </div>
 
+      {!userId && (
+        <label
+          style={{
+            display: "flex",
+            gap: "var(--sp-2)",
+            alignItems: "flex-start",
+            marginTop: "var(--sp-6)",
+            fontSize: "var(--fs-sm)",
+          }}
+        >
+          <input
+            type="checkbox"
+            aria-label="약관 및 개인정보처리방침 동의"
+            checked={agreed}
+            onChange={(e) => setAgreed(e.target.checked)}
+            style={{ marginTop: 3 }}
+          />
+          <span>
+            <Link href="/terms">이용약관</Link> 및{" "}
+            <Link href="/privacy">개인정보처리방침</Link>에 동의합니다. 서비스 서버가 일본
+            (Oracle Cloud 오사카)에 있어 개인정보가 국외로 이전되는 점도 함께 동의합니다.
+          </span>
+        </label>
+      )}
+
       {error && (
         <p
           role="alert"
@@ -314,6 +347,7 @@ export default function Onboarding() {
           건너뛰기
         </Button>
       </div>
+      <SiteFooter />
     </main>
   );
 }
