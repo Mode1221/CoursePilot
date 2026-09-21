@@ -20,10 +20,12 @@ RUN pnpm build
 FROM base AS run
 WORKDIR /app
 ENV NODE_ENV=production
-COPY --from=build /app/.next ./.next
-COPY --from=build /app/node_modules ./node_modules
-COPY --from=build /app/package.json ./package.json
-COPY --from=build /app/next.config.mjs ./next.config.mjs
-COPY --from=build /app/public ./public
+# standalone 출력은 실제로 쓰이는 모듈만 추려 담는다 → node_modules 전체 복사 불필요.
+# server.js 가 next.config 까지 포함해 나오므로 이 셋이면 돈다.
+COPY --from=build --chown=node:node /app/.next/standalone ./
+COPY --from=build --chown=node:node /app/.next/static ./.next/static
+COPY --from=build --chown=node:node /app/public ./public
+USER node
 EXPOSE 3000
-CMD ["pnpm", "start"]
+ENV PORT=3000 HOSTNAME=0.0.0.0
+CMD ["node", "server.js"]

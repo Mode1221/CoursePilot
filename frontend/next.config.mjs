@@ -1,5 +1,7 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
+  // 런타임 스테이지에 node_modules 전체를 넣지 않기 위해 standalone 출력을 쓴다.
+  output: "standalone",
   env: {
     // 비워 두면 브라우저가 현재 호스트에서 api.<도메인> 을 유도한다
     // (services/apiBase.ts). 그래야 도메인마다 이미지를 다시 굽지 않는다.

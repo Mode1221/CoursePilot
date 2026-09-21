@@ -1,3 +1,4 @@
+# 개발용. 운영은 docker-compose.prod.yml 을 쓴다(이 파일로 VM 에 올리지 말 것).
 services:
   db:
     image: pgvector/pgvector:pg16
@@ -6,7 +7,9 @@ services:
       POSTGRES_PASSWORD: coursepilot
       POSTGRES_DB: coursepilot
     ports:
-      - "5432:5432"
+      # 루프백에만 바인딩한다. VM 에서 실수로 이 개발용 파일로 올려도
+      # 5432 가 공개 IP 에 열리지 않는다(비밀번호가 coursepilot 고정이라 더 위험).
+      - "127.0.0.1:5432:5432"
     volumes:
       - pgdata:/var/lib/postgresql/data
     healthcheck:
