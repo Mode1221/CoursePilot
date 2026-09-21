@@ -48,7 +48,8 @@
 ### 어댑터 (`app/adapters/`) — 벤더 직접호출 금지, 반드시 경유
 - `seeded.py` — 벤더 키가 하나도 없고 DB 에 시드 장소가 있으면 검색을 이걸로 대신한다.
   슬롯을 번갈아 뽑아 코스 칸(밥·카페·술·볼거리)이 한 종류로 쏠리지 않게 한다.
-- `map_service.py` — `MapService` 추상 + `MockMapService` + `SafeMapService`(폴백 래퍼) + `ClosedFilterMapService`(LOCALDATA 폐업 제거·업력 부착) + `CachedSearchMapService(검색 5분 TTL + 경로 캐시)` + `get_map_service()`.
+- `map_service.py` — `MapService` 추상 + `MockMapService` + `SafeMapService`(폴백 래퍼) + `ClosedFilterMapService`(LOCALDATA 폐업 제거·업력 부착) + `StoredMergeMapService`(저장분의 영업시간·평점·google_place_id 병합) + `CachedSearchMapService(검색 5분 TTL + 경로 캐시)` + `get_map_service()`.
+  조립 순서: 캐시 → 폐업 필터 → 저장분 병합 → 벤더. 병합 키는 place id, 없으면 상호+주소 숫자(`merge.match_key`).
 - `kakao.py` — 카카오 로컬 검색(장소 발견 주 원천, `category_group_code`→슬롯). 경로는 네이버에 위임.
 - `naver.py` — 네이버 지역검색/Directions(`maps.apigw.ntruss.com`, NCP 전용키 우선)/블로그 건수(인지도).
 - `hours_fallback.py` — 영업시간 최후 폴백(LLM 웹검색, 코스당 2건 상한, 결과는 항상 '확인 필요').
@@ -123,7 +124,10 @@
   신원천은 업종별 전국 파일이라 앞부분만 보면 안 된다 — CP949 로 한 줄씩 흘려 읽고
   11개 시군구를 다 찾으면 조기 종료한다.
 - `places_build.py` — 상권 전수 수집(카카오) → 폐업 제거(LOCALDATA) → Google 영업시간·평점 페이싱 → upsert.
-  실행: `python scripts/build_places.py` (하루 1회, 영업시간 160건/일·평점 11건/일·인지도 500건/회).
+  실행: `python scripts/build_places.py` (하루 1회, Google Details 20건/일·인지도 500건/회).
+  수집은 `grid.py` 가 상권 원을 반경 300m 칸으로 쪼갠 격자 단위로 돈다(카카오 질의당 45건 상한 회피)
+  + 상권별 보충 키워드. 폐업 필터는 `localdata_boot.py` 가 진입점에서 동기 적재한 대장을 쓴다
+  (배치는 별개 프로세스라 API 의 백그라운드 적재가 없다).
 
 - `db_setup.py` — 배치용 DB 연결(앱과 별개 프로세스이므로 직접 연다). `sample_source.py` — 키 없이 돌리는 합성 후보 공급기.
 - `lock.py` — 배치 중복 실행 방지(DB `batch_lock`, 3시간 지난 락은 무시). 스크립트가 이미 실행 중이면 종료 코드 1.

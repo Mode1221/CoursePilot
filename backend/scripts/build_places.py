@@ -19,6 +19,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from app.batch.db_setup import connect_db  # noqa: E402
 from app.batch.districts import DISTRICTS  # noqa: E402
+from app.batch.localdata_boot import load_localdata_or_exit  # noqa: E402
 from app.batch.lock import LockBusy, batch_lock  # noqa: E402
 from app.batch.places_build import HOURS_PER_DAY, RATINGS_PER_DAY, run  # noqa: E402
 
@@ -38,10 +39,17 @@ def main() -> int:
         action="store_true",
         help="키 없이 합성 데이터로 리허설(스키마·용량·페이싱 확인용, 운영 금지)",
     )
+    ap.add_argument(
+        "--allow-no-localdata",
+        action="store_true",
+        help="LOCALDATA 대장이 설정돼 있는데 비어 있어도 진행(폐업 필터 없이 저장된다)",
+    )
     args = ap.parse_args()
     # 배치는 로그로만 상태를 남긴다 — 첫 줄에 콜 수·예상 시간이 찍히도록 미리 켠다
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
     connect_db()  # 배치는 앱과 별개 프로세스라 DB 를 직접 열어야 한다
+    if not args.sample and not load_localdata_or_exit(args.allow_no_localdata):
+        return 1
 
     targets = DISTRICTS
     if args.district:

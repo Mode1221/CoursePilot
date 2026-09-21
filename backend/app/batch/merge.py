@@ -71,3 +71,21 @@ def merge_with_stored(places: list[Place]) -> int:
         if place.model_dump() != before:
             merged += 1
     return merged
+
+
+# --- 런타임 병합 -----------------------------------------------------------
+
+_NOISE = str.maketrans("", "", " ()[]-_.,'\"·")
+
+
+def match_key(name: str, address: str | None) -> str:
+    """id 가 다른 원천(네이버 등) 결과를 저장분과 맞춰 보기 위한 키.
+
+    상호 + 주소의 숫자(번지/건물번호)만 남긴다 — 표기가 조금 달라도 같은 가게면
+    이 둘은 대개 일치한다.
+    """
+    import re
+
+    base = (name or "").translate(_NOISE).lower()
+    digits = "".join(re.findall(r"\d+", address or ""))
+    return f"{base}|{digits}"

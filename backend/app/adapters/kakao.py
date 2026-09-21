@@ -154,6 +154,38 @@ class KakaoLocalService(MapService):
         _record("kakao.keyword", ok=True)
         return resp.json().get("documents") or []
 
+    async def search_keyword_at(
+        self, query: str, lat: float, lng: float, radius_m: int, pages: int = MAX_PAGE
+    ) -> list[Place]:
+        """좌표·반경 안에서 키워드 검색(배치 보충 수집용). 카테고리 코드로 안 잡히는
+        성격(디저트·전시·소품샵 등)을 상권 안에서 모은다."""
+        places: dict[str, Place] = {}
+        for page in range(1, pages + 1):
+            params: dict = {
+                "query": query,
+                "size": MAX_SIZE,
+                "page": page,
+                "y": lat,
+                "x": lng,
+                "radius": min(radius_m, 20000),
+                "sort": "distance",
+            }
+            try:
+                resp = await self._client.get(_KEYWORD_URL, params=params, headers=self._headers)
+                resp.raise_for_status()
+            except Exception:
+                _record("kakao.keyword", ok=False)
+                raise
+            _record("kakao.keyword", ok=True)
+            body = resp.json()
+            for doc in body.get("documents") or []:
+                place = to_place(doc)
+                if place:
+                    places.setdefault(place.id, place)
+            if (body.get("meta") or {}).get("is_end", True):
+                break
+        return list(places.values())
+
     async def search_category(
         self, group_code: str, lat: float, lng: float, radius_m: int = 1000, pages: int = MAX_PAGE
     ) -> list[Place]:

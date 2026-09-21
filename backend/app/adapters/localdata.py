@@ -386,6 +386,25 @@ async def warm_localdata() -> int:
         return 0
 
 
+def ensure_loaded_for_batch() -> int:
+    """배치·검증 스크립트 진입점에서 **동기적으로** 적재한다.
+
+    get_localdata_registry() 는 빈 채로 돌아오고 적재는 API lifespan 이 맡는다.
+    그런데 build_places·refresh_places·verify_places 는 `docker compose exec` 로
+    뜨는 **별개 프로세스**라 lifespan 이 돌지 않는다 — 여기서 채우지 않으면
+    35만 건을 인덱싱해 두고도 배치의 폐업 필터가 무동작이 된다(실측: 폐업 제거 0).
+
+    반환값은 인덱싱한 행 수. 디렉터리가 설정돼 있지 않으면 0(호출부가 경고).
+    """
+    directory = settings.localdata_csv_dir
+    registry = get_localdata_registry()
+    if registry.loaded:
+        return 0
+    if not directory or not Path(directory).is_dir():
+        return 0
+    return registry.reload_if_stale()
+
+
 REFRESH_CHECK_INTERVAL_SEC = 24 * 60 * 60  # 하루 한 번 갱신 여부만 본다
 
 

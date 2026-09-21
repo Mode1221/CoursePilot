@@ -62,6 +62,13 @@ class SamplePlaceSource(KakaoLocalService):
             )
         return places
 
+    async def search_keyword_at(
+        self, query: str, lat: float, lng: float, radius_m: int, pages: int = 3
+    ) -> list[Place]:
+        """보충 키워드 수집도 합성으로 — 키워드마다 다른 id 가 나오게 시드에 섞는다."""
+        found = await self.search_category("FD6", lat, lng, radius_m)
+        return [p.model_copy(update={"id": f"{p.id}-{_digits(query, 4)}"}) for p in found[:5]]
+
     async def search_places(
         self, region: str, keywords: list[str], limit: int = 10
     ) -> list[Place]:

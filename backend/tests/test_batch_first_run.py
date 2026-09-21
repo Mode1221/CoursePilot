@@ -19,17 +19,20 @@ class _FakeKakao:
         self.fail_on = fail_on or set()
 
     async def search_category(self, code, lat, lng, radius_m=1000):
-        key = f"{lat:.4f}:{code}"
+        key = f"{lat:.4f}:{lng:.4f}:{code}"
         self.calls.append((key, code))
         if key in self.fail_on:
             raise RuntimeError("rate limit")
         return [
             Place(
-                id=f"kakao-{code}-{lat:.3f}-{i}", name=f"장소{i}", category="카페",
+                id=f"kakao-{code}-{lat:.4f}-{lng:.4f}-{i}", name=f"장소{i}", category="카페",
                 category_code=code, address="서울", lat=lat, lng=lng,
             )
             for i in range(2)
         ]
+
+    async def search_keyword_at(self, query, lat, lng, radius_m, pages=3):
+        return []
 
 
 @pytest.fixture
@@ -119,11 +122,13 @@ async def test_중간에_죽으면_남은_조각부터_이어_간다(tmp_path):
 
 
 async def test_실패한_조각은_끝낸_것으로_치지_않는다(tmp_path):
-    lat = f"{DISTRICTS[0].lat:.4f}"
+    # 상권 중심 칸(g+0+0)의 CE7 만 실패시킨다
+    center = f"{DISTRICTS[0].lat:.4f}:{DISTRICTS[0].lng:.4f}"
     state = Progress(tmp_path / "p.json")
-    kakao = _FakeKakao(fail_on={f"{lat}:CE7"})
+    kakao = _FakeKakao(fail_on={f"{center}:CE7"})
     await collect(kakao, DISTRICTS[:1], state)
-    assert not state.is_done(DISTRICTS[0].name, "CE7")
+    assert not state.is_done(DISTRICTS[0].name, "CE7", "g+0+0")
+    assert state.is_done(DISTRICTS[0].name, "FD6", "g+0+0")
 
     # 재실행 때 그 조각만 다시 시도한다
     resumed = Progress(tmp_path / "p.json")
@@ -152,6 +157,12 @@ async def test_완주하면_상태를_지운다(db, tmp_path, monkeypatch):
 
 # ── 콜 수·소요 시간 ──────────────────────────────────────────────────────
 def test_전수_수집_콜_수를_미리_계산한다():
+    from app.batch.grid import cells_for
+    from app.batch.places_build import SUPPLEMENT_KEYWORDS, SUPPLEMENT_PAGES
+
     calls, minutes = call_plan(DISTRICTS)
-    assert calls == len(DISTRICTS) * 4 * 3  # 상권 × 카테고리 코드 4종 × 3페이지
+    cells = sum(len(cells_for(d)) for d in DISTRICTS)
+    # 격자 칸 × 카테고리 코드 4종 × 3페이지 + 상권별 보충 키워드
+    assert calls == cells * 4 * 3 + len(DISTRICTS) * len(SUPPLEMENT_KEYWORDS) * SUPPLEMENT_PAGES
+    assert calls > len(DISTRICTS) * 4 * 3  # 한 점 질의(상권당 최대 180건)보다 훨씬 많다
     assert minutes > 0
