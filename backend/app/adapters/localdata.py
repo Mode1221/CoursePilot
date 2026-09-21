@@ -26,7 +26,14 @@ logger = logging.getLogger(__name__)
 
 RELOAD_INTERVAL_DAYS = 7  # 갱신 주기(주 1회)
 SNIFF_BYTES = 4096  # 인코딩 판별에 쓰는 앞부분 크기
-KEEP_RATIO_WARN = 0.05  # 인덱싱 비율이 이보다 높으면 필터가 안 먹은 것이다
+# 인덱싱 비율이 이보다 높으면 필터가 안 먹은 것이다. 실측(2026-09-21, VM):
+# 일반음식점 11.6%, 휴게음식점 12.7% — 우리 상권이 전국 최고 밀도 구들이라 이 정도가 정상.
+KEEP_RATIO_WARN = 0.25
+# 인덱스 캐시. 전국 CSV 파싱은 1 OCPU 에서 40초가 넘는다(API 기동·배치·검증마다).
+# 걸러낸 인덱스만 피클로 두면 수 초에 되살린다. 원본 CSV 의 (이름, 크기, mtime)이
+# 바뀌면 자동 무효화. 캐시 형식이 바뀌면 CACHE_VERSION 을 올린다.
+CACHE_FILE = ".index-cache.pkl"
+CACHE_VERSION = 1
 
 # 신원천은 **업종별 전국 파일**이다(일반음식점은 200만 행이 넘는다). 전부
 # 인덱싱하면 6GB VM 에서 백엔드가 OOM 으로 죽는다. 우리가 추천하는 24개 상권의
@@ -246,15 +253,61 @@ class LocalDataRegistry:
             self._loaded_on = loaded_on or date.today()
         return kept
 
-    def load_dir(self, directory: str | Path, *, loaded_on: date | None = None) -> int:
-        """CSV 가 모인 디렉터리를 통째로 적재. 없으면 0."""
+    def load_dir(
+        self, directory: str | Path, *, loaded_on: date | None = None, use_cache: bool = True
+    ) -> int:
+        """CSV 가 모인 디렉터리를 통째로 적재. 없으면 0.
+
+        캐시가 원본과 일치하면 피클에서 되살린다(수 초). 아니면 CSV 를 파싱하고
+        캐시를 새로 쓴다. 캐시 쓰기 실패는 무시한다(읽기 전용 볼륨이어도 동작).
+        """
         path = Path(directory)
         if not path.is_dir():
             return 0
-        return sum(
-            self.load_csv(csv_path, loaded_on=loaded_on)
-            for csv_path in sorted(path.glob("*.csv"))
+        csv_paths = sorted(path.glob("*.csv"))
+        if not csv_paths:
+            return 0
+        signature = _cache_signature(csv_paths)
+        if use_cache and self._restore_cache(path / CACHE_FILE, signature):
+            return sum(len(v) for v in self._by_name.values())
+        count = sum(self.load_csv(csv_path, loaded_on=loaded_on) for csv_path in csv_paths)
+        if use_cache and count:
+            self._write_cache(path / CACHE_FILE, signature)
+        return count
+
+    def _restore_cache(self, cache_path: Path, signature: tuple) -> bool:
+        """피클 캐시가 있고 서명이 맞으면 인덱스를 되살린다."""
+        import pickle
+
+        try:
+            with cache_path.open("rb") as fh:
+                payload = pickle.load(fh)  # noqa: S301 - 우리가 쓴 파일만 읽는다
+        except (OSError, pickle.UnpicklingError, EOFError, AttributeError):
+            return False
+        if not isinstance(payload, dict) or payload.get("signature") != signature:
+            return False
+        self._by_name = payload["by_name"]
+        self._loaded_on = payload["loaded_on"]
+        logger.info(
+            "localdata 캐시 복원 %s: %d행", cache_path.name,
+            sum(len(v) for v in self._by_name.values()),
         )
+        return True
+
+    def _write_cache(self, cache_path: Path, signature: tuple) -> None:
+        import pickle
+        import tempfile
+
+        try:
+            with tempfile.NamedTemporaryFile("wb", dir=cache_path.parent, delete=False) as fh:
+                pickle.dump(
+                    {"signature": signature, "by_name": self._by_name, "loaded_on": self._loaded_on},
+                    fh, protocol=pickle.HIGHEST_PROTOCOL,
+                )
+                tmp = Path(fh.name)
+            tmp.replace(cache_path)
+        except OSError as exc:
+            logger.warning("localdata 캐시를 쓰지 못했다(다음에도 CSV 를 파싱한다): %s", exc)
 
     def reload_if_stale(self) -> int:
         """설정된 디렉터리에서 다시 읽는다(설정 없으면 무동작).
@@ -339,6 +392,12 @@ def detect_encoding(path: Path) -> str:
     except UnicodeDecodeError:
         return "cp949"
     return "utf-8"
+
+
+def _cache_signature(csv_paths: list[Path]) -> tuple:
+    """원본 CSV 의 (이름, 크기, mtime) + 필터 대상 + 형식 버전. 하나라도 다르면 무효."""
+    files = tuple((p.name, p.stat().st_size, int(p.stat().st_mtime)) for p in csv_paths)
+    return (CACHE_VERSION, files, tuple(sorted(TARGET_AREAS)))
 
 
 def _in_target_area(address: str) -> bool:
