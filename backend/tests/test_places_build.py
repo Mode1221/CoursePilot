@@ -8,8 +8,10 @@ from app.adapters.google import GooglePlacesClient
 from app.adapters.kakao import KakaoLocalService
 from app.adapters.localdata import LocalDataRegistry
 from app.batch.districts import DISTRICTS
+from app.batch.grid import cells_for
 from app.batch.places_build import (
     GROUP_CODES,
+    SUPPLEMENT_KEYWORDS,
     collect,
     drop_closed,
     fill_hours,
@@ -31,6 +33,7 @@ def _place(pid: str, name: str = "가게", address: str | None = None) -> Place:
 class _FakeKakao(KakaoLocalService):
     def __init__(self, per_call=2, fail_codes=()):
         self.calls: list[tuple[str, float]] = []
+        self.keyword_calls: list[tuple[str, str]] = []
         self._per_call = per_call
         self._fail = set(fail_codes)
 
@@ -38,14 +41,38 @@ class _FakeKakao(KakaoLocalService):
         self.calls.append((group_code, lat))
         if group_code in self._fail:
             raise RuntimeError("boom")
-        return [_place(f"{group_code}-{lat}-{i}") for i in range(self._per_call)]
+        return [_place(f"{group_code}-{lat}-{lng}-{i}") for i in range(self._per_call)]
+
+    async def search_keyword_at(self, query, lat, lng, radius_m, pages=3):
+        self.keyword_calls.append((query, f"{lat:.4f}"))
+        return [_place(f"kw-{query}-{lat}")]
 
 
-async def test_상권마다_모든_카테고리를_훑는다():
+async def test_상권마다_격자_칸_전부에_모든_카테고리를_훑는다():
     kakao = _FakeKakao()
-    places = await collect(kakao, DISTRICTS[:2])
-    assert len(kakao.calls) == 2 * len(GROUP_CODES)
-    assert len(places) == 2 * len(GROUP_CODES) * 2
+    targets = DISTRICTS[:2]
+    places = await collect(kakao, targets)
+    cells = sum(len(cells_for(d)) for d in targets)
+    assert cells > 2  # 반경 1km 상권은 칸 하나로 끝나지 않는다
+    assert len(kakao.calls) == cells * len(GROUP_CODES)
+    # 칸마다 다른 좌표로 부르므로 결과가 칸 수만큼 쌓인다 + 보충 키워드
+    assert len(places) == cells * len(GROUP_CODES) * 2 + len(targets) * len(SUPPLEMENT_KEYWORDS)
+
+
+async def test_보충_키워드는_상권_중심에서_한_번씩():
+    kakao = _FakeKakao()
+    await collect(kakao, DISTRICTS[:1])
+    assert [q for q, _ in kakao.keyword_calls] == list(SUPPLEMENT_KEYWORDS)
+    assert kakao.keyword_calls[0][1] == f"{DISTRICTS[0].lat:.4f}"
+
+
+async def test_보충_키워드_실패는_배치를_멈추지_않는다():
+    class _KwFail(_FakeKakao):
+        async def search_keyword_at(self, query, lat, lng, radius_m, pages=3):
+            raise RuntimeError("boom")
+
+    places = await collect(_KwFail(), DISTRICTS[:1])
+    assert places and all(not p.id.startswith("kw-") for p in places)
 
 
 async def test_한_상권_실패가_배치를_멈추지_않는다():
@@ -56,6 +83,9 @@ async def test_한_상권_실패가_배치를_멈추지_않는다():
 async def test_중복_장소는_한_번만():
     class _Dup(_FakeKakao):
         async def search_category(self, group_code, lat, lng, radius_m=1000, pages=3):
+            return [_place("same")]
+
+        async def search_keyword_at(self, query, lat, lng, radius_m, pages=3):
             return [_place("same")]
 
     assert len(await collect(_Dup(), DISTRICTS[:3])) == 1

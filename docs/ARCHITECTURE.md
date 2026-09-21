@@ -124,7 +124,10 @@
   신원천은 업종별 전국 파일이라 앞부분만 보면 안 된다 — CP949 로 한 줄씩 흘려 읽고
   11개 시군구를 다 찾으면 조기 종료한다.
 - `places_build.py` — 상권 전수 수집(카카오) → 폐업 제거(LOCALDATA) → Google 영업시간·평점 페이싱 → upsert.
-  실행: `python scripts/build_places.py` (하루 1회, 영업시간 160건/일·평점 11건/일·인지도 500건/회).
+  실행: `python scripts/build_places.py` (하루 1회, Google Details 20건/일·인지도 500건/회).
+  수집은 `grid.py` 가 상권 원을 반경 300m 칸으로 쪼갠 격자 단위로 돈다(카카오 질의당 45건 상한 회피)
+  + 상권별 보충 키워드. 폐업 필터는 `localdata_boot.py` 가 진입점에서 동기 적재한 대장을 쓴다
+  (배치는 별개 프로세스라 API 의 백그라운드 적재가 없다).
 
 - `db_setup.py` — 배치용 DB 연결(앱과 별개 프로세스이므로 직접 연다). `sample_source.py` — 키 없이 돌리는 합성 후보 공급기.
 - `lock.py` — 배치 중복 실행 방지(DB `batch_lock`, 3시간 지난 락은 무시). 스크립트가 이미 실행 중이면 종료 코드 1.
