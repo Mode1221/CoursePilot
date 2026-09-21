@@ -127,3 +127,23 @@ def test_deploy_가_env_의_위험한_값을_경고한다(tmp_path):
     assert "POSTGRES_PASSWORD" in proc.stderr
     assert "ADMIN_TOKEN" in proc.stderr
     assert "SESSION_SECRET" not in proc.stderr
+
+
+@pytest.mark.parametrize(
+    "dockerfile",
+    [ROOT / "backend" / "Dockerfile", ROOT / "frontend" / "Dockerfile"],
+    ids=lambda p: p.parent.name,
+)
+def test_Dockerfile_에_줄_끝_주석이_없다(dockerfile):
+    """Dockerfile 은 명령 줄 끝 주석을 지원하지 않는다.
+
+    `FROM python:3.11 # 메모` 는 인자가 셋이 아니어서
+    "FROM requires either one or three arguments" 로 빌드가 깨진다.
+    이걸 못 잡아 Release images 가 14번 연속 실패했다.
+    """
+    bad = [
+        line
+        for line in dockerfile.read_text(encoding="utf-8").splitlines()
+        if line.strip() and not line.lstrip().startswith("#") and " #" in line
+    ]
+    assert not bad, f"{dockerfile.parent.name}/Dockerfile 줄 끝 주석: {bad}"
