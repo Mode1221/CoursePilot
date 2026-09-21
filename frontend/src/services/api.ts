@@ -1,4 +1,4 @@
-import { storedUserToken } from "@/store/userStore";
+import { storedUserToken, useUserStore } from "@/store/userStore";
 import type { Course } from "@/types";
 
 export interface GenerateResponse {
@@ -51,6 +51,18 @@ async function request<T>(path: string, opts: RequestOptions = {}): Promise<T> {
   }
 }
 
+/** 세션 만료 처리. 저장된 신원을 지우고 온보딩(재인증)으로 보낸다. */
+function onSessionExpired() {
+  try {
+    useUserStore.getState().clearUser();
+  } catch {
+    // 스토어가 아직 없을 수 있다(SSR 등) — 조용히 넘긴다
+  }
+  if (typeof window !== "undefined" && window.location.pathname !== "/onboarding") {
+    window.location.assign("/onboarding?expired=1");
+  }
+}
+
 // 실제 호출 1회: BASE, JSON 헤더, X-User-Id, 에러→ApiError, 파싱.
 async function requestOnce<T>(path: string, opts: RequestOptions = {}): Promise<T> {
   const headers: Record<string, string> = {};
@@ -74,6 +86,11 @@ async function requestOnce<T>(path: string, opts: RequestOptions = {}): Promise<
   } catch (e) {
     const timedOut = e instanceof DOMException && e.name === "TimeoutError";
     throw new ApiError(0, timedOut ? TIMEOUT_ERROR : DEFAULT_ERROR);
+  }
+  if (res.status === 401 && opts.userId) {
+    // 세션 토큰이 만료(90일)되었거나 서명이 맞지 않는다. 저장된 신원을 버리고
+    // 재인증 화면으로 보낸다 — 그대로 두면 모든 요청이 계속 401 이다.
+    onSessionExpired();
   }
   if (!res.ok) {
     const detail = await res.json().then((b) => b?.detail).catch(() => null);
@@ -116,8 +133,9 @@ export const api = {
       body: { phone },
     }),
 
+  // 이미 가입한 번호면 새 토큰을 함께 돌려준다(만료 후 재인증 경로)
   verifySmsCode: (phone: string, code: string) =>
-    request<{ verified: boolean }>("/auth/sms/verify", {
+    request<{ verified: boolean; user_id?: string; token?: string }>("/auth/sms/verify", {
       method: "POST",
       body: { phone, code },
     }),

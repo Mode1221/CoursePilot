@@ -56,6 +56,14 @@ export default function Onboarding() {
     load();
   }, [load]);
 
+  // 세션 토큰이 만료되면 api 클라이언트가 여기로 보낸다(?expired=1).
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    if (new URLSearchParams(window.location.search).get("expired")) {
+      setError("로그인이 만료되었어요. 휴대폰 인증을 다시 해주세요.");
+    }
+  }, []);
+
   // 이미 가입한 사용자가 설정을 다시 열면 저장된 값을 채운다
   // (빈 폼으로 저장하면 기존 선호가 통째로 지워졌다)
   useEffect(() => {
@@ -108,8 +116,11 @@ export default function Onboarding() {
     setError(null);
     setSending(true);
     try {
-      await api.verifySmsCode(phone.trim(), code.trim());
+      const res = await api.verifySmsCode(phone.trim(), code.trim());
       setVerified(true);
+      // 이미 가입한 번호면 새 토큰이 함께 온다 — 만료로 돌아온 사용자는
+      // 여기서 바로 쓰던 계정으로 이어진다(가입 절차를 다시 밟지 않는다).
+      if (res.user_id && res.token) setUser(res.user_id, res.token);
       toast("인증됐어요.", "success");
     } catch {
       setError("인증번호가 올바르지 않거나 만료됐어요. 다시 받아 주세요.");
