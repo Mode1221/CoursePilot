@@ -145,7 +145,8 @@ async def test_구글_평점_응답은_표본과_함께_온다():
     client = GooglePlacesClient()
     client._key = "k"
     client._client = _client(load("google_place_rating.json"))
-    assert await client.fetch_rating("gp-1") == (4.3, 812)
+    data = await client.fetch_details("gp-1")
+    assert client.rating_of(data) == (4.3, 812)
 
 
 # ── TourAPI ───────────────────────────────────────────────────

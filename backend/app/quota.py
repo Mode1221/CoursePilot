@@ -17,8 +17,9 @@ logger = logging.getLogger("coursepilot")
 
 # API 이름 → 월 무료 한도(콜 수). 없는 이름은 무제한으로 본다(카카오·LOCALDATA 등).
 MONTHLY_FREE_LIMITS: dict[str, int] = {
-    "google.hours": 5_000,  # Place Details (Pro)
-    "google.rating": 1_000,  # Place Details (Enterprise)
+    # 영업시간·평점 모두 Place Details **Enterprise** SKU 다(공식 Place Data Fields
+    # 표 기준). 예전에는 영업시간을 Pro(월 5,000)로 잘못 잡아 한도를 5배로 봤다.
+    "google.details": 1_000,
     "google.map_id": 10_000,  # Text Search IDs-only (사실상 무료지만 상한을 둔다)
     "naver.directions": 60_000,
 }

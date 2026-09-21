@@ -83,18 +83,17 @@ def test_대장이_없으면_그대로_통과(monkeypatch):
 
 
 class _FakeGoogle(GooglePlacesClient):
+    """영업시간·평점은 같은 Enterprise 콜로 함께 온다(호출 1회)."""
+
     def __init__(self):
         self._key = "k"
         self.hours: list[str] = []
         self.ratings: list[str] = []
 
-    async def refresh_hours(self, place, weekday=None):
+    async def refresh_details(self, place, weekday=None):
         self.hours.append(place.id)
-        place.hours_checked_at = datetime.now(UTC)
-        return place
-
-    async def refresh_rating(self, place):
         self.ratings.append(place.id)
+        place.hours_checked_at = datetime.now(UTC)
         place.rating, place.rating_checked_at = 4.1, datetime.now(UTC)
         return place
 

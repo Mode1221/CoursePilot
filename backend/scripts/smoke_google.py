@@ -23,9 +23,8 @@ async def main() -> int:
         return skip("Google Places", "GOOGLE_MAPS_API_KEY 키 없음, 스킵")
 
     from app.adapters.google import (
-        HOURS_MASK,
+        DETAILS_MASK,
         IDS_ONLY_MASK,
-        RATING_MASK,
         GooglePlacesClient,
         has_periods,
     )
@@ -34,17 +33,14 @@ async def main() -> int:
 
     s = Smoke("Google Places")
 
-    # 필드마스크가 섞이면 가장 비싼 티어로 청구된다 — 호출 전에 먼저 확인한다.
-    for label, mask, banned in (
-        ("IDs-only", IDS_ONLY_MASK, ("rating", "Hours")),
-        ("Pro(영업시간)", HOURS_MASK, ("rating", "userRatingCount")),
-        ("Enterprise(평점)", RATING_MASK, ("Hours", "businessStatus")),
-    ):
-        mixed = [b for b in banned if b in mask]
-        if mixed:
-            s.fail(f"{label} 필드마스크에 다른 티어 필드가 섞임: {mixed} — 과금 티어가 올라간다")
-        else:
-            s.ok(f"{label} 필드마스크 분리 유지: {mask}")
+    # Text Search(IDs-only)와 Place Details(Enterprise)는 SKU 가 다르다 — 섞이면
+    # IDs-only 콜이 Enterprise 로 청구된다. Details 안의 필드는 같은 SKU 라 한 콜로 받는다.
+    mixed = [f for f in ("rating", "Hours", "businessStatus") if f in IDS_ONLY_MASK]
+    if mixed:
+        s.fail(f"IDs-only 마스크에 Details 필드가 섞임: {mixed} — 과금 SKU 가 올라간다")
+    else:
+        s.ok(f"IDs-only 필드마스크 유지: {IDS_ONLY_MASK}")
+    s.ok(f"Details(Enterprise) 필드마스크: {DETAILS_MASK}")
 
     client = GooglePlacesClient()
     probe = Place(
@@ -52,7 +48,7 @@ async def main() -> int:
         address="서울 성동구 뚝섬로 273", lat=37.5445, lng=127.0374,
     )
 
-    before = {k: quota_store.used(k) for k in ("google.map_id", "google.hours", "google.rating")}
+    before = {k: quota_store.used(k) for k in ("google.map_id", "google.details")}
 
     # ① 매핑(IDs-only)
     place_id = await client.map_place_id(probe)
@@ -61,10 +57,10 @@ async def main() -> int:
         return s.done()
     s.ok(f"place_id 매핑: {place_id}")
 
-    # ② 영업시간(Pro)
-    hours = await client.fetch_hours(place_id)
+    # ② 상세(Enterprise): 영업시간 + 평점 + 영업상태를 한 콜로
+    hours = await client.fetch_details(place_id)
     if hours is None:
-        s.fail("영업시간 응답 없음 — 무료 한도 소진이거나 Pro 티어 미허용")
+        s.fail("상세 응답 없음 — 무료 한도 소진이거나 Enterprise SKU 미허용")
     else:
         s.field(hours, "businessStatus", str, required=False)
         if has_periods(hours.get("regularOpeningHours")):
@@ -75,13 +71,13 @@ async def main() -> int:
         else:
             s.note(f"이 장소엔 periods 가 없다(24시간 영업 등). 최상위 키: {sorted(hours)}")
 
-    # ③ 평점(Enterprise)
-    rating = await client.fetch_rating(place_id)
+    # ③ 평점은 같은 응답에서 꺼낸다(추가 콜 없음)
+    rating = client.rating_of(hours or {})
     if rating is None:
-        s.note("평점 없음 — 평가 수가 기준 미만이거나 무료 한도 소진(정상 폴백)")
+        s.note("평점 없음 — 평가 수가 기준 미만(정상 폴백)")
     else:
         value, count = rating
-        s.ok(f"평점 {value} / 평가 {count:,}건")
+        s.ok(f"평점 {value} / 평가 {count:,}건 (추가 콜 없이 같은 응답에서)")
 
     # 유료 콜이 quota 에 실제로 기록됐는지(대시보드·한도 차단이 여기에 의존한다)
     for key, was in before.items():

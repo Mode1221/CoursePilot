@@ -1,13 +1,16 @@
-"""Google Places(v1) 어댑터 — 호출 종류를 요금 티어별로 분리한다.
+"""Google Places(v1) 어댑터 — SKU 별로 호출을 나눈다.
 
-과금 구조상 한 콜에 필드를 섞으면 가장 비싼 티어로 청구된다. 그래서 세 갈래로
-나누고 절대 합치지 않는다.
-  · `map_place_id`  — Text Search, 필드마스크 `places.id` 만 (IDs-only, 사실상 무료)
-  · `fetch_hours`   — Place Details, 영업시간+영업상태만 (Pro, 월 5,000 무료)
-  · `fetch_rating`  — Place Details, 평점+평가수만 (Enterprise, 월 1,000 무료)
+과금 구조상 한 콜에 필드를 섞으면 가장 비싼 티어로 청구된다. 다만
+**영업시간(regularOpeningHours·currentOpeningHours)과 평점(rating·userRatingCount)은
+둘 다 Place Details Enterprise SKU 다**(공식 "Place Data Fields (New)" 표 기준).
+같은 SKU 라 나눠 부르면 콜 수만 두 배가 되므로 한 콜로 합친다.
+businessStatus 만 Pro 인데, Enterprise 콜에 얹어도 청구는 가장 비싼 티어 1회다.
 
-영업시간은 30일, 평점은 90일 TTL 로 저장하고, 런타임에는 확정된 3~5곳의
-만료분만 갱신한다(코스당 평균 2콜). 키가 없으면 전부 무동작.
+  · `map_place_id`   — Text Search, 필드마스크 `places.id` 만 (IDs-only, 사실상 무료)
+  · `fetch_details`  — Place Details, 영업시간+평점+영업상태 (Enterprise, 월 1,000 무료)
+
+영업시간은 30일, 평점은 90일 TTL 로 저장하고, 런타임에는 확정된 곳의 만료분만
+갱신한다. 월 1,000 이 전부라 배치·런타임 합산으로 페이싱한다. 키가 없으면 무동작.
 """
 from __future__ import annotations
 
@@ -23,10 +26,12 @@ from app.schemas import Place
 _TEXT_SEARCH_URL = "https://places.googleapis.com/v1/places:searchText"
 _DETAILS_URL = "https://places.googleapis.com/v1/places/{place_id}"
 
-# 필드마스크. 티어가 다르므로 절대 한 콜에 합치지 않는다.
+# 필드마스크. Text Search(IDs-only)와 Place Details(Enterprise)는 SKU 가 달라
+# 반드시 나눠 부르고, Details 안에서는 같은 SKU 라 한 번에 받는다.
 IDS_ONLY_MASK = "places.id"
-HOURS_MASK = "regularOpeningHours,currentOpeningHours,businessStatus"
-RATING_MASK = "rating,userRatingCount"
+DETAILS_MASK = (
+    "regularOpeningHours,currentOpeningHours,businessStatus,rating,userRatingCount"
+)
 
 LOCATION_BIAS_M = 100.0  # 같은 이름의 다른 지점을 잡지 않도록 좁게
 HOURS_TTL_DAYS = 30
@@ -160,27 +165,20 @@ class GooglePlacesClient:
         results = resp.json().get("places") or []
         return results[0].get("id") if results else None
 
-    # --- ② 영업시간 (Pro) --------------------------------------------------
-    async def fetch_hours(self, place_id: str) -> dict | None:
-        """영업시간·영업상태만. 평점 필드를 절대 섞지 않는다."""
-        if not self.enabled or not _consume("google.hours"):
+    # --- ② 상세: 영업시간 + 평점 + 영업상태 (Enterprise, 한 콜) --------------
+    async def fetch_details(self, place_id: str) -> dict | None:
+        """영업시간·평점·영업상태를 한 번에. 같은 SKU 라 나눠 부를 이유가 없다."""
+        if not self.enabled or not _consume("google.details"):
             return None
         resp = await self._client.get(
-            _DETAILS_URL.format(place_id=place_id), headers=self._headers(HOURS_MASK)
+            _DETAILS_URL.format(place_id=place_id), headers=self._headers(DETAILS_MASK)
         )
         resp.raise_for_status()
         return resp.json()
 
-    # --- ③ 평점 (Enterprise) ----------------------------------------------
-    async def fetch_rating(self, place_id: str) -> tuple[float, int] | None:
-        """집계 평점+평가 수만. 평가 수가 적으면 신호로 쓰지 않는다."""
-        if not self.enabled or not _consume("google.rating"):
-            return None
-        resp = await self._client.get(
-            _DETAILS_URL.format(place_id=place_id), headers=self._headers(RATING_MASK)
-        )
-        resp.raise_for_status()
-        data = resp.json()
+    @staticmethod
+    def rating_of(data: dict) -> tuple[float, int] | None:
+        """응답에서 쓸 만한 평점만 꺼낸다. 표본이 적으면 신호로 쓰지 않는다."""
         rating = data.get("rating")
         count = int(data.get("userRatingCount") or 0)
         if rating is None or count < MIN_RATING_COUNT:
@@ -188,9 +186,15 @@ class GooglePlacesClient:
         return float(rating), count
 
     # --- 적용 --------------------------------------------------------------
-    async def refresh_hours(self, place: Place, *, weekday: int | None = None) -> Place:
-        """만료된 영업시간만 1콜로 갱신한다. 실패하면 '확인 필요'로 남긴다."""
-        if not self.enabled or not hours_stale(place):
+    async def refresh_details(
+        self, place: Place, *, weekday: int | None = None
+    ) -> Place:
+        """만료된 영업시간·평점을 **1콜**로 함께 갱신한다.
+
+        둘 다 Enterprise 라 나눠 부르면 같은 한도를 두 배로 쓴다. 실패하면
+        영업시간은 '확인 필요'로 남긴다.
+        """
+        if not self.enabled or not (hours_stale(place) or rating_stale(place)):
             return place
         from app.metrics import metrics_store
 
@@ -200,13 +204,21 @@ class GooglePlacesClient:
                 place.hours_unverified = True
                 return place
             place.google_place_id = place_id
-            data = await self.fetch_hours(place_id)
-            metrics_store.record_external("google.hours", ok=True)
+            data = await self.fetch_details(place_id) or {}
+            metrics_store.record_external("google.details", ok=True)
         except Exception:
-            metrics_store.record_external("google.hours", ok=False)
+            metrics_store.record_external("google.details", ok=False)
             place.hours_unverified = True
             return place
-        return self._apply_hours(place, data or {}, weekday)
+        rating = self.rating_of(data)
+        if rating:
+            place.rating, place.rating_count = rating
+        place.rating_checked_at = _now()
+        return self._apply_hours(place, data, weekday)
+
+    # 이름만 남긴 별칭들. 호출부가 의도를 드러내되 실제로는 같은 1콜이다.
+    async def refresh_hours(self, place: Place, *, weekday: int | None = None) -> Place:
+        return await self.refresh_details(place, weekday=weekday)
 
     def _apply_hours(self, place: Place, data: dict, weekday: int | None) -> Place:
         place.business_status = data.get("businessStatus") or place.business_status
@@ -230,31 +242,13 @@ class GooglePlacesClient:
         return place
 
     async def refresh_rating(self, place: Place) -> Place:
-        """만료된 평점만 갱신(배치용). 런타임 코스 생성에서는 호출하지 않는다."""
-        if not self.enabled or not rating_stale(place):
-            return place
-        from app.metrics import metrics_store
-
-        try:
-            place_id = place.google_place_id or await self.map_place_id(place)
-            if not place_id:
-                return place
-            place.google_place_id = place_id
-            result = await self.fetch_rating(place_id)
-            metrics_store.record_external("google.rating", ok=True)
-        except Exception:
-            metrics_store.record_external("google.rating", ok=False)
-            return place
-        if result:
-            place.rating, place.rating_count = result
-        place.rating_checked_at = _now()
-        return place
+        return await self.refresh_details(place)
 
 
 async def refresh_final_hours(
     places: list[Place], *, weekday: int | None = None
 ) -> list[Place]:
-    """확정된 코스의 장소들만 TTL 확인 후 갱신(코스당 평균 2콜).
+    """확정된 코스의 장소들만 TTL 확인 후 갱신(영업시간+평점 한 콜).
 
     후보 전체가 아니라 확정분에만 쓴다 — Pro 무료 한도(월 5,000)를 지키는 핵심.
     weekday 는 코스 날짜의 요일(월=0). 없으면 오늘 기준.

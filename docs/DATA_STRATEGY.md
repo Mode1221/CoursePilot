@@ -31,14 +31,25 @@
 | --- | --- | --- | --- |
 | 장소 발견 | 카카오 로컬(주) / 네이버 지역검색(보조) | 무료 | 평점·리뷰·영업시간 없음 |
 | place_id 매핑 | Google Text Search, IDs-only 필드마스크 | 사실상 무료 | locationBias 100m |
-| 영업시간 | Google Place Details (Pro) | 월 5,000 무료 | `regularOpeningHours`+`currentOpeningHours`+`businessStatus` 한 콜 |
-| 집계 평점 | Google Place Details (Enterprise) | 월 1,000 무료 | 평점 콜과 영업시간 콜을 절대 섞지 않는다 |
+| 영업시간 + 집계 평점 | Google Place Details (**Enterprise**) | **월 1,000 무료(합산)** | `regularOpeningHours`+`currentOpeningHours`+`businessStatus`+`rating`+`userRatingCount` **한 콜** |
 | 폐업·업력 | LOCALDATA CSV (`file.localdata.go.kr`) | 무료·무인증(UA·Referer 헤더 필요) | 업종 단위 전국 파일, 주 1회 |
 | 관광·문화 영업시간 | TourAPI detailIntro | 무료 | Google에 없는 곳 보강 |
 | 공연·전시 일정 | KOPIS | 무료 | 코스 날짜에 진행 중인 것만 |
 | 경로 | 네이버 Directions 5 (`maps.apigw.ntruss.com`) | 월 60,000 무료 | 한도 초과 시 직선거리 근사 |
 | 조건 분해 | Claude Haiku 4.5 | 요청당 ~$0.002 | 규칙 파서 폴백 유지 |
 | 사실 태그 | 네이버 블로그 검색 스니펫 | 무료 | 태그만 저장, 원문 미저장 |
+
+### Google Places SKU (2026-09 정정)
+공식 "Place Data Fields (New)" 표 기준으로 **영업시간과 평점은 같은 Enterprise SKU** 다.
+예전 문서는 영업시간을 Pro(월 5,000)로 적었는데 사실이 아니었다.
+
+- `businessStatus` 만 Pro 지만, Enterprise 필드와 같은 콜에 얹어도 청구는 가장 비싼
+  SKU 로 1회다 → 나눌 이유가 없어 **한 콜로 합쳤다**.
+- Text Search(IDs-only, `places.id`)는 별개 SKU 이므로 여기에 다른 필드를 섞지 않는다.
+- **월 1,000 콜이 전부**다. 배치 600(하루 20) + 런타임 400 으로 나눠 쓴다.
+- 그래서 수집한 전수(약 15,000곳)를 Google 로 채우는 것은 **무료로는 불가능**하다.
+  목표를 **상권별 상위 25곳**(24개 상권 × 25 = 600곳)으로 잡는다. 나머지는
+  영업시간 "확인 필요" 표시로 남고, 평점 없이 자체 신호로만 스코어링한다.
 
 ### LOCALDATA 파싱 규약
 - **원천**: `file.localdata.go.kr` 고정 URL. 업종 단위 **전국** 파일(구원천은 시군구 단위였다).

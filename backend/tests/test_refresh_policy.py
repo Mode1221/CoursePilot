@@ -69,12 +69,10 @@ class _FakeGoogle(GooglePlacesClient):
         self._key = "k" if enabled else ""
         self.hours: list[str] = []
 
-    async def refresh_hours(self, place, weekday=None):
+    async def refresh_details(self, place, weekday=None):
+        # 영업시간·평점이 한 콜로 함께 온다(Enterprise 동일 SKU)
         self.hours.append(place.id)
         place.hours_checked_at = datetime.now(UTC)
-        return place
-
-    async def refresh_rating(self, place):
         place.rating_checked_at = datetime.now(UTC)
         return place
 
