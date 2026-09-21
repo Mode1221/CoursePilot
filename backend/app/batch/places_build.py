@@ -15,6 +15,7 @@ from dataclasses import dataclass, field
 
 from app.adapters.kakao import MAX_PAGE, SLOT_GROUP_CODES, KakaoLocalService
 from app.batch.districts import DISTRICTS, District
+from app.batch.grid import cells_for
 from app.batch.merge import merge_with_stored
 from app.batch.progress import Progress
 from app.schemas import Place
@@ -39,10 +40,24 @@ GROUP_CODES = tuple(dict.fromkeys(c for codes in SLOT_GROUP_CODES.values() for c
 # 카카오 카테고리 검색 1콜에 걸리는 대략의 시간(응답 + 예의상 간격).
 SECONDS_PER_CALL = 0.35
 
+# 카테고리 검색이 못 잡는 성격(디저트·전시·소품샵 등)을 키워드로 보충한다.
+# 상권마다 같은 목록을 쓴다 — 상권별 차등은 채택 신호가 쌓인 뒤에.
+SUPPLEMENT_KEYWORDS: tuple[str, ...] = ("디저트", "브런치", "와인바", "전시", "소품샵")
+SUPPLEMENT_PAGES = 2  # 보충 질의는 상위 30건이면 충분하다
+
 
 def call_plan(districts: tuple[District, ...]) -> tuple[int, float]:
-    """수집에 필요한 카카오 콜 수와 예상 소요(분). 로그 첫 줄에 찍는다."""
-    calls = len(districts) * len(GROUP_CODES) * MAX_PAGE
+    """수집에 필요한 카카오 콜 수 **상한**과 예상 소요(분). 로그 첫 줄에 찍는다.
+
+    카카오는 질의 하나에 45건(15 × 3페이지)까지만 준다. 반경 1km 를 한 점에서
+    부르면 상권당 카테고리별 45건 = 최대 180건에서 끝난다(실측 3,103건/24곳).
+    그래서 상권을 작은 원(격자)으로 쪼개 원마다 부른다 — 콜은 늘지만 하루 한 번
+    도는 배치라 수십 분은 괜찮고, 카카오 무료 한도(일 수십만) 안에 넉넉히 든다.
+    """
+    cells = sum(len(cells_for(d)) for d in districts)
+    category_calls = cells * len(GROUP_CODES) * MAX_PAGE
+    keyword_calls = len(districts) * len(SUPPLEMENT_KEYWORDS) * SUPPLEMENT_PAGES
+    calls = category_calls + keyword_calls
     return calls, calls * SECONDS_PER_CALL / 60
 
 
@@ -64,37 +79,69 @@ async def collect(
     districts: tuple[District, ...] = DISTRICTS,
     progress: Progress | None = None,
 ) -> list[Place]:
-    """상권×카테고리 전수 수집. 같은 장소는 한 번만.
+    """상권×격자×카테고리 전수 수집 + 키워드 보충. 같은 장소는 한 번만.
 
+    한 점에서 반경 1km 를 부르면 카카오가 카테고리별 45건에서 잘라 버린다.
+    상권을 작은 원으로 쪼개(app.batch.grid) 원마다 부르고 id 로 합친다.
     progress 를 주면 이미 끝낸 조각은 건너뛴다(중간에 죽어도 이어서 한다).
     """
     found: dict[str, Place] = {}
     for district in districts:
-        for code in GROUP_CODES:
-            if progress and progress.is_done(district.name, code):
-                continue
-            try:
-                places = await kakao.search_category(
-                    code, district.lat, district.lng, district.radius_m
-                )
-            except Exception as exc:
-                # 한 조각 실패가 전체 배치를 멈추지 않는다. 다만 끝낸 것으로
-                # 표시하지 않으므로 다음 실행에서 이 조각만 다시 시도한다.
-                logger.warning("수집 실패 %s/%s: %s", district.name, code, exc)
-                continue
-            for place in places:
-                found.setdefault(place.id, place)
-            if progress:
-                progress.mark(district.name, code)
+        for cell in cells_for(district):
+            for code in GROUP_CODES:
+                if progress and progress.is_done(district.name, code, cell.key):
+                    continue
+                try:
+                    places = await kakao.search_category(code, cell.lat, cell.lng, cell.radius_m)
+                except Exception as exc:
+                    # 한 조각 실패가 전체 배치를 멈추지 않는다. 다만 끝낸 것으로
+                    # 표시하지 않으므로 다음 실행에서 이 조각만 다시 시도한다.
+                    logger.warning("수집 실패 %s/%s/%s: %s", district.name, cell.key, code, exc)
+                    continue
+                for place in places:
+                    found.setdefault(place.id, place)
+                if progress:
+                    progress.mark(district.name, code, cell.key)
+        await _collect_keywords(kakao, district, found, progress)
     return list(found.values())
 
 
-def drop_closed(places: list[Place]) -> tuple[list[Place], int]:
-    """LOCALDATA 로 폐업 제거 + 인허가일자(업력) 부착. 대장이 없으면 무동작."""
-    from app.adapters.localdata import get_localdata_registry
+async def _collect_keywords(
+    kakao: KakaoLocalService,
+    district: District,
+    found: dict[str, Place],
+    progress: Progress | None,
+) -> None:
+    """카테고리 코드에 안 잡히는 성격을 키워드로 보충한다(상권 중심 반경 전체)."""
+    for keyword in SUPPLEMENT_KEYWORDS:
+        chunk = f"kw:{keyword}"
+        if progress and progress.is_done(district.name, chunk):
+            continue
+        try:
+            places = await kakao.search_keyword_at(
+                keyword, district.lat, district.lng, district.radius_m, pages=SUPPLEMENT_PAGES
+            )
+        except Exception as exc:
+            logger.warning("보충 수집 실패 %s/%s: %s", district.name, keyword, exc)
+            continue
+        for place in places:
+            found.setdefault(place.id, place)
+        if progress:
+            progress.mark(district.name, chunk)
 
+
+def drop_closed(places: list[Place]) -> tuple[list[Place], int]:
+    """LOCALDATA 로 폐업 제거 + 인허가일자(업력) 부착. 대장이 없으면 무동작.
+
+    배치는 API 와 별개 프로세스라 lifespan 의 백그라운드 적재가 없다 — 비어 있으면
+    여기서 동기 적재한다(설정된 디렉터리가 없으면 그대로 무동작).
+    """
+    from app.adapters.localdata import ensure_loaded_for_batch, get_localdata_registry
+
+    ensure_loaded_for_batch()
     registry = get_localdata_registry()
     if not registry.loaded:
+        logger.warning("LOCALDATA 대장이 비어 있어 폐업 필터 없이 진행한다")
         return places, 0
     kept: list[Place] = []
     for place in places:
@@ -222,10 +269,12 @@ async def run(
             max(0, calls - report.skipped_chunks * MAX_PAGE),
         )
     else:
+        cells = sum(len(cells_for(d)) for d in districts)
         logger.info(
-            "상권 %d곳 수집 시작 — 카카오 최대 %d콜(상권 %d × 카테고리 %d × %d페이지), "
-            "예상 %.0f분",
-            len(districts), calls, len(districts), len(GROUP_CODES), MAX_PAGE, minutes,
+            "상권 %d곳 수집 시작 — 카카오 최대 %d콜(격자 %d칸 × 카테고리 %d × %d페이지 "
+            "+ 보충 키워드 %d개), 예상 %.0f분",
+            len(districts), calls, cells, len(GROUP_CODES), MAX_PAGE,
+            len(SUPPLEMENT_KEYWORDS), minutes,
         )
 
     places = await collect(client, districts, state)
