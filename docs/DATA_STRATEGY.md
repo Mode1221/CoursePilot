@@ -29,7 +29,7 @@
 ## F. 원천별 역할 *(구현)*
 | 용도 | 원천 | 비용 | 비고 |
 | --- | --- | --- | --- |
-| 장소 발견 | 카카오 로컬(주) / 네이버 지역검색(보조) | 무료 | 평점·리뷰·영업시간 없음 |
+| 장소 발견 | 카카오 로컬(주) / 네이버 지역검색(보조, NAVER API HUB) | 무료(API HUB 한시 무료, 월 775,000) | 평점·리뷰·영업시간 없음 |
 | place_id 매핑 | Google Text Search, IDs-only 필드마스크 | 사실상 무료 | locationBias 100m |
 | 영업시간 + 집계 평점 | Google Place Details (**Enterprise**) | **월 1,000 무료(합산)** | `regularOpeningHours`+`currentOpeningHours`+`businessStatus`+`rating`+`userRatingCount` **한 콜** |
 | 폐업·업력 | LOCALDATA CSV (`file.localdata.go.kr`) | 무료·무인증(UA·Referer 헤더 필요) | 업종 단위 전국 파일, 주 1회 |

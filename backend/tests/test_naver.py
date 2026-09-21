@@ -68,7 +68,10 @@ def test_좌표를_못_믿는_장소는_제외한다():
 
 async def test_좌표_불량_항목은_결과에서_빠진다(monkeypatch):
     from app.adapters.naver import NaverMapService
+    from app.config import settings
 
+    monkeypatch.setattr(settings, "naver_apihub_key_id", "hub-id")
+    monkeypatch.setattr(settings, "naver_apihub_key", "hub-secret")
     payload = {
         "items": [
             {"title": "좋은 곳", "mapx": "1270000000", "mapy": "375000000", "address": "서울"},
@@ -91,3 +94,47 @@ async def test_좌표_불량_항목은_결과에서_빠진다(monkeypatch):
     monkeypatch.setattr(svc._client, "get", _get)
     places = await svc.search_places("성수동", [], limit=5)
     assert [p.name for p in places] == ["좋은 곳"]
+
+
+async def test_키가_없으면_검색을_부르지_않는다(monkeypatch):
+    from app.adapters.naver import NaverMapService
+    from app.config import settings
+
+    for name in ("naver_apihub_key_id", "naver_apihub_key", "naver_client_id"):
+        monkeypatch.setattr(settings, name, "")
+    svc = NaverMapService()
+    called = []
+
+    async def _get(url, params=None, headers=None):
+        called.append(url)
+        raise AssertionError("호출되면 안 된다")
+
+    monkeypatch.setattr(svc._client, "get", _get)
+    assert await svc.search_places("성수동", [], limit=5) == []
+    assert called == []
+
+
+async def test_API_HUB_키면_HUB_호스트와_NCP_헤더로_부른다(monkeypatch):
+    from app.adapters.naver import NaverMapService
+    from app.config import settings
+
+    monkeypatch.setattr(settings, "naver_apihub_key_id", "hub-id")
+    monkeypatch.setattr(settings, "naver_apihub_key", "hub-secret")
+    svc = NaverMapService()
+    seen = {}
+
+    class _Resp:
+        def raise_for_status(self):
+            pass
+
+        def json(self):
+            return {"items": []}
+
+    async def _get(url, params=None, headers=None):
+        seen["url"], seen["headers"] = url, headers
+        return _Resp()
+
+    monkeypatch.setattr(svc._client, "get", _get)
+    await svc.search_places("성수동", [], limit=5)
+    assert seen["url"] == "https://naverapihub.apigw.ntruss.com/search/v1/local"
+    assert seen["headers"]["X-NCP-APIGW-API-KEY-ID"] == "hub-id"

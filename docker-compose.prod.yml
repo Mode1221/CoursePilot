@@ -70,6 +70,8 @@ services:
       MAP_PROVIDER: ${MAP_PROVIDER:-auto}
       # 장소 발견 주 원천(카카오 로컬). 없으면 네이버/Mock 폴백.
       KAKAO_REST_API_KEY: ${KAKAO_REST_API_KEY:-}
+      NAVER_APIHUB_KEY_ID: ${NAVER_APIHUB_KEY_ID:-}
+      NAVER_APIHUB_KEY: ${NAVER_APIHUB_KEY:-}
       NAVER_CLIENT_ID: ${NAVER_CLIENT_ID:-}
       NAVER_CLIENT_SECRET: ${NAVER_CLIENT_SECRET:-}
       # 네이버 클라우드 플랫폼(경로 탐색 Directions 5)

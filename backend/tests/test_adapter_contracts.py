@@ -75,9 +75,12 @@ async def test_카카오_세부_카테고리로_술집을_가른다():
 
 
 # ── 네이버 지역검색 / 경로 ─────────────────────────────────────
-async def test_네이버_지역검색_응답을_정규화한다():
+async def test_네이버_지역검색_응답을_정규화한다(monkeypatch):
     from app.adapters.naver import NaverMapService
+    from app.config import settings
 
+    monkeypatch.setattr(settings, "naver_apihub_key_id", "hub-id")
+    monkeypatch.setattr(settings, "naver_apihub_key", "hub-secret")
     service = NaverMapService()
     service._client = _client(load("naver_local_search.json"))
     places = await service.search_places("성수", ["카페"], limit=5)

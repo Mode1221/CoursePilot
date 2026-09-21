@@ -1,6 +1,7 @@
 """Naver 지도/장소 어댑터 구현체.
 
-- 장소 검색: 네이버 지역 검색 API (openapi.naver.com)
+- 장소 검색: 네이버 지역 검색 API — NAVER API HUB(신규) 또는 개발자센터(레거시,
+  2027-06-30 종료). 어느 쪽인지는 app.adapters.naver_search 가 키를 보고 고른다.
 - 길찾기(차량): 네이버 클라우드 Directions 5 API
 
 주의: 네이버 지역검색은 좌표를 KATECH(mapx/mapy, *1e7) 로 반환하므로 WGS84 변환이 필요하다.
@@ -14,14 +15,13 @@ import math
 import httpx
 
 from app.adapters.map_service import MapService
+from app.adapters.naver_search import search_endpoint
 from app.config import settings
 from app.constants import TRANSIT_OVERHEAD_MIN, TRAVEL_SPEED_M_PER_MIN
 from app.schemas import Place, Route, TravelMode
 
-_SEARCH_URL = "https://openapi.naver.com/v1/search/local.json"
 # NCP Maps 는 도메인이 maps.apigw.ntruss.com 으로 바뀌었다(구 naveropenapi 는 순차 종료).
 _DIRECTIONS_URL = "https://maps.apigw.ntruss.com/map-direction/v1/driving"
-_BLOG_SEARCH_URL = "https://openapi.naver.com/v1/search/blog.json"
 
 MAX_DISPLAY = 5  # 네이버 지역검색 API 의 한 번 호출 상한
 # 후보를 넓히기 위한 보조 질의어(코스 카테고리와 대응)
@@ -42,10 +42,6 @@ def _build_queries(region: str, keywords: list[str], limit: int) -> list[str]:
 
 class NaverMapService(MapService):
     def __init__(self) -> None:
-        self._headers = {
-            "X-Naver-Client-Id": settings.naver_client_id,
-            "X-Naver-Client-Secret": settings.naver_client_secret,
-        }
         # 요청 간 재사용하는 keep-alive 커넥션 풀
         self._client = httpx.AsyncClient(timeout=10)
 
@@ -54,12 +50,16 @@ class NaverMapService(MapService):
     ) -> list[Place]:
         # 지역검색 API 는 한 번에 5개까지만 준다(display 상한, start 도 무의미).
         # limit 이 더 크면 카테고리 보조어를 붙여 여러 번 질의하고 합친다.
+        endpoint = search_endpoint("local")
+        if endpoint is None:
+            return []  # 키 없음 — 상위(SafeMapService)가 Mock/시드로 폴백
+        url, headers = endpoint
         queries = _build_queries(region, keywords, limit)
         items: list[dict] = []
         seen_titles: set[str] = set()
         for query in queries:
             params = {"query": query, "display": MAX_DISPLAY}
-            resp = await self._client.get(_SEARCH_URL, params=params, headers=self._headers)
+            resp = await self._client.get(url, params=params, headers=headers)
             resp.raise_for_status()
             for it in resp.json().get("items", []):
                 title = it.get("title", "")
@@ -148,16 +148,12 @@ async def blog_mention_count(client: httpx.AsyncClient, query: str) -> int | Non
 
     본문·스니펫은 저장하지 않는다 — 품질 판단에 리뷰 원문을 쓰지 않기로 한 원칙.
     """
-    if not settings.naver_client_id:
+    endpoint = search_endpoint("blog")
+    if endpoint is None:
         return None
-    headers = {
-        "X-Naver-Client-Id": settings.naver_client_id,
-        "X-Naver-Client-Secret": settings.naver_client_secret,
-    }
+    url, headers = endpoint
     try:
-        resp = await client.get(
-            _BLOG_SEARCH_URL, params={"query": query, "display": 1}, headers=headers
-        )
+        resp = await client.get(url, params={"query": query, "display": 1}, headers=headers)
         resp.raise_for_status()
         return int(resp.json().get("total") or 0)
     except Exception:
