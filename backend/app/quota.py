@@ -24,12 +24,22 @@ MONTHLY_FREE_LIMITS: dict[str, int] = {
     "naver.directions": 60_000,
 }
 
+# 일 단위 상한. 월 한도가 아니라 "하루에 이 이상은 쓰지 않는다"는 안전장치다.
+# LLM 웹검색은 건당 과금이라 코스가 몰리면 월말 전에 요금이 크게 는다.
+DAILY_LIMITS: dict[str, int] = {
+    "llm.hours_fallback": 50,
+}
+
 WARN_RATIO = 0.8  # 이 비율을 넘으면 경고(남은 한도로 월말까지 버틸 수 있는지 보라는 신호)
 SOLD_OUT_RATIO = 1.0  # 한도 소진 — 이후 호출은 차단된다
 
 
 def _month_key(now: datetime | None = None) -> str:
     return (now or datetime.now(UTC)).strftime("%Y-%m")
+
+
+def _day_key(now: datetime | None = None) -> str:
+    return (now or datetime.now(UTC)).strftime("%Y-%m-%d")
 
 
 @dataclass
@@ -43,10 +53,37 @@ class QuotaStore:
 
     def __init__(self) -> None:
         self._counters: dict[str, _Counter] = {}
+        self._daily: dict[str, _Counter] = {}  # 일 단위 카운터(프로세스 메모리)
         self._notified: set[tuple[str, float]] = set()  # 이미 알린 (API, 임계)
 
     def limit(self, name: str) -> int | None:
         return MONTHLY_FREE_LIMITS.get(name)
+
+    # --- 일 단위 상한 -----------------------------------------------------
+    def allow_today(self, name: str, now: datetime | None = None) -> bool:
+        """오늘 몫이 남았는지. 상한이 없는 이름은 항상 허용."""
+        limit = DAILY_LIMITS.get(name)
+        if limit is None:
+            return True
+        return self.used_today(name, now) < limit
+
+    def used_today(self, name: str, now: datetime | None = None) -> int:
+        counter = self._daily.get(name)
+        day = _day_key(now)
+        if counter is None or counter.month != day:
+            return 0
+        return counter.used
+
+    def record_today(self, name: str, count: int = 1, now: datetime | None = None) -> None:
+        day = _day_key(now)
+        counter = self._daily.get(name)
+        if counter is None or counter.month != day:
+            counter = _Counter(month=day)
+            self._daily[name] = counter
+        counter.used += count
+        limit = DAILY_LIMITS.get(name)
+        if limit is not None and counter.used == limit:
+            logger.warning("%s 오늘 상한(%d) 소진 — 남은 요청은 폴백으로 처리", name, limit)
 
     def used(self, name: str, now: datetime | None = None) -> int:
         month = _month_key(now)
@@ -145,6 +182,7 @@ class QuotaStore:
 
     def clear(self) -> None:
         self._counters.clear()
+        self._daily.clear()
         self._notified.clear()
 
     @staticmethod

@@ -58,6 +58,8 @@
 - `culture.py` — 공연·전시 일정(KOPIS). 코스 날짜에 진행 중인 것만 통과(`drop_finished_places`, 일정에 없는 장소는 판단하지 않음).
 - `tourapi.py` — 관광·문화시설 이용시간·등재 여부(Google에 영업시간 없는 곳 보강).
 - `google.py` — Google Places v1. SKU 별 분리 호출(Text Search IDs-only 매핑 / Place Details **Enterprise**). 영업시간·평점은 같은 SKU 라 `fetch_details` 한 콜로 함께 받는다(`refresh_details`). 영업시간 30일·평점 90일 TTL, 확정 코스만 런타임 갱신(`refresh_final_hours`).
+- (인증) `session_token.py` — `<발급시각>.<HMAC(user_id:발급시각)>` 토큰, 90일 만료.
+  만료·형식 불일치는 `verify` 가 False → 라우터가 401. 비밀키 없으면 개발 폴백.
 - `localdata.py` — LOCALDATA(지방행정 인허가) CSV 인덱스. 폐업 판정·인허가일자(업력)·지역 폐업률. 무료·무인증, 주 1회 갱신(`LOCALDATA_CSV_DIR`).
   적재는 파일을 통째로 읽지 않고 한 줄씩 흘려 읽으며(`load_csv(path)`), 24개 상권의
   시군구(11곳) 주소가 아닌 행은 레코드를 만들지 않고 버린다 — 전국 파일을 다 담으면

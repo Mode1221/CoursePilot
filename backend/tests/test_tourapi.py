@@ -91,12 +91,23 @@ def test_경로_키는_NCP_전용키를_우선한다(monkeypatch):
     assert headers["X-NCP-APIGW-API-KEY"] == "ncp-secret"
 
 
-def test_NCP_키가_없으면_개발자센터_키로_폴백(monkeypatch):
+def test_NCP_키가_없으면_경로_API를_부르지_않는다(monkeypatch):
+    """개발자센터 키로는 NCP 게이트웨이를 통과할 수 없다(항상 401).
+
+    폴백으로 넘기면 매 요청 401 을 맞고 예외 처리로 떨어진다 — 느리고 원인도 가려진다.
+    """
+    from app.adapters.naver import directions_enabled
+
     monkeypatch.setattr(settings, "ncp_api_key_id", "")
     monkeypatch.setattr(settings, "ncp_api_key", "")
     monkeypatch.setattr(settings, "naver_client_id", "dev-id")
     monkeypatch.setattr(settings, "naver_client_secret", "dev-secret")
-    assert _directions_headers()["X-NCP-APIGW-API-KEY-ID"] == "dev-id"
+    assert directions_enabled() is False
+
+    monkeypatch.setattr(settings, "ncp_api_key_id", "ncp-id")
+    monkeypatch.setattr(settings, "ncp_api_key", "ncp-key")
+    assert directions_enabled() is True
+    assert _directions_headers()["X-NCP-APIGW-API-KEY-ID"] == "ncp-id"
 
 
 def test_점심시간이_빠진_표기는_하루_전체로_본다():

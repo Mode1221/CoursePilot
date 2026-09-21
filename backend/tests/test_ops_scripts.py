@@ -147,3 +147,21 @@ def test_Dockerfile_에_줄_끝_주석이_없다(dockerfile):
         if line.strip() and not line.lstrip().startswith("#") and " #" in line
     ]
     assert not bad, f"{dockerfile.parent.name}/Dockerfile 줄 끝 주석: {bad}"
+
+
+def test_배치_크론이_nice_로_돈다():
+    """VM 이 1 OCPU 다 — 배치가 CPU 를 잡으면 API 응답이 밀린다."""
+    lines = [
+        ln for ln in (OPS / "crontab.txt").read_text().splitlines()
+        if re.match(r"^[\d*]", ln) and "scripts/" in ln and "ops/" not in ln
+    ]
+    assert len(lines) == 3  # localdata / build_places / refresh_places
+    assert all("nice -n 19" in ln for ln in lines)
+
+
+def test_deploy가_배치_중에는_기다린다():
+    text = (ROOT / "deploy.sh").read_text()
+    assert "wait_for_batch" in text
+    assert "is_locked" in text
+    assert "FORCE_DEPLOY" in text  # 강행 옵션
+    assert "BATCH_WAIT_MIN:-30" in text  # 최대 30분

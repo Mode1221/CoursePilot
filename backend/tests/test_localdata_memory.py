@@ -142,3 +142,63 @@ def test_동명_시군구가_딸려오지_않는다():
     assert registry.find("부산중구집") is None
     assert registry.find("서울중구집") is not None
     assert registry.find("판교집") is not None
+
+
+# ── 인덱스 캐시 ───────────────────────────────────────────────────────────
+def _write_csv(directory, name, rows):
+    header = "개방자치단체코드,사업장명,도로명주소,지번주소,영업상태명,상세영업상태명,인허가일자,폐업일자\n"
+    (directory / name).write_text(header + rows, encoding="cp949")
+
+
+def test_두_번째_적재는_캐시에서_되살린다(tmp_path):
+    from app.adapters.localdata import CACHE_FILE, LocalDataRegistry
+
+    _write_csv(tmp_path, "rest_cafes.csv",
+               "3040000,살아있는집,서울특별시 성동구 아차산로 17,,영업/정상,영업,20150301,\n")
+    first = LocalDataRegistry()
+    assert first.load_dir(tmp_path) == 1
+    assert (tmp_path / CACHE_FILE).exists()
+
+    # 같은 CSV(같은 이름·크기·mtime)면 파싱 없이 캐시에서 되살아난다
+    second = LocalDataRegistry()
+    assert second.load_dir(tmp_path) == 1
+    assert second.find("살아있는집", "서울특별시 성동구 아차산로 17") is not None
+    assert second.loaded_on == first.loaded_on
+
+
+def test_원본_CSV_가_바뀌면_캐시를_버린다(tmp_path):
+    import os
+    import time
+
+    from app.adapters.localdata import LocalDataRegistry
+
+    _write_csv(tmp_path, "rest_cafes.csv",
+               "3040000,살아있는집,서울특별시 성동구 아차산로 17,,영업/정상,영업,20150301,\n")
+    LocalDataRegistry().load_dir(tmp_path)
+    # 내용이 바뀌고(크기 변화) mtime 도 앞으로
+    _write_csv(tmp_path, "rest_cafes.csv",
+               "3040000,살아있는집,서울특별시 성동구 아차산로 17,,영업/정상,영업,20150301,\n"
+               "3040000,새로생긴집,서울특별시 성동구 아차산로 19,,영업/정상,영업,20250301,\n")
+    later = time.time() + 5
+    os.utime(tmp_path / "rest_cafes.csv", (later, later))
+    fresh = LocalDataRegistry()
+    assert fresh.load_dir(tmp_path) == 2
+    assert fresh.find("새로생긴집", "서울특별시 성동구 아차산로 19") is not None
+
+
+def test_캐시가_깨져_있으면_CSV_로_돌아간다(tmp_path):
+    from app.adapters.localdata import CACHE_FILE, LocalDataRegistry
+
+    _write_csv(tmp_path, "rest_cafes.csv",
+               "3040000,살아있는집,서울특별시 성동구 아차산로 17,,영업/정상,영업,20150301,\n")
+    (tmp_path / CACHE_FILE).write_bytes(b"not a pickle")
+    assert LocalDataRegistry().load_dir(tmp_path) == 1
+
+
+def test_use_cache_False_는_캐시를_만들지_않는다(tmp_path):
+    from app.adapters.localdata import CACHE_FILE, LocalDataRegistry
+
+    _write_csv(tmp_path, "rest_cafes.csv",
+               "3040000,살아있는집,서울특별시 성동구 아차산로 17,,영업/정상,영업,20150301,\n")
+    assert LocalDataRegistry().load_dir(tmp_path, use_cache=False) == 1
+    assert not (tmp_path / CACHE_FILE).exists()
