@@ -6,6 +6,7 @@
 """
 from __future__ import annotations
 
+import io
 import json
 from datetime import date, time
 from pathlib import Path
@@ -198,7 +199,7 @@ def test_LOCALDATA_표준_컬럼을_읽는다():
     from app.adapters.localdata import LocalDataRegistry
 
     registry = LocalDataRegistry()
-    assert registry.load_csv(text("localdata_sample.csv")) == 2
+    assert registry.load_csv(io.StringIO(text("localdata_sample.csv"))) == 2
     assert registry.opened_on("성수커피", "서울특별시 성동구 아차산로 17") == date(2015, 3, 1)
     assert registry.is_closed("문닫은식당", "서울특별시 성동구 아차산로 21")
 

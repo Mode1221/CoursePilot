@@ -15,11 +15,14 @@ fi
 # .env 는 bash 로 읽는다(compose 와 달리 셸 규칙이 적용된다).
 # 값에 따옴표 없는 공백·#·$·` 가 있으면 잘리거나 다른 것으로 치환된다 —
 # 비밀번호가 조용히 반토막 나면 원인을 찾기 어렵다. 먼저 훑어서 경고한다.
-risky="$(grep -nE '^[A-Z_][A-Z0-9_]*=[^"'"'"']*([ \t#$`]|\\)' .env || true)"
+risky="$(grep -nE '^[A-Z_][A-Z0-9_]*=' .env \
+  | grep -vE "^[0-9]+:[A-Z_][A-Z0-9_]*='[^']*'$" \
+  | grep -E '^[0-9]+:[A-Z_][A-Z0-9_]*=.*[ \t#$`\\"]' || true)"
 if [ -n "$risky" ]; then
-  echo "⚠ .env 에 셸이 다르게 해석할 문자가 있습니다(공백·#·\$·\` 등):" >&2
+  echo "⚠ .env 에 셸이 다르게 해석할 문자가 있습니다(공백·#·\$·\`·큰따옴표):" >&2
   echo "$risky" >&2
-  echo "  값은 따옴표 없이, 공백 없이 쓰거나 전체를 작은따옴표로 감싸세요." >&2
+  echo "  값은 따옴표 없이, 공백 없이 쓰거나 전체를 '작은따옴표'로 감싸세요." >&2
+  echo "  큰따옴표는 source 될 때 벗겨집니다 — JSON 값은 반드시 작은따옴표로." >&2
 fi
 
 # 필수값 확인. 여기서 걸러야 컨테이너가 반쯤 뜬 채로 헤매지 않는다.
@@ -67,6 +70,16 @@ fi
 # (1~2 OCPU VM 에서 Next.js 빌드는 수십 분이 걸리거나 메모리가 모자라 죽는다).
 echo "▶ 이미지 받는 중 (태그: ${IMAGE_TAG:-latest})..."
 $COMPOSE pull
+
+# LOCALDATA CSV 를 담을 호스트 디렉터리를 **현재 사용자로** 먼저 만든다.
+# 없으면 Docker 가 바인드 마운트 지점을 root 소유로 만들어 버리고,
+# uid 1000 으로 도는 백엔드 컨테이너가 거기에 파일을 쓰지 못한다.
+localdata_dir="${LOCALDATA_HOST_DIR:-./data/localdata}"
+mkdir -p "$localdata_dir" || {
+  echo "✗ $localdata_dir 를 만들지 못했습니다." >&2; exit 1; }
+[ -w "$localdata_dir" ] || {
+  echo "✗ $localdata_dir 에 쓸 수 없습니다(소유자 확인: ls -ld $localdata_dir)." >&2
+  echo "  sudo chown -R \"$(id -u):$(id -g)\" $localdata_dir" >&2; exit 1; }
 
 echo "▶ 기동 (${DOMAIN})..."
 $COMPOSE up -d --remove-orphans

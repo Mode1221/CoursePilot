@@ -1,4 +1,5 @@
 """갱신 정책: 폐업은 전체·주 1회, 유료 콜은 활성 집합(최근 90일)만."""
+import io
 from datetime import UTC, datetime, timedelta
 
 from app.adapters.google import GooglePlacesClient
@@ -42,7 +43,7 @@ def test_naive_시각도_활성_판정에_쓰인다():
 def _registry(monkeypatch, csv=CSV):
     registry = LocalDataRegistry()
     if csv:
-        registry.load_csv(csv)
+        registry.load_csv(io.StringIO(csv))
     monkeypatch.setattr("app.adapters.localdata.get_localdata_registry", lambda: registry)
     return registry
 

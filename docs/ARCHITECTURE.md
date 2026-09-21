@@ -56,7 +56,10 @@
 - `tourapi.py` — 관광·문화시설 이용시간·등재 여부(Google에 영업시간 없는 곳 보강).
 - `google.py` — Google Places v1. 티어별 분리 호출(IDs-only 매핑 / Pro 영업시간 / Enterprise 평점, 필드마스크 혼합 금지). 영업시간 30일·평점 90일 TTL, 확정 코스만 런타임 갱신(`refresh_final_hours`).
 - `localdata.py` — LOCALDATA(지방행정 인허가) CSV 인덱스. 폐업 판정·인허가일자(업력)·지역 폐업률. 무료·무인증, 주 1회 갱신(`LOCALDATA_CSV_DIR`).
-  주소는 `도로명주소`/`지번주소`, 인코딩은 CP949, 폐업 판정은 `폐업일자` → `상세영업상태명` → `영업상태명` 순(휴업 포함). 좌표(EPSG:5174)는 쓰지 않는다 — `docs/DATA_STRATEGY.md` 의 "LOCALDATA 파싱 규약".
+  적재는 파일을 통째로 읽지 않고 한 줄씩 흘려 읽으며(`load_csv(path)`), 24개 상권의
+  시군구(11곳) 주소가 아닌 행은 레코드를 만들지 않고 버린다 — 전국 파일을 다 담으면
+  6GB VM 에서 OOM 이 난다. 적재는 lifespan 에서 백그라운드로(`warm_localdata`).
+  주소는 `도로명주소`/`지번주소`, 인코딩은 앞 4KB 로 판별(CP949 기본), 폐업 판정은 `폐업일자` → `상세영업상태명` → `영업상태명` 순(휴업 포함). 좌표(EPSG:5174)는 쓰지 않는다 — `docs/DATA_STRATEGY.md` 의 "LOCALDATA 파싱 규약".
 - `sms.py` — NHN Cloud SMS. `payment.py` — 포트원 v1 결제 검증.
 
 ### 학습 신호 스토어 (전부 DB/인메모리 폴백, `_db_ready()` 분기)
