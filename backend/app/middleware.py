@@ -123,8 +123,10 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
             del self._hits[key]
 
     async def dispatch(self, request: Request, call_next):
-        # 헬스체크/문서는 제외
-        if request.url.path in ("/health", "/docs", "/openapi.json"):
+        # 헬스체크/문서는 제외.
+        # /health/ready 는 compose·로드밸런서가 15초마다 두드린다 — 여기에 걸리면
+        # 멀쩡한 인스턴스가 429 를 받아 죽은 것으로 판정된다.
+        if request.url.path in ("/health", "/health/ready", "/docs", "/openapi.json"):
             return await call_next(request)
 
         client = self._client_key(request)
