@@ -54,7 +54,7 @@
 - `hours_fallback.py` — 영업시간 최후 폴백(LLM 웹검색, 코스당 2건 상한, 결과는 항상 '확인 필요').
 - `culture.py` — 공연·전시 일정(KOPIS). 코스 날짜에 진행 중인 것만 통과(`drop_finished_places`, 일정에 없는 장소는 판단하지 않음).
 - `tourapi.py` — 관광·문화시설 이용시간·등재 여부(Google에 영업시간 없는 곳 보강).
-- `google.py` — Google Places v1. 티어별 분리 호출(IDs-only 매핑 / Pro 영업시간 / Enterprise 평점, 필드마스크 혼합 금지). 영업시간 30일·평점 90일 TTL, 확정 코스만 런타임 갱신(`refresh_final_hours`).
+- `google.py` — Google Places v1. SKU 별 분리 호출(Text Search IDs-only 매핑 / Place Details **Enterprise**). 영업시간·평점은 같은 SKU 라 `fetch_details` 한 콜로 함께 받는다(`refresh_details`). 영업시간 30일·평점 90일 TTL, 확정 코스만 런타임 갱신(`refresh_final_hours`).
 - `localdata.py` — LOCALDATA(지방행정 인허가) CSV 인덱스. 폐업 판정·인허가일자(업력)·지역 폐업률. 무료·무인증, 주 1회 갱신(`LOCALDATA_CSV_DIR`).
   적재는 파일을 통째로 읽지 않고 한 줄씩 흘려 읽으며(`load_csv(path)`), 24개 상권의
   시군구(11곳) 주소가 아닌 행은 레코드를 만들지 않고 버린다 — 전국 파일을 다 담으면
@@ -151,7 +151,7 @@
 
 ### 유료 API 한도 (`app/quota.py`)
 - 사용량은 DB(`api_quota`)에 월 단위로 영속화한다 — 재시작으로 카운터가 되살아나면 한도를 넘겨 과금된다. DB 없으면 인메모리 폴백.
-- 월 무료 한도(Google 영업시간 5,000 / 평점 1,000 / 매핑 10,000, 네이버 경로 60,000)를 카운트하고, 소진되면 호출 자체를 거절한다(초과 요금 방지). 경로는 직선거리 근사로 폴백.
+- 월 무료 한도(Google Details(Enterprise, 영업시간+평점) 1,000 / 매핑 10,000, 네이버 경로 60,000)를 카운트하고, 소진되면 호출 자체를 거절한다(초과 요금 방지). 경로는 직선거리 근사로 폴백.
 - `/admin/metrics` 의 `quotas` 로 사용량·잔여를 노출. 80% 진입·한도 소진 시점에 한 번씩 웹훅 알림(`ALERT_WEBHOOK_URL`).
 
 ### 품질 신호(리뷰 원문 미사용)
