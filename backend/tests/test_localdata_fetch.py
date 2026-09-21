@@ -12,7 +12,7 @@ from app.batch.localdata_fetch import (
     referer_for,
 )
 
-CSV = "사업장명,도로명전체주소,상세영업상태명,인허가일자,폐업일자\n가게,서울 성동구 아차산로 17,영업/정상,20150301,\n"
+CSV = "개방자치단체코드,사업장명,도로명주소,지번주소,영업상태명,상세영업상태명,인허가일자,폐업일자\n3040000,가게,서울 성동구 아차산로 17,서울 성동구 성수동2가 17,영업/정상,영업,20150301,\n"
 
 
 @pytest.mark.parametrize(
@@ -80,7 +80,7 @@ async def test_내려받아_저장한다(tmp_path, transport):
     transport({url: (200, CSV)})
     report = await fetch_all([url], str(tmp_path))
     assert report.saved == [url] and report.failed == []
-    assert (tmp_path / "a.csv").read_text().startswith("사업장명")
+    assert (tmp_path / "a.csv").read_text().startswith("개방자치단체코드")
 
 
 async def test_한_파일이_실패해도_나머지는_받는다(tmp_path, transport):

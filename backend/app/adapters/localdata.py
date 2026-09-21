@@ -23,13 +23,34 @@ RELOAD_INTERVAL_DAYS = 7  # 갱신 주기(주 1회)
 
 # LOCALDATA 표준 컬럼명. 파일마다 일부만 존재할 수 있어 후보 목록으로 둔다.
 _NAME_COLS = ("사업장명", "업소명", "상호명")
-_ADDR_COLS = ("도로명전체주소", "소재지전체주소", "도로명주소", "소재지주소")
+# 신원천(file.localdata.go.kr) 헤더는 "도로명주소"/"지번주소" 다. 구원천의
+# "도로명전체주소"/"소재지전체주소" 도 남겨 둔다(예전에 받아 둔 파일 호환).
+_ADDR_COLS = (
+    "도로명전체주소",
+    "소재지전체주소",
+    "도로명주소",
+    "소재지주소",
+    "지번주소",
+)
 _STATUS_COLS = ("상세영업상태명", "영업상태명")
 _OPENED_COLS = ("인허가일자", "인허가일")
 _CLOSED_COLS = ("폐업일자", "폐업일")
 
-# 상세영업상태명 중 "더 이상 영업하지 않음"을 뜻하는 값들.
-_CLOSED_STATUSES = ("폐업", "말소", "취소", "직권말소", "폐쇄", "허가취소")
+# 폐업 판정 기준(우선순위):
+#   1) 폐업일자(폐업일)가 채워져 있으면 폐업
+#   2) 아니면 상세영업상태명 → 영업상태명 에 아래 낱말이 들어가면 영업하지 않음
+# "영업/정상" 이 정상 영업 값이고, 그 밖의 값(폐업, 휴업, 취소, 말소 등)은 코스에
+# 넣지 않는다. 휴업도 제외한다 — 당장 갈 수 없는 곳을 추천하면 안 된다.
+# 실제 분포는 `python scripts/localdata_status_dist.py` 로 확인한다.
+_CLOSED_STATUSES = (
+    "폐업",
+    "말소",
+    "취소",
+    "직권말소",
+    "폐쇄",
+    "허가취소",
+    "휴업",
+)
 
 _NAME_NOISE_RE = re.compile(r"[\s()（）\[\]·.\-_'\"]+")
 _ADDR_NUM_RE = re.compile(r"\d+")
@@ -219,14 +240,18 @@ def _area_key(address: str | None) -> str:
 
 
 def _read_text(path: Path) -> str:
-    """LOCALDATA CSV 는 CP949 가 많고 UTF-8 도 섞여 있다."""
+    """LOCALDATA CSV 는 CP949 다(응답 헤더의 charset=UTF-8 은 사실과 다르다).
+
+    예전에 UTF-8 로 받아 둔 파일도 읽히도록 순서대로 시도하고, 끝까지 실패하면
+    CP949 로 손상 문자를 치환해 읽는다 — 한 파일 때문에 전체 적재가 멎으면 안 된다.
+    """
     raw = path.read_bytes()
-    for encoding in ("utf-8-sig", "cp949", "utf-8"):
+    for encoding in ("cp949", "utf-8-sig", "utf-8"):
         try:
             return raw.decode(encoding)
         except UnicodeDecodeError:
             continue
-    return raw.decode("utf-8", errors="ignore")
+    return raw.decode("cp949", errors="replace")
 
 
 @lru_cache(maxsize=1)
