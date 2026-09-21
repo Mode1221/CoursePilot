@@ -15,7 +15,8 @@ NOTIFY="$ROOT/scripts/ops/notify.sh"
 [ -f .env ] || { echo "✗ .env 가 없습니다" >&2; exit 1; }
 set -a; . ./.env; set +a
 
-BACKUP_DIR="${BACKUP_DIR:-/var/backups/coursepilot}"
+# 기본값은 저장소 아래. /var/backups 는 일반 사용자가 못 만든다(크론이 그 사용자로 돈다).
+BACKUP_DIR="${BACKUP_DIR:-$ROOT/backups}"
 KEEP_DAYS="${BACKUP_KEEP_DAYS:-7}"
 DB_USER="${POSTGRES_USER:-coursepilot}"
 DB_NAME="${POSTGRES_DB:-coursepilot}"

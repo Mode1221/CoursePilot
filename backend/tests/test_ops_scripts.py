@@ -83,3 +83,22 @@ def test_알림은_웹훅이_없어도_죽지_않는다():
     )
     assert proc.returncode == 0
     assert "웹훅 미설정" in proc.stdout
+
+
+def test_크론_로그가_쓸_수_있는_경로로_간다():
+    """/var/log 는 root 소유로 만들어진다 — 크론은 일반 사용자로 돌기 때문에
+    >> 리다이렉트가 권한 거부로 죽고 5개 잡이 전부 조용히 실행되지 않는다."""
+    text = (OPS / "crontab.txt").read_text()
+    assert "/var/log" not in text
+    assert text.count("{{ROOT}}/logs/") == 5
+
+
+def test_설치_스크립트가_로그_백업_디렉터리를_만들고_쓰기를_확인한다():
+    text = (OPS / "install_cron.sh").read_text()
+    assert 'mkdir -p "$ROOT/logs" "$ROOT/backups"' in text
+    assert "sudo mkdir -p /var/log" not in text
+    assert "-w" in text  # 쓰기 가능 여부를 실제로 검사한다
+
+
+def test_백업_기본_경로가_저장소_아래다():
+    assert 'BACKUP_DIR="${BACKUP_DIR:-$ROOT/backups}"' in (OPS / "backup.sh").read_text()

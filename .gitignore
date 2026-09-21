@@ -29,3 +29,7 @@ frontend/.playwright/
 
 # LOCALDATA CSV(주 1회 재다운로드 가능한 파생 데이터, 수백 MB)
 /data/localdata/
+
+# 운영 로그·백업(크론이 저장소 아래에 쌓는다)
+/logs/
+/backups/
