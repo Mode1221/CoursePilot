@@ -1,10 +1,14 @@
 #!/usr/bin/env python
-"""LOCALDATA CSV 스모크. 키가 없는 무인증 공개 파일이라 URL 설정만 본다.
+"""LOCALDATA CSV 스모크. 무인증 공개 파일이라 키 없이도 항상 돌린다.
 
     python scripts/smoke_localdata.py
 
-이미 내려받은 CSV 가 있으면 그 파일의 컬럼을 대조하고, 없으면 첫 URL 하나만
-내려받아 헤더를 확인한다(파일이 수십 MB 라 스트리밍으로 앞부분만 읽는다).
+이미 내려받은 CSV 가 있으면 그 파일의 컬럼을 대조하고, 없으면 각 URL 의
+**앞 256KB 만 Range 로 받아** 헤더를 확인한다(전체는 200MB 대라 받지 않는다).
+브라우저 User-Agent 와 Referer 가 없으면 403 이므로 실제 수집과 같은 헤더를 쓴다.
+
+원천에 붙는 확인은 `LOCALDATA_CSV_DIR` 이 설정돼 있을 때(=실제로 수집하는 환경)
+또는 `--remote` 를 줬을 때만 한다 — CI 가 외부 사이트에 의존하면 안 된다.
 """
 from __future__ import annotations
 
@@ -18,6 +22,8 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 from _smoke import Smoke, run, skip  # noqa: E402
 
+from app.batch.coverage import CSV_ENCODING  # noqa: E402
+from app.batch.localdata_fetch import DEFAULT_CSV_URLS, headers_for  # noqa: E402
 from app.config import settings  # noqa: E402
 
 HEAD_BYTES = 256 * 1024  # 헤더 + 몇 줄이면 충분하다
@@ -45,49 +51,64 @@ def _check_columns(s, header: list[str]) -> None:
                    f"파일 컬럼: {header[:12]}")
 
 
+async def _peek(s, client, url: str) -> None:
+    """앞부분만 Range 로 받아 헤더를 대조한다."""
+    headers = {**headers_for(url), "Range": f"bytes=0-{HEAD_BYTES - 1}"}
+    async with client.stream("GET", url, headers=headers) as resp:
+        s.note(f"HTTP {resp.status_code} {resp.headers.get('content-type', '?')}")
+        if resp.status_code == 403:
+            s.fail("403 — User-Agent/Referer 가 막혔다(원천 정책 변경 가능)")
+            return
+        resp.raise_for_status()
+        if "html" in (resp.headers.get("content-type") or "").lower():
+            s.fail("CSV 가 아니라 HTML 이 왔다 — 차단이거나 원천 점검 중")
+            return
+        chunks, size = [], 0
+        async for chunk in resp.aiter_bytes():
+            chunks.append(chunk)
+            size += len(chunk)
+            if size >= HEAD_BYTES:
+                break
+    raw = b"".join(chunks)
+    if len(raw) < 100:
+        s.fail(f"응답이 너무 짧다({len(raw)}B) — 오류 페이지일 가능성")
+        return
+    # 응답 헤더는 charset=UTF-8 이라고 하지만 실제 본문은 CP949 다.
+    text = raw.decode(CSV_ENCODING, errors="replace")
+    header = next(csv.reader(io.StringIO(text)))
+    s.ok(f"헤더 {len(header)}개 컬럼")
+    _check_columns(s, header)
+
+
 async def main() -> int:
+    remote = "--remote" in sys.argv
+    s = Smoke("LOCALDATA")
     directory = settings.localdata_csv_dir
     local = sorted(Path(directory).glob("*.csv")) if directory else []
-    if not local and not settings.localdata_csv_urls:
-        return skip("LOCALDATA", "LOCALDATA_CSV_URLS 미설정, 스킵 (무인증 공개 파일 URL 목록 필요)")
-
-    s = Smoke("LOCALDATA")
     if local:
         path = local[0]
         s.note(f"내려받아 둔 파일 사용: {path.name} ({path.stat().st_size / 1e6:.1f}MB)")
-        with path.open(encoding="utf-8-sig", errors="replace") as fh:
+        with path.open(encoding=CSV_ENCODING, errors="replace") as fh:
             header = next(csv.reader(fh))
         _check_columns(s, header)
         s.ok(f"CSV 파일 {len(local)}개 확인")
         return s.done()
 
-    urls = list(settings.localdata_csv_urls)
-    if not directory:
-        s.fail("LOCALDATA_CSV_URLS 는 있는데 LOCALDATA_CSV_DIR 이 비었다 — 저장할 곳이 없다")
-        return s.done()
+    if not directory and not remote:
+        return skip(
+            "LOCALDATA",
+            "LOCALDATA_CSV_DIR 미설정, 스킵 "
+            "(원천 확인까지 하려면 --remote 또는 LOCALDATA_CSV_DIR 설정)",
+        )
+
+    urls = list(settings.localdata_csv_urls) or list(DEFAULT_CSV_URLS)
 
     import httpx
 
-    s.note(f"내려받은 파일이 없어 첫 URL 앞부분만 확인: {urls[0][:80]}")
     async with httpx.AsyncClient(timeout=60, follow_redirects=True) as client:
-        async with client.stream("GET", urls[0]) as resp:
-            s.note(f"HTTP {resp.status_code}")
-            resp.raise_for_status()
-            chunks, size = [], 0
-            async for chunk in resp.aiter_bytes():
-                chunks.append(chunk)
-                size += len(chunk)
-                if size >= HEAD_BYTES:
-                    break
-    raw = b"".join(chunks)
-    if len(raw) < 100:
-        s.fail(f"응답이 너무 짧다({len(raw)}B) — 오류 페이지일 가능성")
-        return s.done()
-
-    text = raw.decode("utf-8-sig", errors="replace")
-    header = next(csv.reader(io.StringIO(text)))
-    s.ok(f"헤더 {len(header)}개 컬럼")
-    _check_columns(s, header)
+        for url in urls:
+            s.note(f"앞 {HEAD_BYTES // 1024}KB 만 확인: {url}")
+            await _peek(s, client, url)
     return s.done()
 
 
