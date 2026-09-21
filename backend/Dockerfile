@@ -1,4 +1,6 @@
-FROM python:3.11.13-slim-bookworm  # arm64 지원 확인
+# arm64 지원 확인(2026-09). 주석은 반드시 줄 위에 — Dockerfile 은 명령 줄
+# 끝 주석을 지원하지 않아 "FROM requires either one or three arguments" 로 깨진다.
+FROM python:3.11.13-slim-bookworm
 
 WORKDIR /app
 
