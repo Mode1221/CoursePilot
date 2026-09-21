@@ -272,7 +272,10 @@ python scripts/districts_map.py     # districts_map.html + 겹침 목록
 | `LOCALDATA_CSV_DIR` | `/data/localdata` | 컨테이너 안에서 보는 경로 |
 | `LOCALDATA_CSV_URLS` | `[]` | 비우면 일반음식점·휴게음식점 기본 URL |
 
-주 1회 다시 받을 수 있는 파생 데이터라 **백업 대상이 아니다**(`backup.sh` 는 DB 만 뜬다).
+`deploy.sh` 가 기동 전에 호스트 디렉터리를 **현재 사용자로** 만든다 — Docker 가 먼저
+만들면 root 소유가 되어 uid 1000 으로 도는 백엔드가 쓰지 못한다.
+적재는 백엔드 기동 직후 백그라운드에서 이뤄지고(전국 파일 기준 수십 초), 그 사이에는
+폐업 필터가 무동작이다. 주 1회 다시 받을 수 있는 파생 데이터라 **백업 대상이 아니다**(`backup.sh` 는 DB 만 뜬다).
 디스크가 차면 이 디렉터리를 가장 먼저 지워도 된다 — `disk_check.sh` 경보에 크기가 함께 찍힌다.
 
 ## 첫 데이터 구축 순서

@@ -1,4 +1,6 @@
 """LOCALDATA CSV 내려받기: 부분 실패 허용, 캐시 무효화."""
+import io
+
 import httpx
 import pytest
 
@@ -133,7 +135,7 @@ async def test_너무_짧은_응답은_실패로_본다(tmp_path, transport):
 
 async def test_새로_받으면_캐시를_비운다(tmp_path, transport):
     registry = get_localdata_registry()
-    registry.load_csv(CSV)
+    registry.load_csv(io.StringIO(CSV))
     assert registry.loaded
     url = "https://x.kr/a.csv"
     transport({url: (200, CSV)})

@@ -76,7 +76,16 @@ async def lifespan(_app: FastAPI):
                 "ENV(APP_ENV)=production 에서는 이 값들이 반드시 있어야 합니다."
             )
     set_ready(init_db())  # 전 스토어가 참조하는 단일 readiness
-    yield
+
+    # 폐업 대장은 수백 MB다. 첫 요청에서 지연 로드하면 그 사용자가 수십 초를
+    # 기다린다 → 기동 직후 백그라운드로 채우고, 채워지기 전에는 필터가 무동작.
+    from app.adapters.localdata import warm_localdata
+
+    warm = asyncio.create_task(warm_localdata())
+    try:
+        yield
+    finally:
+        warm.cancel()
 
 
 api = FastAPI(title="CoursePilot API", lifespan=lifespan)

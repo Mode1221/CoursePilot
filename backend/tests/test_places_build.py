@@ -1,4 +1,5 @@
 """장소 DB 구축 배치: 전수 수집·폐업 제거·Google 콜 페이싱."""
+import io
 from datetime import UTC, date, datetime
 
 import pytest
@@ -62,7 +63,7 @@ async def test_중복_장소는_한_번만():
 
 def test_폐업을_빼고_인허가일자를_붙인다(monkeypatch):
     registry = LocalDataRegistry()
-    registry.load_csv(CSV)
+    registry.load_csv(io.StringIO(CSV))
     monkeypatch.setattr("app.adapters.localdata.get_localdata_registry", lambda: registry)
     places = [
         _place("a", "살아있는집", "서울 성동구 아차산로 17"),

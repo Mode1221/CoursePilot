@@ -10,16 +10,30 @@
 from __future__ import annotations
 
 import csv
-import io
+import logging
 import re
+import time
+from collections.abc import Iterable, Iterator
 from dataclasses import dataclass
 from datetime import date, datetime
 from functools import lru_cache
 from pathlib import Path
 
+from app.batch.districts import DISTRICTS
 from app.config import settings
 
+logger = logging.getLogger(__name__)
+
 RELOAD_INTERVAL_DAYS = 7  # 갱신 주기(주 1회)
+SNIFF_BYTES = 4096  # 인코딩 판별에 쓰는 앞부분 크기
+KEEP_RATIO_WARN = 0.05  # 인덱싱 비율이 이보다 높으면 필터가 안 먹은 것이다
+
+# 신원천은 **업종별 전국 파일**이다(일반음식점은 200만 행이 넘는다). 전부
+# 인덱싱하면 6GB VM 에서 백엔드가 OOM 으로 죽는다. 우리가 추천하는 24개 상권의
+# 시군구 행만 남긴다 — 나머지는 폐업 판정에 쓸 일이 없다.
+TARGET_SIGUNGU: frozenset[str] = frozenset(
+    d.sigungu for d in DISTRICTS if d.sigungu
+)
 
 # LOCALDATA 표준 컬럼명. 파일마다 일부만 존재할 수 있어 후보 목록으로 둔다.
 _NAME_COLS = ("사업장명", "업소명", "상호명")
@@ -146,36 +160,73 @@ class LocalDataRegistry:
         self._loaded_on = None
 
     # --- 적재 -------------------------------------------------------------
-    def load_csv(self, text: str, *, loaded_on: date | None = None) -> int:
-        """CSV 본문을 인덱스에 추가한다. 반환값은 적재된 행 수."""
-        reader = csv.DictReader(io.StringIO(text))
-        count = 0
-        for row in reader:
+    def load_csv(
+        self,
+        source: Path | str | Iterable[str],
+        *,
+        loaded_on: date | None = None,
+    ) -> int:
+        """CSV 를 **한 줄씩 흘려 읽어** 인덱스에 추가한다. 반환값은 인덱싱한 행 수.
+
+        source 는 파일 경로이거나 줄 이터레이터(테스트용 StringIO 등)다.
+        파일 내용을 문자열로 통째로 받지 않는다 — 200MB 파일이 그대로 메모리에
+        올라가고, 거기서 만든 레코드까지 더해 OOM 이 난다.
+        """
+        if isinstance(source, str | Path):
+            path = Path(source)
+            with path.open(
+                encoding=detect_encoding(path), errors="replace", newline=""
+            ) as fh:
+                return self._ingest(fh, loaded_on=loaded_on, label=path.name)
+        return self._ingest(iter(source), loaded_on=loaded_on, label="<stream>")
+
+    def _ingest(
+        self, lines: Iterator[str], *, loaded_on: date | None, label: str
+    ) -> int:
+        started = time.monotonic()
+        read = kept = 0
+        for row in csv.DictReader(lines):
+            read += 1
             name = _pick(row, _NAME_COLS)
             if not name:
                 continue
-            record = BusinessRecord(
-                name=name,
-                address=_pick(row, _ADDR_COLS),
-                status=_pick(row, _STATUS_COLS),
-                opened_on=_parse_date(_pick(row, _OPENED_COLS)),
-                closed_on=_parse_date(_pick(row, _CLOSED_COLS)),
+            address = _pick(row, _ADDR_COLS)
+            if not _in_target_area(address):
+                continue  # 전국 파일의 대부분은 여기서 버려진다
+            self._by_name.setdefault(_norm_name(name), []).append(
+                BusinessRecord(
+                    name=name,
+                    address=address,
+                    status=_pick(row, _STATUS_COLS),
+                    opened_on=_parse_date(_pick(row, _OPENED_COLS)),
+                    closed_on=_parse_date(_pick(row, _CLOSED_COLS)),
+                )
             )
-            self._by_name.setdefault(_norm_name(name), []).append(record)
-            count += 1
-        if count:
+            kept += 1
+        elapsed = time.monotonic() - started
+        logger.info(
+            "localdata 적재 %s: 읽음 %d행 / 인덱싱 %d행 (%.1f%%) / %.1f초",
+            label, read, kept, 100 * kept / max(read, 1), elapsed,
+        )
+        if read and kept / read > KEEP_RATIO_WARN:
+            logger.warning(
+                "localdata 인덱싱 비율이 %.1f%% 다 — 시군구 필터가 걸리지 않았을 수 있다"
+                " (주소 칼럼명이 바뀌었는지 확인: %s)",
+                100 * kept / read, label,
+            )
+        if kept:
             self._loaded_on = loaded_on or date.today()
-        return count
+        return kept
 
     def load_dir(self, directory: str | Path, *, loaded_on: date | None = None) -> int:
-        """시군구별 CSV 가 모인 디렉터리를 통째로 적재. 없으면 0."""
+        """CSV 가 모인 디렉터리를 통째로 적재. 없으면 0."""
         path = Path(directory)
         if not path.is_dir():
             return 0
-        total = 0
-        for csv_path in sorted(path.glob("*.csv")):
-            total += self.load_csv(_read_text(csv_path), loaded_on=loaded_on)
-        return total
+        return sum(
+            self.load_csv(csv_path, loaded_on=loaded_on)
+            for csv_path in sorted(path.glob("*.csv"))
+        )
 
     def reload_if_stale(self) -> int:
         """설정된 디렉터리에서 주기적으로 다시 읽는다(설정 없으면 무동작)."""
@@ -239,25 +290,54 @@ def _area_key(address: str | None) -> str:
     return " ".join(parts[:3]) if len(parts) >= 3 else ""
 
 
-def _read_text(path: Path) -> str:
-    """LOCALDATA CSV 는 CP949 다(응답 헤더의 charset=UTF-8 은 사실과 다르다).
+def detect_encoding(path: Path) -> str:
+    """앞 4KB 만 보고 인코딩을 고른다(200MB 파일을 통째로 읽지 않는다).
 
-    예전에 UTF-8 로 받아 둔 파일도 읽히도록 순서대로 시도하고, 끝까지 실패하면
-    CP949 로 손상 문자를 치환해 읽는다 — 한 파일 때문에 전체 적재가 멎으면 안 된다.
+    LOCALDATA 신원천은 CP949 다(응답 헤더의 charset=UTF-8 은 사실과 다르다).
+    예전에 UTF-8 로 받아 둔 파일도 그대로 읽히도록 판별한다.
     """
-    raw = path.read_bytes()
-    for encoding in ("cp949", "utf-8-sig", "utf-8"):
-        try:
-            return raw.decode(encoding)
-        except UnicodeDecodeError:
-            continue
-    return raw.decode("cp949", errors="replace")
+    with path.open("rb") as fh:
+        head = fh.read(SNIFF_BYTES)
+    if head.startswith(b"\xef\xbb\xbf"):
+        return "utf-8-sig"
+    # 끝이 멀티바이트 문자 중간에서 잘렸을 수 있으므로 마지막 3바이트는 버린다
+    try:
+        head[:-3].decode("utf-8")
+    except UnicodeDecodeError:
+        return "cp949"
+    return "utf-8"
+
+
+def _in_target_area(address: str) -> bool:
+    """우리 상권의 시군구 행만 인덱싱한다(전국 파일에서 99% 는 버려진다).
+
+    개방자치단체코드로 거르는 편이 더 정확하지만 공식 코드표를 대조하지 못해
+    "미확인"으로 남겼다(docs/DATA_STRATEGY.md). 확인되면 코드 필터를 우선한다.
+    """
+    return any(name in address for name in TARGET_SIGUNGU)
 
 
 @lru_cache(maxsize=1)
 def get_localdata_registry() -> LocalDataRegistry:
-    """싱글턴. 설정된 디렉터리가 있으면 최초 1회 적재한다."""
-    registry = LocalDataRegistry()
-    if settings.localdata_csv_dir:
-        registry.load_dir(settings.localdata_csv_dir)
-    return registry
+    """싱글턴. **빈 채로** 돌려준다 — 적재는 기동 시 백그라운드에서 한다.
+
+    여기서 load_dir 을 부르면 첫 요청을 보낸 사용자가 수백 MB 파싱이 끝날 때까지
+    수십 초를 기다린다. 적재 전에는 인덱스가 비어 폐업 필터가 무동작(폴백)이다.
+    """
+    return LocalDataRegistry()
+
+
+async def warm_localdata() -> int:
+    """기동 시 백그라운드 적재. 실패해도 서비스는 그대로 뜬다(폐업 필터만 꺼짐)."""
+    import asyncio
+
+    directory = settings.localdata_csv_dir
+    if not directory or not Path(directory).is_dir():
+        return 0
+    registry = get_localdata_registry()
+    try:
+        # 파싱은 CPU·IO 를 오래 잡는다 → 이벤트 루프를 막지 않도록 스레드에서
+        return await asyncio.to_thread(registry.load_dir, directory)
+    except Exception:
+        logger.exception("localdata 적재 실패 — 폐업 필터 없이 계속한다")
+        return 0
