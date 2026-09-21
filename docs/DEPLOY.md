@@ -208,23 +208,31 @@ python scripts/districts_map.py     # districts_map.html + 겹침 목록
    curl -s -o /dev/null -w '%{http_code}\n' https://api.${DOMAIN}/health/ready   # 200
    ```
    `/health/ready` 가 503 이면 DB 미연결이거나 필수 설정이 빠진 것이다.
-2. **외부 연동 스모크** — 키를 넣은 만큼만 PASS, 나머지는 SKIP
+2. **Google 일일 할당량 상한을 콘솔에서 건다** (키를 넣은 경우)
+   Place Details 는 Enterprise SKU 로 **월 1,000 콜**이 무료 한도의 전부다. 넘으면
+   그 즉시 카드로 청구되므로, 코드의 한도 차단과 **별개로** 콘솔에서도 막아 둔다.
+   - Google Cloud 콘솔 → APIs & Services → Places API (New) → Quotas
+   - `Place Details Enterprise` 일일 상한을 **40/일** 이하로(월 1,000 기준)
+   - `Text Search (IDs Only)` 도 넉넉하되 상한을 둔다(예: 500/일)
+   - 키에 IP 제한을 함께 건다(서버 IP 만)
+
+3. **외부 연동 스모크** — 키를 넣은 만큼만 PASS, 나머지는 SKIP
    ```bash
    docker compose -f docker-compose.prod.yml exec -T backend python scripts/smoke_all.py
    ```
-3. **폐업 대장 내려받기 + 시군구 커버리지**
+4. **폐업 대장 내려받기 + 시군구 커버리지**
    ```bash
    docker compose -f docker-compose.prod.yml exec -T backend python scripts/fetch_localdata.py
    ```
-4. **백업 한 번 손으로 돌려 본다** — 크론이 처음 도는 새벽에 실패를 발견하면 늦다
+5. **백업 한 번 손으로 돌려 본다** — 크론이 처음 도는 새벽에 실패를 발견하면 늦다
    ```bash
    ./scripts/ops/backup.sh && ls -lh ./backups
    ```
-5. **크론 확인** — `deploy.sh` 가 설치한다
+6. **크론 확인** — `deploy.sh` 가 설치한다
    ```bash
    crontab -l | sed -n '/coursepilot/,/coursepilot/p'
    ```
-6. **크론 사용자 권한으로 5개 잡을 한 번씩 돌려 로그가 실제로 쌓이는지 확인**
+7. **크론 사용자 권한으로 5개 잡을 한 번씩 돌려 로그가 실제로 쌓이는지 확인**
    크론은 로그인 셸이 아니라 그 사용자 권한으로 돈다. 로그 디렉터리가 root 소유면
    `>>` 리다이렉트가 권한 거부로 죽고 **5개 잡이 전부 조용히 실행되지 않는다.**
    ```bash
@@ -237,7 +245,7 @@ python scripts/districts_map.py     # districts_map.html + 겹침 목록
    ```
    한 줄이라도 `Permission denied` 가 보이면 소유자를 고친다:
    `sudo chown -R "$(id -u):$(id -g)" ./logs ./backups`
-7. 여기까지 통과하면 상권 수집(`scripts/build_places.py`)을 돌린다.
+8. 여기까지 통과하면 상권 수집(`scripts/build_places.py`)을 돌린다.
 
 ## 운영 스크립트 (`scripts/ops/`)
 | 스크립트 | 하는 일 |

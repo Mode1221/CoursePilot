@@ -22,31 +22,31 @@ def test_한도를_모르는_API는_무제한(store):
 
 
 def test_사용량이_한도에_닿으면_거절한다(store):
-    for _ in range(MONTHLY_FREE_LIMITS["google.rating"]):
-        assert store.allow("google.rating")
-        store.record("google.rating")
-    assert not store.allow("google.rating")
-    assert store.remaining("google.rating") == 0
+    for _ in range(MONTHLY_FREE_LIMITS["google.details"]):
+        assert store.allow("google.details")
+        store.record("google.details")
+    assert not store.allow("google.details")
+    assert store.remaining("google.details") == 0
 
 
 def test_달이_바뀌면_다시_센다(store):
-    store.record("google.hours", 5_000, now=JAN)
-    assert not store.allow("google.hours", now=JAN)
-    assert store.allow("google.hours", now=FEB)
-    assert store.used("google.hours", now=FEB) == 0
+    store.record("google.details", 5_000, now=JAN)
+    assert not store.allow("google.details", now=JAN)
+    assert store.allow("google.details", now=FEB)
+    assert store.used("google.details", now=FEB) == 0
 
 
 def test_80퍼센트를_넘으면_경고한다(store):
-    limit = MONTHLY_FREE_LIMITS["google.hours"]
-    store.record("google.hours", int(limit * WARN_RATIO) - 1)
+    limit = MONTHLY_FREE_LIMITS["google.details"]
+    store.record("google.details", int(limit * WARN_RATIO) - 1)
     assert store.alerts() == []
-    store.record("google.hours", 2)
-    assert [a["target"] for a in store.alerts()] == ["google.hours"]
+    store.record("google.details", 2)
+    assert [a["target"] for a in store.alerts()] == ["google.details"]
 
 
 def test_스냅샷은_한도와_잔여를_보여준다(store):
-    store.record("google.rating", 100)
-    row = next(r for r in store.snapshot() if r["name"] == "google.rating")
+    store.record("google.details", 100)
+    row = next(r for r in store.snapshot() if r["name"] == "google.details")
     assert row["used"] == 100 and row["remaining"] == 900 and row["ratio"] == 0.1
 
 
@@ -57,7 +57,7 @@ class _Client(GooglePlacesClient):
 
 async def test_한도가_소진되면_구글을_호출하지_않는다(monkeypatch):
     quota_store.clear()
-    quota_store.record("google.hours", MONTHLY_FREE_LIMITS["google.hours"])
+    quota_store.record("google.details", MONTHLY_FREE_LIMITS["google.details"])
     called = []
 
     class _Boom:
@@ -67,7 +67,7 @@ async def test_한도가_소진되면_구글을_호출하지_않는다(monkeypat
 
     client = _Client()
     client._client = _Boom()
-    assert await client.fetch_hours("gp-1") is None
+    assert await client.fetch_details("gp-1") is None
     assert called == []
     quota_store.clear()
 
@@ -88,36 +88,36 @@ async def test_한도_안이면_호출하고_사용량이_는다(monkeypatch):
 
     client = _Client()
     client._client = _Ok()
-    assert await client.fetch_hours("gp-1") == {"businessStatus": "OPERATIONAL"}
-    assert quota_store.used("google.hours") == 1
+    assert await client.fetch_details("gp-1") == {"businessStatus": "OPERATIONAL"}
+    assert quota_store.used("google.details") == 1
     quota_store.clear()
 
 
 def test_임계를_처음_넘을_때만_알린다(monkeypatch, store):
     sent: list[tuple[str, str]] = []
     monkeypatch.setattr("app.quota._notify", lambda kind, target, text: sent.append((kind, text)))
-    limit = MONTHLY_FREE_LIMITS["google.rating"]
-    store.record("google.rating", int(limit * 0.79))
+    limit = MONTHLY_FREE_LIMITS["google.details"]
+    store.record("google.details", int(limit * 0.79))
     assert sent == []
-    store.record("google.rating", int(limit * 0.02))  # 80% 진입
+    store.record("google.details", int(limit * 0.02))  # 80% 진입
     assert len(sent) == 1 and "한도 8" in sent[0][1]
-    store.record("google.rating", 1)  # 여전히 80%대 — 다시 알리지 않는다
+    store.record("google.details", 1)  # 여전히 80%대 — 다시 알리지 않는다
     assert len(sent) == 1
 
 
 def test_한도_소진은_따로_알린다(monkeypatch, store):
     sent: list[str] = []
     monkeypatch.setattr("app.quota._notify", lambda kind, target, text: sent.append(text))
-    store.record("google.rating", MONTHLY_FREE_LIMITS["google.rating"])
+    store.record("google.details", MONTHLY_FREE_LIMITS["google.details"])
     assert any("소진" in t for t in sent)
 
 
 def test_달이_바뀌면_다시_알린다(monkeypatch, store):
     sent: list[str] = []
     monkeypatch.setattr("app.quota._notify", lambda kind, target, text: sent.append(text))
-    store.record("google.hours", MONTHLY_FREE_LIMITS["google.hours"], now=JAN)
+    store.record("google.details", MONTHLY_FREE_LIMITS["google.details"], now=JAN)
     before = len(sent)
-    store.record("google.hours", MONTHLY_FREE_LIMITS["google.hours"], now=FEB)
+    store.record("google.details", MONTHLY_FREE_LIMITS["google.details"], now=FEB)
     assert len(sent) > before
 
 
@@ -142,12 +142,12 @@ def test_DB가_있으면_사용량을_영속화한다(monkeypatch, tmp_path):
     monkeypatch.setattr(QuotaStore, "_db_ready", staticmethod(lambda: True))
 
     store = QuotaStore()
-    store.record("google.hours", 40)
-    assert store.used("google.hours") == 40
+    store.record("google.details", 40)
+    assert store.used("google.details") == 40
 
     # 새 프로세스처럼 완전히 새 인스턴스로 읽어도 사용량이 남아 있어야 한다
-    assert QuotaStore().used("google.hours") == 40
-    assert QuotaStore().remaining("google.hours") == MONTHLY_FREE_LIMITS["google.hours"] - 40
+    assert QuotaStore().used("google.details") == 40
+    assert QuotaStore().remaining("google.details") == MONTHLY_FREE_LIMITS["google.details"] - 40
 
 
 def test_DB에서도_달이_바뀌면_0부터(monkeypatch, tmp_path):
@@ -162,6 +162,6 @@ def test_DB에서도_달이_바뀌면_0부터(monkeypatch, tmp_path):
     monkeypatch.setattr(QuotaStore, "_db_ready", staticmethod(lambda: True))
 
     store = QuotaStore()
-    store.record("google.hours", 10, now=JAN)
-    assert store.used("google.hours", now=JAN) == 10
-    assert store.used("google.hours", now=FEB) == 0
+    store.record("google.details", 10, now=JAN)
+    assert store.used("google.details", now=JAN) == 10
+    assert store.used("google.details", now=FEB) == 0

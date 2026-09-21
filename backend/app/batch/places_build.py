@@ -2,8 +2,10 @@
 
     상권 전수 수집(카카오) → 폐업 제거(LOCALDATA) → Google 매핑·영업시간·평점 → upsert
 
-Google 콜은 무료 한도가 좁아 하루 단위로 페이싱한다(영업시간 160건/일, 평점은
-상권별 상위 N건만). 한 번에 다 채우지 않고 여러 날에 걸쳐 채우는 것이 전제다.
+Google Place Details 는 **Enterprise 월 1,000 콜**이 전부다(영업시간·평점이 같은
+SKU). 그래서 배치는 하루 20건(월 약 600)만 채우고 나머지 400 은 런타임 몫으로
+남긴다. 수집한 전수(약 15,000곳)를 Google 로 채우는 것은 무료로는 불가능하므로,
+**상권별 상위 N곳만** 채우는 것을 목표로 한다(docs/DATA_STRATEGY.md).
 """
 from __future__ import annotations
 
@@ -19,10 +21,16 @@ from app.schemas import Place
 
 logger = logging.getLogger("coursepilot")
 
-HOURS_PER_DAY = 160  # Google Pro 월 5,000 무료 → 배치 3,000, 런타임 2,000 분배 기준
-RATINGS_PER_DAY = 11  # Enterprise 월 1,000 무료. 상권별 상위 100개를 3개월에 채운다
-TOP_PER_DISTRICT = 100
-AWARENESS_PER_RUN = 500  # 블로그 검색 일 25,000 한도 안에서 여유 있게  # 평점을 물을 상권별 상위 개수
+# Place Details(Enterprise) 월 1,000 = 배치 600 + 런타임 400.
+# 영업시간과 평점을 한 콜로 받으므로 하루 20콜이면 월 600 이다.
+DETAILS_PER_DAY = 20
+RUNTIME_RESERVE = 400  # 코스 확정 시 갱신에 남겨 두는 몫(배치가 다 쓰면 안 된다)
+TOP_PER_DISTRICT = 25  # 상권별로 Google 로 채울 상위 곳 수(24곳 × 25 = 600)
+AWARENESS_PER_RUN = 500  # 블로그 검색 일 25,000 한도 안에서 여유 있게
+
+# 예전 이름(호출부 호환). 둘 다 같은 1콜을 쓴다.
+HOURS_PER_DAY = DETAILS_PER_DAY
+RATINGS_PER_DAY = DETAILS_PER_DAY
 
 # 카테고리 검색에 쓸 그룹 코드(슬롯별 중복 제거)
 GROUP_CODES = tuple(dict.fromkeys(c for codes in SLOT_GROUP_CODES.values() for c in codes))
@@ -99,42 +107,65 @@ def drop_closed(places: list[Place]) -> tuple[list[Place], int]:
     return kept, len(places) - len(kept)
 
 
-async def fill_hours(places: list[Place], limit: int = HOURS_PER_DAY) -> int:
-    """만료된 영업시간을 하루 할당량만큼 채운다(초과분은 다음 실행에서)."""
+def _details_budget(limit: int) -> int:
+    """이번 실행에서 쓸 Google 콜 수. 런타임 몫을 남긴다.
+
+    남은 월 한도가 런타임 예약분보다 적으면 배치는 아예 부르지 않는다 —
+    코스 확정 시 영업시간을 못 물어보는 쪽이 더 나쁘다.
+    """
+    from app.quota import quota_store
+
+    remaining = quota_store.remaining("google.details")
+    if remaining is None:
+        return limit
+    return max(0, min(limit, remaining - RUNTIME_RESERVE))
+
+
+async def fill_hours(places: list[Place], limit: int = DETAILS_PER_DAY) -> int:
+    """만료된 영업시간·평점을 하루 할당량만큼 한 콜씩 채운다(초과분은 다음 실행에서).
+
+    상권별 상위 N곳만 채운다 — 월 1,000 콜로 전수(약 15,000곳)는 불가능하다.
+    """
     from app.adapters.google import get_places_client, hours_stale
+    from app.popularity import popularity_store
 
     client = get_places_client()
-    if not client.enabled:
+    budget = _details_budget(limit)
+    if not client.enabled or budget <= 0:
         return 0
-    targets = [p for p in places if hours_stale(p)][:limit]
+    scores = popularity_store.scores([p.id for p in places])
+    ranked = sorted(places, key=lambda p: scores.get(p.id, 0.0), reverse=True)
+    targets = [p for p in ranked[:TOP_PER_DISTRICT] if hours_stale(p)][:budget]
     if not targets:
         return 0
     await asyncio.gather(
-        *(client.refresh_hours(p) for p in targets), return_exceptions=True
+        *(client.refresh_details(p) for p in targets), return_exceptions=True
     )
     return sum(1 for p in targets if p.hours_checked_at is not None)
 
 
 async def fill_ratings(
-    places: list[Place], limit: int = RATINGS_PER_DAY, top_per_district: int = TOP_PER_DISTRICT
+    places: list[Place], limit: int = DETAILS_PER_DAY, top_per_district: int = TOP_PER_DISTRICT
 ) -> int:
-    """평점은 상권별 상위 장소에만 묻는다(Enterprise 월 1,000 한도).
+    """평점은 fill_hours 가 같은 콜로 이미 채운다 — 남은 것만 보충한다.
 
+    영업시간과 평점이 같은 Enterprise SKU 라 따로 부르면 한도만 두 배로 쓴다.
     상위 기준은 아직 자체 신호(인기)뿐이라, 인기 순으로 자른다.
     """
     from app.adapters.google import get_places_client, rating_stale
     from app.popularity import popularity_store
 
     client = get_places_client()
-    if not client.enabled:
+    budget = _details_budget(limit)
+    if not client.enabled or budget <= 0:
         return 0
     scores = popularity_store.scores([p.id for p in places])
     ranked = sorted(places, key=lambda p: scores.get(p.id, 0.0), reverse=True)
-    targets = [p for p in ranked[:top_per_district] if rating_stale(p)][:limit]
+    targets = [p for p in ranked[:top_per_district] if rating_stale(p)][:budget]
     if not targets:
         return 0
     await asyncio.gather(
-        *(client.refresh_rating(p) for p in targets), return_exceptions=True
+        *(client.refresh_details(p) for p in targets), return_exceptions=True
     )
     return sum(1 for p in targets if p.rating is not None)
 

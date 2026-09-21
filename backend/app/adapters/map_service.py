@@ -232,6 +232,66 @@ class CachedSearchMapService(MapService):
 
 
 @lru_cache(maxsize=1)
+class StoredMergeMapService(MapService):
+    """검색 결과에 **저장된 보강 값**(영업시간·평점·google_place_id)을 얹는다.
+
+    카카오·네이버 응답에는 영업시간도 평점도 없다. 그대로 두면 코스 확정 때마다
+    확정 장소 전부가 `hours_stale` 로 보여 Google 에 다시 묻게 된다(코스당 6~10콜).
+    월 1,000 콜이 전부인 Enterprise 한도에서는 하루 몇 코스면 끝난다.
+
+    병합 키는 place id 를 먼저 쓰고, 없으면 상호+주소 숫자(match_key)로 맞춘다
+    — 네이버 결과는 카카오 id 와 다르기 때문이다. 이름 인덱스는 저장분 스냅샷에서
+    만들고 짧게 캐시한다(매 검색마다 전체를 읽으면 느리다).
+    """
+
+    NAME_INDEX_TTL_SEC = 600
+    NAME_INDEX_LIMIT = 2000
+
+    def __init__(self, inner: MapService) -> None:
+        self._inner = inner
+        self._index: dict[str, Place] = {}
+        self._index_at = 0.0
+
+    def _name_index(self) -> dict[str, Place]:
+        import time as _time
+
+        from app.batch.merge import match_key
+
+        now = _time.monotonic()
+        if self._index and now - self._index_at < self.NAME_INDEX_TTL_SEC:
+            return self._index
+        from app.places import place_repo
+
+        stored = place_repo.all(limit=self.NAME_INDEX_LIMIT)
+        self._index = {match_key(p.name, p.address): p for p in stored}
+        self._index_at = now
+        return self._index
+
+    async def search_places(self, region, keywords, limit=10):
+        places = await self._inner.search_places(region, keywords, limit)
+        if not places:
+            return places
+        try:
+            from app.batch.merge import match_key, merge_place
+            from app.places import place_repo
+
+            stored = place_repo.get_many([p.id for p in places])
+            missing = [p for p in places if p.id not in stored]
+            index = self._name_index() if missing else {}
+            for place in places:
+                previous = stored.get(place.id) or index.get(
+                    match_key(place.name, place.address)
+                )
+                if previous is not None:
+                    merge_place(place, previous)
+        except Exception:
+            return places  # 병합 실패는 검색을 막지 않는다
+        return places
+
+    async def get_route(self, origin, dest, mode):
+        return await self._inner.get_route(origin, dest, mode)
+
+
 def get_map_service() -> MapService:
     """설정에 따라 구현체 선택(싱글턴). 키 없으면 Mock.
 
@@ -256,7 +316,8 @@ def get_map_service() -> MapService:
         from app.adapters.seeded import SeededPlaceService, has_seed_places
 
         base = SeededPlaceService() if has_seed_places() else MockMapService()
-    # Google 평점은 후보 검색 때 부르지 않는다 — 평점 콜은 Enterprise 티어(월 1,000)
-    # 라서, 배치로 상권별 상위 장소만 채우고 런타임에는 DB 값을 쓴다.
-    # 폐업 필터는 캐시 안쪽에 둔다 — 캐시된 결과에도 이미 필터가 적용되도록.
-    return CachedSearchMapService(ClosedFilterMapService(base))
+    # Google 평점·영업시간은 후보 검색 때 부르지 않는다 — Enterprise 월 1,000 이
+    # 전부라, 배치로 상권별 상위 장소만 채우고 런타임에는 DB 값을 병합해 쓴다.
+    # 순서: 캐시 → 폐업 필터 → 저장분 병합 → 벤더.
+    # 병합을 폐업 필터 안쪽에 두어야 필터도 저장된 영업 상태를 보고 판단한다.
+    return CachedSearchMapService(ClosedFilterMapService(StoredMergeMapService(base)))
