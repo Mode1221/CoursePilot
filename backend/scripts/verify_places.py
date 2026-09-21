@@ -8,6 +8,7 @@ DB 가 붙어 있어야 한다(없으면 인메모리라 볼 것이 없다).
 """
 from __future__ import annotations
 
+import logging
 import sys
 from collections import Counter
 from math import atan2, cos, radians, sin, sqrt
@@ -19,6 +20,7 @@ from app.adapters.kakao import slot_for  # noqa: E402
 from app.batch.db_setup import connect_db  # noqa: E402
 from app.batch.districts import DISTRICTS  # noqa: E402
 from app.batch.localdata_boot import load_localdata_or_exit  # noqa: E402
+from app.pipeline.planner import classify  # noqa: E402
 
 MIN_PER_DISTRICT = 300  # 이보다 적으면 수집이 카카오 질의 상한에 걸린 것이다
 
@@ -51,6 +53,7 @@ def _pct(part: int, whole: int) -> str:
 
 
 def main() -> int:
+    logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
     if not connect_db():
         print("DB 에 연결하지 못했습니다 — 확인할 대상이 없습니다.", file=sys.stderr)
         return 1
@@ -88,20 +91,22 @@ def main() -> int:
     if outside:
         print(f"  {'(범위 밖)':<6} {outside:>6,}  ← 상권 중심에서 5km 초과")
 
-    # ② 슬롯 미매핑
+    # ② 슬롯 분류 — 플래너가 실제로 쓰는 classify 로 센다(코드 → 이름 폴백 → activity).
+    #    코드만 보고 "미매핑"이라 하면 보충 키워드로 들어온 소품샵·전시가 다 미매핑으로 찍힌다.
     print("\n── 슬롯 매핑 " + "─" * 42)
-    slots = Counter(slot_for(p.category_code, p.category) for p in places)
-    unmapped = slots.get(None, 0)
-    for slot, count in sorted((s, c) for s, c in slots.items() if s):
+    slots = Counter(classify(p) for p in places)
+    by_name = sum(1 for p in places if slot_for(p.category_code, p.category) is None)
+    for slot, count in sorted(slots.items()):
         print(f"  {slot:<10} {count:>6,}  {_pct(count, total)}")
-    print(f"  {'미매핑':<10} {unmapped:>6,}  {_pct(unmapped, total)}"
-          f"{'  ← 카테고리 코드 확인 필요' if unmapped else ''}")
+    print(f"  {'이름 폴백':<10} {by_name:>6,}  {_pct(by_name, total)}"
+          "  (카카오 코드 밖 → 카테고리 이름으로 분류, 정상)")
 
     # ③ 폐업 제거율 — 남아 있는 것 중 폐업으로 판정되는 게 있으면 필터가 샌 것이다
     print("\n── 폐업 필터 " + "─" * 42)
     from app.adapters.localdata import get_localdata_registry
 
     # 검증 스크립트도 별개 프로세스다 — 여기서 동기 적재하지 않으면 늘 "미적재"다
+    print("  LOCALDATA 적재 중… (첫 실행은 CSV 파싱 40초 안팎, 이후는 캐시로 수 초)", flush=True)
     load_localdata_or_exit(allow_missing=True)
     registry = get_localdata_registry()
     if not registry.loaded:
