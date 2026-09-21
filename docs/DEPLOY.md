@@ -168,7 +168,7 @@ python scripts/smoke_kakao.py      # 카카오 로컬(키워드·카테고리 �
 python scripts/smoke_naver.py      # 지역검색 + NCP 차량 경로
 python scripts/smoke_tourapi.py    # TourAPI 검색 + 소개정보
 python scripts/smoke_kopis.py      # KOPIS 공연 목록(XML)
-python scripts/smoke_localdata.py  # LOCALDATA CSV 컬럼
+python scripts/smoke_localdata.py --remote  # LOCALDATA 원천 접속 + 컬럼(키 불필요, 앞 256KB 만)
 python scripts/smoke_google.py     # Google Places(유료 — quota 차감·기록 확인)
 python scripts/smoke_all.py        # 전부 한 번에(요약 표)
 ```

@@ -138,6 +138,8 @@
 
 ### 배치 스크립트 (`backend/scripts/`)
 - `smoke_{kakao,naver,google,tourapi,kopis,localdata}.py` + `smoke_all.py` — 실키로 1~2콜만 부르고
+  (localdata 는 키가 필요 없다: Range 로 앞 256KB 만 받아 헤더를 대조하며,
+  원천 접속은 `LOCALDATA_CSV_DIR` 이 설정됐거나 `--remote` 일 때만 — CI 는 외부에 의존하지 않는다)
   응답 필드명·타입을 코드가 읽는 것과 대조(PASS/FAIL). 키 없으면 SKIP·exit 0.
   Google 은 어댑터를 그대로 타 `quota.py` 에 카운트되고, 필드마스크 티어 분리도 확인한다.
 - `verify_places.py` — 구축 결과 점검(상권별 건수·슬롯 미매핑·폐업 잔존·Google 매핑률).
