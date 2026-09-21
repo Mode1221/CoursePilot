@@ -33,7 +33,7 @@
 | place_id 매핑 | Google Text Search, IDs-only 필드마스크 | 사실상 무료 | locationBias 100m |
 | 영업시간 | Google Place Details (Pro) | 월 5,000 무료 | `regularOpeningHours`+`currentOpeningHours`+`businessStatus` 한 콜 |
 | 집계 평점 | Google Place Details (Enterprise) | 월 1,000 무료 | 평점 콜과 영업시간 콜을 절대 섞지 않는다 |
-| 폐업·업력 | LOCALDATA CSV | 무료·무인증 | 시군구 단위, 주 1회 |
+| 폐업·업력 | LOCALDATA CSV (`file.localdata.go.kr`) | 무료·무인증(UA·Referer 헤더 필요) | 업종 단위 전국 파일, 주 1회 |
 | 관광·문화 영업시간 | TourAPI detailIntro | 무료 | Google에 없는 곳 보강 |
 | 공연·전시 일정 | KOPIS | 무료 | 코스 날짜에 진행 중인 것만 |
 | 경로 | 네이버 Directions 5 (`maps.apigw.ntruss.com`) | 월 60,000 무료 | 한도 초과 시 직선거리 근사 |
