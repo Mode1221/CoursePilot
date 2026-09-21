@@ -184,6 +184,9 @@ async def readiness(response: Response) -> dict:
         "env": settings.env,
         # 값이 아니라 '비어 있다'는 사실만 노출한다
         "missing_settings": missing,
+        # 결제 키가 없어도 서비스는 뜬다(기동 조건 아님). 다만 운영에서 꺼져
+        # 있으면 포인트 구매가 503 이므로, 켜졌는지 여기서 볼 수 있게 한다.
+        "payment_enabled": settings.payment_enabled,
     }
 
 

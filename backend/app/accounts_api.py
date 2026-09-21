@@ -169,7 +169,16 @@ class PurchaseRequest(BaseModel):
 async def purchase_points(
     user_id: str, req: PurchaseRequest, x_user_id: str | None = Header(default=None),
     x_user_token: str | None = Header(default=None)) -> dict:
-    """포인트 구매/충전 (9-2). 결제 활성 시 imp_uid 로 결제 검증 후 지급."""
+    """포인트 구매/충전 (9-2). 결제 활성 시 imp_uid 로 결제 검증 후 지급.
+
+    운영에서 결제 키가 없으면 검증 없이 포인트를 찍어 주게 된다 — 누구나 공짜로
+    충전할 수 있다는 뜻이다. SMS 와 같은 이유로 지급 대신 거절한다.
+    """
+    if settings.is_production and not settings.payment_enabled:
+        raise HTTPException(
+            status_code=503,
+            detail="결제를 사용할 수 없습니다. 잠시 후 다시 시도해주세요.",
+        )
     _require_self(user_id, x_user_id, x_user_token)
     if req.points <= 0:
         raise HTTPException(status_code=400, detail="포인트는 1 이상이어야 합니다")
