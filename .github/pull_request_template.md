@@ -6,5 +6,5 @@
 
 ## 문서
 <!-- 아래 중 하나를 남긴다.
-     - 갱신함: docs/STATUS.md(최종 갱신 줄 포함) / ARCHITECTURE.md / BACKLOG.md 중 해당 항목
+     - 갱신함: docs/STATUS.md(최종 갱신 날짜 포함) / ARCHITECTURE.md / BACKLOG.md 중 해당 항목
      - 문서 변경 불필요: <이유 한 줄> -->

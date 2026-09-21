@@ -31,6 +31,7 @@ Next.js+TS+Zustand / FastAPI+PostgreSQL+pgvector / Socket.IO / GPT-4o-mini
 - `docs/STATUS.md` 기능·개발 단계 / `docs/ARCHITECTURE.md` 모듈·요청흐름 / `docs/BACKLOG.md` 남은 과제·착수점.
 - **문서 갱신은 그 변경과 같은 PR 에 포함한다**(나중에 몰아서 하지 않는다).
   - 기능 추가/변경 → `STATUS.md`, 모듈·흐름 변경 → `ARCHITECTURE.md`, 과제 상태 변화 → `BACKLOG.md`.
-  - `STATUS.md` 머리말의 "최종 갱신: … (PR #N까지 반영)" 을 그 PR 번호로 올린다.
+  - `STATUS.md` 머리말의 "최종 갱신" 줄은 **날짜만** 올린다. PR 번호는 적지 않는다
+    (모든 PR 이 같은 줄을 고쳐 열린 PR 끼리 매번 충돌했다 — 반영 범위는 git log 로 본다).
   - 문서를 건드리지 않은 PR 은 **PR 설명에 "문서 변경 불필요" 와 그 이유를 한 줄** 남긴다
     (예: 내부 리팩터링으로 동작·모듈 경계 변화 없음).

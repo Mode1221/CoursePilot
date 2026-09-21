@@ -353,3 +353,15 @@ async def test_리뷰_소스가_실패하면_폴백으로_이어_간다():
     reviews = await safe.fetch("성수 카페", limit=3)
     assert len(reviews) == 3
     assert all(r.source == "mock" for r in reviews)
+
+
+def test_KOPIS_는_공공데이터포털_키가_아니라_자기_키를_쓴다(monkeypatch):
+    from app.adapters.culture import CultureClient
+    from app.config import settings
+
+    monkeypatch.setattr(settings, "tourapi_service_key", "data-go-kr")
+    monkeypatch.setattr(settings, "kopis_service_key", "")
+    assert CultureClient().enabled is False  # 공공데이터포털 키만으로는 켜지지 않는다
+    monkeypatch.setattr(settings, "kopis_service_key", "kopis-key")
+    client = CultureClient()
+    assert client.enabled is True and client._key == "kopis-key"

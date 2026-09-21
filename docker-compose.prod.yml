@@ -78,6 +78,7 @@ services:
       NCP_API_KEY_ID: ${NCP_API_KEY_ID:-}
       NCP_API_KEY: ${NCP_API_KEY:-}
       TOURAPI_SERVICE_KEY: ${TOURAPI_SERVICE_KEY:-}
+      KOPIS_SERVICE_KEY: ${KOPIS_SERVICE_KEY:-}
       # LOCALDATA 폐업·업력 CSV(아래 볼륨에 주 1회 내려받는다)
       LOCALDATA_CSV_DIR: ${LOCALDATA_CSV_DIR:-/data/localdata}
       LOCALDATA_CSV_URLS: ${LOCALDATA_CSV_URLS:-[]}

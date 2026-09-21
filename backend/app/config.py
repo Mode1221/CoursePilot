@@ -34,6 +34,9 @@ class Settings(BaseSettings):
 
     # 관광·문화시설 정보(공공데이터포털 TourAPI). 미설정 시 미사용.
     tourapi_service_key: str = ""
+    # 공연·전시 일정(KOPIS). 공공데이터포털 키가 아니다 — data.go.kr 의 KOPIS 항목은
+    # "LINK" 유형이라 키는 kopis.or.kr 에서 따로 발급한다. 미설정 시 미사용.
+    kopis_service_key: str = ""
 
     # 장소 발견 주 원천: 카카오 로컬 REST API(무료). 미설정 시 네이버/Mock 폴백.
     kakao_rest_api_key: str = ""

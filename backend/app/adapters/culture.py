@@ -63,7 +63,8 @@ class CultureClient:
     """지역·기간으로 공연·전시를 찾는다."""
 
     def __init__(self) -> None:
-        self._key = settings.tourapi_service_key  # 공공데이터포털 공통 키
+        # KOPIS 는 공공데이터포털 키가 아니라 kopis.or.kr 에서 따로 받은 키를 쓴다
+        self._key = settings.kopis_service_key
         self._client = httpx.AsyncClient(timeout=10)
 
     @property
