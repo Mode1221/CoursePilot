@@ -1,7 +1,11 @@
 # arm64 지원 확인(2026-09). 주석은 반드시 줄 위에 — Dockerfile 은 명령 줄
 # 끝 주석을 지원하지 않아 "FROM requires either one or three arguments" 로 깨진다.
 FROM node:20.18.1-slim AS base
-RUN corepack enable
+# corepack enable 은 최신 pnpm 을 받아오면서 서명키를 검증하는데, node 20.18.1 에
+# 박힌 키가 낡아 "Cannot find matching keyid" 로 빌드가 깨진다(Release images 실패 원인 2).
+# 락파일이 lockfileVersion 9.0 이라 pnpm 9 을 고정해 설치한다(CI 의 action-setup 과 동일).
+ARG PNPM_VERSION=9.15.4
+RUN npm install -g pnpm@${PNPM_VERSION} && pnpm --version
 
 FROM base AS deps
 WORKDIR /app
