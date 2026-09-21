@@ -102,3 +102,28 @@ def test_설치_스크립트가_로그_백업_디렉터리를_만들고_쓰기�
 
 def test_백업_기본_경로가_저장소_아래다():
     assert 'BACKUP_DIR="${BACKUP_DIR:-$ROOT/backups}"' in (OPS / "backup.sh").read_text()
+
+
+def test_deploy_가_env_의_위험한_값을_경고한다(tmp_path):
+    """deploy.sh 는 .env 를 bash 로 읽는다 — 따옴표 없는 공백·#·$ 는 값을 망가뜨린다."""
+    import shutil
+
+    work = tmp_path / "repo"
+    work.mkdir()
+    shutil.copy(ROOT / "deploy.sh", work / "deploy.sh")
+    (work / ".env").write_text(
+        "DOMAIN=example.com\n"
+        "POSTGRES_PASSWORD=abc def\n"   # 공백 → 잘린다
+        "ADMIN_TOKEN=tok#en\n"          # # → 주석으로 먹힌다
+        "SESSION_SECRET='ok value'\n"   # 따옴표로 감쌌으면 괜찮다
+    )
+    # 경고 로직만 떼어 실행한다(전체 배포는 도커가 필요하다)
+    script = (ROOT / "deploy.sh").read_text()
+    start = script.index('risky="$(grep')
+    end = script.index("fi\n", start) + 3
+    proc = subprocess.run(
+        ["bash", "-c", script[start:end]], cwd=work, capture_output=True, text=True
+    )
+    assert "POSTGRES_PASSWORD" in proc.stderr
+    assert "ADMIN_TOKEN" in proc.stderr
+    assert "SESSION_SECRET" not in proc.stderr
