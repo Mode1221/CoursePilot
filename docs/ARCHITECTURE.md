@@ -48,7 +48,8 @@
 ### 어댑터 (`app/adapters/`) — 벤더 직접호출 금지, 반드시 경유
 - `seeded.py` — 벤더 키가 하나도 없고 DB 에 시드 장소가 있으면 검색을 이걸로 대신한다.
   슬롯을 번갈아 뽑아 코스 칸(밥·카페·술·볼거리)이 한 종류로 쏠리지 않게 한다.
-- `map_service.py` — `MapService` 추상 + `MockMapService` + `SafeMapService`(폴백 래퍼) + `ClosedFilterMapService`(LOCALDATA 폐업 제거·업력 부착) + `CachedSearchMapService(검색 5분 TTL + 경로 캐시)` + `get_map_service()`.
+- `map_service.py` — `MapService` 추상 + `MockMapService` + `SafeMapService`(폴백 래퍼) + `ClosedFilterMapService`(LOCALDATA 폐업 제거·업력 부착) + `StoredMergeMapService`(저장분의 영업시간·평점·google_place_id 병합) + `CachedSearchMapService(검색 5분 TTL + 경로 캐시)` + `get_map_service()`.
+  조립 순서: 캐시 → 폐업 필터 → 저장분 병합 → 벤더. 병합 키는 place id, 없으면 상호+주소 숫자(`merge.match_key`).
 - `kakao.py` — 카카오 로컬 검색(장소 발견 주 원천, `category_group_code`→슬롯). 경로는 네이버에 위임.
 - `naver.py` — 네이버 지역검색/Directions(`maps.apigw.ntruss.com`, NCP 전용키 우선)/블로그 건수(인지도).
 - `hours_fallback.py` — 영업시간 최후 폴백(LLM 웹검색, 코스당 2건 상한, 결과는 항상 '확인 필요').
