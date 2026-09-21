@@ -47,6 +47,26 @@ jobs:
       - run: pnpm lint
       - run: pnpm test
 
+  # Dockerfile 이 깨져도 PR 에서는 아무 일이 없어 Release images 가 14번 연속
+  # 실패한 채 지나갔다. PR 마다 실제로 빌드해서 여기서 막는다.
+  # (push 하지 않고 amd64 로만 굽는다 — 문법·의존성 오류를 잡는 게 목적)
+  docker:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        context: [backend, frontend]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/setup-buildx-action@v3
+      - uses: docker/build-push-action@v6
+        with:
+          context: ./${{ matrix.context }}
+          platforms: linux/amd64
+          push: false
+          cache-from: type=gha,scope=ci-${{ matrix.context }}
+          cache-to: type=gha,mode=max,scope=ci-${{ matrix.context }}
+
   e2e:
     runs-on: ubuntu-latest
     steps:
