@@ -253,6 +253,16 @@ python scripts/districts_map.py     # districts_map.html + 겹침 목록
 는 root 소유로 만들어져 크론 사용자가 못 쓰기 때문에 쓰지 않는다 — 옮기고 싶다면
 그 디렉터리를 크론 사용자 소유로 먼저 만들어 두고 `BACKUP_DIR` 을 바꾼다.
 
+## 이미지 빌드 메모
+- **arm64 네이티브 빌드** — 공개 저장소라 GitHub 의 `ubuntu-24.04-arm` 러너를 쓴다.
+  QEMU 크로스 빌드를 걷어냈다. 비공개로 전환하면 `ubuntu-latest` +
+  `docker/setup-qemu-action` 으로 되돌려야 한다(그때는 `timeout-minutes: 90` 유지).
+- **프론트 standalone** — `next.config.mjs` 의 `output: "standalone"` 으로 실제 쓰이는
+  모듈만 추려 담는다. 런타임 스테이지는 `.next/standalone` + `.next/static` + `public`
+  만 복사하고 `node "server.js"` 로 뜬다. 런타임 파일이 약 534MB → 약 25MB.
+- **비root 실행** — 백엔드는 uid 1000(`app`), 프론트는 node 사용자로 돈다.
+  마운트한 `/data/localdata` 도 같은 uid 소유라 호스트에서 그대로 만질 수 있다.
+
 ## LOCALDATA 저장 위치(컨테이너)
 `backend` 컨테이너에 호스트 디렉터리를 마운트해 둔다.
 
