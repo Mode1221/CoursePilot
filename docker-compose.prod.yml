@@ -66,8 +66,19 @@ services:
       ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
       ANTHROPIC_MODEL: ${ANTHROPIC_MODEL:-claude-haiku-4-5}
       OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      OPENAI_MODEL: ${OPENAI_MODEL:-gpt-4o-mini}
+      MAP_PROVIDER: ${MAP_PROVIDER:-auto}
+      # 장소 발견 주 원천(카카오 로컬). 없으면 네이버/Mock 폴백.
+      KAKAO_REST_API_KEY: ${KAKAO_REST_API_KEY:-}
       NAVER_CLIENT_ID: ${NAVER_CLIENT_ID:-}
       NAVER_CLIENT_SECRET: ${NAVER_CLIENT_SECRET:-}
+      # 네이버 클라우드 플랫폼(경로 탐색 Directions 5)
+      NCP_API_KEY_ID: ${NCP_API_KEY_ID:-}
+      NCP_API_KEY: ${NCP_API_KEY:-}
+      TOURAPI_SERVICE_KEY: ${TOURAPI_SERVICE_KEY:-}
+      # LOCALDATA 폐업·업력 CSV(아래 볼륨에 주 1회 내려받는다)
+      LOCALDATA_CSV_DIR: ${LOCALDATA_CSV_DIR:-/data/localdata}
+      LOCALDATA_CSV_URLS: ${LOCALDATA_CSV_URLS:-[]}
       GOOGLE_MAPS_API_KEY: ${GOOGLE_MAPS_API_KEY:-}
       NHN_SMS_APP_KEY: ${NHN_SMS_APP_KEY:-}
       NHN_SMS_SECRET_KEY: ${NHN_SMS_SECRET_KEY:-}
@@ -77,6 +88,14 @@ services:
       # 백엔드를 2개 이상 띄울 때만 설정(단일 인스턴스면 비워둔다)
       REDIS_URL: ${REDIS_URL:-}
       ADMIN_TOKEN: ${ADMIN_TOKEN:-}
+      POINT_PRICE_KRW: ${POINT_PRICE_KRW:-1000}
+      ALERT_WEBHOOK_URL: ${ALERT_WEBHOOK_URL:-}
+      # Caddy 는 같은 compose 네트워크(도커 기본 브리지 대역 172.16.0.0/12)에서 온다.
+      # 이 대역을 못 믿으면 모든 요청이 caddy IP 하나로 보여 rate limit 이 전역이 된다.
+      TRUSTED_PROXIES: ${TRUSTED_PROXIES:-["127.0.0.1","::1","10.0.0.0/8","172.16.0.0/12","192.168.0.0/16"]}
+    volumes:
+      # LOCALDATA CSV(주 1회 재다운로드 가능한 파생 데이터라 백업 대상 아님)
+      - ${LOCALDATA_HOST_DIR:-./data/localdata}:/data/localdata
     healthcheck:
       test: ["CMD", "python", "-c",
              "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')"]

@@ -26,3 +26,6 @@ frontend/test-results/
 frontend/playwright-report/
 frontend/.playwright/
 .coverage
+
+# LOCALDATA CSV(주 1회 재다운로드 가능한 파생 데이터, 수백 MB)
+/data/localdata/
