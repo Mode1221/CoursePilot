@@ -86,12 +86,14 @@ async def test_네이버_지역검색_응답을_정규화한다():
     assert (places[0].lat, places[0].lng) == (37.5445, 127.0557)
 
 
-async def test_네이버_경로_응답을_분으로_바꾼다():
+async def test_네이버_경로_응답을_분으로_바꾼다(monkeypatch):
     from app.adapters.naver import NaverMapService
     from app.quota import quota_store
     from app.schemas import Place, TravelMode
 
     quota_store.clear()
+    monkeypatch.setattr("app.config.settings.ncp_api_key_id", "ncp-id")
+    monkeypatch.setattr("app.config.settings.ncp_api_key", "ncp-key")
     service = NaverMapService()
     service._client = _client(load("naver_directions.json"))
     a = Place(id="a", name="a", lat=37.5445, lng=127.0557)

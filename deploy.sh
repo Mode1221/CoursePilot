@@ -66,6 +66,31 @@ if ! docker manifest inspect \
   exit 1
 fi
 
+# 배치가 도는 중이면 기다린다. 배치 도중에 컨테이너를 갈아끼우면 수집이 중간에
+# 끊기고(진행 상태는 남지만) 그날 할당량만 날린다. FORCE_DEPLOY=true 로 건너뛸 수 있다.
+wait_for_batch() {
+  local waited=0 max=$(( ${BATCH_WAIT_MIN:-30} * 60 ))
+  while $COMPOSE exec -T backend python -c "
+import sys
+from app.batch.lock import is_locked
+sys.exit(0 if any(is_locked(n) for n in ('places_build', 'refresh_places')) else 1)
+" >/dev/null 2>&1; do
+    if [ "${FORCE_DEPLOY:-false}" = "true" ]; then
+      echo "⚠ 배치 진행 중이지만 FORCE_DEPLOY=true 라 그대로 진행합니다." >&2
+      return 0
+    fi
+    if [ "$waited" -ge "$max" ]; then
+      echo "✗ 배치가 ${BATCH_WAIT_MIN:-30}분 넘게 돌고 있습니다." >&2
+      echo "  끝난 뒤 다시 배포하거나, FORCE_DEPLOY=true ./deploy.sh 로 강행하세요." >&2
+      exit 1
+    fi
+    [ "$waited" -eq 0 ] && echo "▶ 배치 진행 중 — 끝날 때까지 기다립니다(최대 ${BATCH_WAIT_MIN:-30}분)..."
+    sleep 30
+    waited=$(( waited + 30 ))
+  done
+}
+wait_for_batch
+
 # 이미지는 CI 가 구워 GHCR 에 올려 둔다. 여기서는 받아서 띄우기만 한다
 # (1~2 OCPU VM 에서 Next.js 빌드는 수십 분이 걸리거나 메모리가 모자라 죽는다).
 echo "▶ 이미지 받는 중 (태그: ${IMAGE_TAG:-latest})..."
@@ -105,6 +130,7 @@ echo "✓ 백엔드 정상"
 # 실행 중인 컨테이너가 쓰는 이미지는 대상이 아니다.
 echo "▶ 이전 이미지 정리..."
 docker image prune -f >/dev/null 2>&1 || true
+
 
 # 크론(배치·백업·디스크 점검) 설치. 이미 있으면 갱신한다.
 if [ "${INSTALL_CRON:-true}" = "true" ]; then

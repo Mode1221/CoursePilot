@@ -257,6 +257,8 @@ python scripts/districts_map.py     # districts_map.html + 겹침 목록
 | `install_cron.sh` | crontab 설치·갱신(기존 사용자 항목은 보존, CoursePilot 블록만 교체) |
 
 크론은 `deploy.sh` 가 자동 설치한다(`INSTALL_CRON=false` 로 끌 수 있다).
+배치 3종은 `nice -n 19` 로 돌아 API 응답을 밀지 않는다. `deploy.sh` 는 배치가
+도는 중이면 최대 30분 기다린다(`BATCH_WAIT_MIN`, 강행은 `FORCE_DEPLOY=true`).
 로그는 **저장소 아래 `logs/`** 에 쌓인다(`backups/` 도 마찬가지). `/var/log`·`/var/backups`
 는 root 소유로 만들어져 크론 사용자가 못 쓰기 때문에 쓰지 않는다 — 옮기고 싶다면
 그 디렉터리를 크론 사용자 소유로 먼저 만들어 두고 `BACKUP_DIR` 을 바꾼다.

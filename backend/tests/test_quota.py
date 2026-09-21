@@ -165,3 +165,50 @@ def test_DB에서도_달이_바뀌면_0부터(monkeypatch, tmp_path):
     store.record("google.details", 10, now=JAN)
     assert store.used("google.details", now=JAN) == 10
     assert store.used("google.details", now=FEB) == 0
+
+
+def test_LLM_영업시간_폴백에_일_상한이_있다():
+    """건당 과금이라 코스가 몰리면 월말 전에 요금이 크게 는다."""
+    from app.quota import DAILY_LIMITS, QuotaStore
+
+    store = QuotaStore()
+    limit = DAILY_LIMITS["llm.hours_fallback"]
+    assert limit == 50
+    store.record_today("llm.hours_fallback", limit - 1)
+    assert store.allow_today("llm.hours_fallback") is True
+    store.record_today("llm.hours_fallback")
+    assert store.allow_today("llm.hours_fallback") is False
+
+
+def test_일_상한은_날짜가_바뀌면_초기화된다():
+    from datetime import UTC, datetime
+
+    from app.quota import QuotaStore
+
+    store = QuotaStore()
+    day1 = datetime(2026, 9, 21, tzinfo=UTC)
+    day2 = datetime(2026, 9, 22, tzinfo=UTC)
+    store.record_today("llm.hours_fallback", 50, now=day1)
+    assert store.allow_today("llm.hours_fallback", now=day1) is False
+    assert store.allow_today("llm.hours_fallback", now=day2) is True
+
+
+async def test_일_상한을_넘으면_웹검색을_부르지_않는다(monkeypatch):
+    from app.adapters.hours_fallback import fill_missing_hours
+    from app.quota import DAILY_LIMITS, quota_store
+    from app.schemas import Place
+
+    monkeypatch.setattr("app.config.settings.anthropic_api_key", "k")
+    quota_store.clear()
+    quota_store.record_today("llm.hours_fallback", DAILY_LIMITS["llm.hours_fallback"])
+    called = []
+
+    async def _boom(place):
+        called.append(place.id)
+        raise AssertionError("상한을 넘었는데 호출됐다")
+
+    monkeypatch.setattr("app.adapters.hours_fallback._lookup", _boom)
+    place = Place(id="p", name="가게", lat=37.5, lng=127.0, hours_unverified=True)
+    assert await fill_missing_hours([place]) == 0
+    assert called == []
+    quota_store.clear()
