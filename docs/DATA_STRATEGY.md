@@ -35,7 +35,7 @@
 | 폐업·업력 | LOCALDATA CSV (`file.localdata.go.kr`) | 무료·무인증(UA·Referer 헤더 필요) | 업종 단위 전국 파일, 주 1회 |
 | 관광·문화 영업시간 | TourAPI detailIntro | 무료 | Google에 없는 곳 보강 |
 | 공연·전시 일정 | KOPIS | 무료 | 코스 날짜에 진행 중인 것만 |
-| 경로 | 네이버 Directions 5 (`maps.apigw.ntruss.com`) | 월 60,000 무료 | 한도 초과 시 직선거리 근사 |
+| 경로 | 네이버 Directions 5 (`maps.apigw.ntruss.com`) | 월 60,000 무료 | **NCP 전용 키 필수**(개발자센터 키로는 401). 키 없거나 한도 초과 시 직선거리 근사 |
 | 조건 분해 | Claude Haiku 4.5 | 요청당 ~$0.002 | 규칙 파서 폴백 유지 |
 | 사실 태그 | 네이버 블로그 검색 스니펫 | 무료 | 태그만 저장, 원문 미저장 |
 

@@ -71,6 +71,25 @@ def _stale(acquired_at: datetime | None, now: datetime) -> bool:
     return now - acquired_at >= timedelta(minutes=STALE_AFTER_MIN)
 
 
+def is_locked(name: str, now: datetime | None = None) -> bool:
+    """그 배치가 지금 돌고 있는지(만료된 락은 돌지 않는 것으로 본다).
+
+    배포 스크립트가 "배치 중인지"를 물어보는 데 쓴다 — 수집 도중에 컨테이너를
+    갈아끼우면 그날 할당량만 날린다.
+    """
+    now = now or datetime.now(UTC)
+    if not _db_ready():
+        return False
+    from app.db import SessionLocal
+    from app.models import BatchLockModel
+
+    with SessionLocal() as s:
+        row = s.get(BatchLockModel, name)
+        if row is None:
+            return False
+        return not _stale(row.acquired_at, now)
+
+
 @contextmanager
 def batch_lock(name: str):
     """배치 실행을 감싼다. 이미 돌고 있으면 LockBusy."""

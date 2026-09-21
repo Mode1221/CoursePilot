@@ -70,9 +70,15 @@ async def fill_missing_hours(
     """영업시간을 못 구한 장소만 웹검색으로 메운다. 결과는 '확인 필요'로 남긴다."""
     if not settings.anthropic_api_key:
         return 0
+    from app.quota import quota_store
+
+    if not quota_store.allow_today("llm.hours_fallback"):
+        # 오늘 몫을 다 썼다. 영업시간은 "확인 필요" 표시로 남는다(요금보다 낫다).
+        return 0
     targets = [p for p in places if p.hours_unverified and p.open_time is None][:limit]
     if not targets:
         return 0
+    quota_store.record_today("llm.hours_fallback", len(targets))
     results = await asyncio.gather(
         *(_lookup(p) for p in targets), return_exceptions=True
     )

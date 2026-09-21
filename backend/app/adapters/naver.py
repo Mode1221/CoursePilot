@@ -98,6 +98,9 @@ class NaverMapService(MapService):
         return _straight_line_route(origin, dest, mode)
 
     async def _driving_route(self, origin: Place, dest: Place) -> Route:
+        if not directions_enabled():
+            # NCP 키가 없으면 호출해 봐야 401 이다. 바로 근사로 간다.
+            return _straight_line_route(origin, dest, TravelMode.CAR)
         params = {
             "start": f"{origin.lng},{origin.lat}",
             "goal": f"{dest.lng},{dest.lat}",
@@ -135,11 +138,21 @@ def _route_summary(body: dict) -> dict | None:
     return None
 
 
+def directions_enabled() -> bool:
+    """NCP 경로 API 를 부를 수 있는지.
+
+    개발자센터 키(NAVER_CLIENT_*)로는 **부를 수 없다** — NCP 게이트웨이는 그 키를
+    받지 않아 항상 401 이다. 예전에는 폴백으로 넘겨 매번 401 을 맞고 예외 처리로
+    떨어졌다(느리고, 실패가 에러 로그로만 보였다). 키가 없으면 곧장 직선거리로 간다.
+    """
+    return bool(settings.ncp_api_key_id and settings.ncp_api_key)
+
+
 def _directions_headers() -> dict[str, str]:
-    """경로 API 키. NCP 전용 키가 있으면 그것을, 없으면 개발자센터 키로 폴백."""
+    """경로 API 키. NCP 전용 키만 유효하다."""
     return {
-        "X-NCP-APIGW-API-KEY-ID": settings.ncp_api_key_id or settings.naver_client_id,
-        "X-NCP-APIGW-API-KEY": settings.ncp_api_key or settings.naver_client_secret,
+        "X-NCP-APIGW-API-KEY-ID": settings.ncp_api_key_id,
+        "X-NCP-APIGW-API-KEY": settings.ncp_api_key,
     }
 
 
