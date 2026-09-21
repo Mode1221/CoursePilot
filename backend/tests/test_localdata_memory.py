@@ -79,3 +79,66 @@ def test_인코딩을_앞부분만_보고_판별한다(tmp_path):
     utf8.write_text(HEADER, encoding="utf-8-sig")
     assert detect_encoding(cp949) == "cp949"
     assert detect_encoding(utf8) == "utf-8-sig"
+
+
+def test_적재_중에도_이전_스냅샷으로_조회된다(tmp_path):
+    """적재는 새 레지스트리에 채운 뒤 갈아끼운다 — 그 사이 조회가 비지 않는다.
+
+    기존처럼 인덱스를 먼저 clear() 하면, 적재가 도는 수십 초 동안 폐업한 가게가
+    그대로 코스에 들어간다.
+    """
+    import threading
+
+    registry = LocalDataRegistry()
+    registry.load_csv(
+        io.StringIO(
+            HEADER
+            + "3040000,예전집,서울특별시 성동구 아차산로 1,,폐업,폐업,20100101,20200101\n"
+        )
+    )
+    assert registry.is_closed("예전집") is True
+
+    big = tmp_path / "big.csv"
+    _write_national_csv(big, rows=200_000)
+    with big.open("a", encoding="cp949", newline="") as fh:  # 새 대장에도 같은 폐업 건
+        fh.write("3040000,예전집,서울특별시 성동구 아차산로 1,,폐업,폐업,20100101,20200101\n")
+
+    seen: list[bool] = []
+    errors: list[BaseException] = []
+
+    def reload_into_snapshot():
+        try:
+            fresh = LocalDataRegistry()
+            fresh.load_csv(big)
+            registry.adopt(fresh)  # 다 채운 뒤에만 갈아끼운다
+        except BaseException as exc:  # noqa: BLE001 - 테스트에서 원인을 보려고
+            errors.append(exc)
+
+    worker = threading.Thread(target=reload_into_snapshot)
+    worker.start()
+    while worker.is_alive():
+        # 적재가 도는 동안 계속 조회한다 — 예외도, 빈 결과도 나오면 안 된다
+        seen.append(registry.is_closed("예전집"))
+    worker.join()
+
+    assert not errors
+    # 적재 중에도, 교체 뒤에도 한 번도 비지 않아야 한다
+    assert len(seen) > 10 and all(seen), "적재 중에 폐업 판정이 비었다"
+    assert registry.loaded  # 교체 후에도 인덱스는 채워져 있다
+
+
+def test_동명_시군구가_딸려오지_않는다():
+    """'중구'는 부산·대구·인천에도 있다 — 시도까지 맞아야 담는다."""
+    registry = LocalDataRegistry()
+    kept = registry.load_csv(
+        io.StringIO(
+            HEADER
+            + "2600000,부산중구집,부산광역시 중구 광복로 1,,영업/정상,영업,20200101,\n"
+            + "3000000,서울중구집,서울특별시 중구 을지로 1,,영업/정상,영업,20200101,\n"
+            + "4100000,판교집,경기도 성남시 분당구 판교역로 1,,영업/정상,영업,20200101,\n"
+        )
+    )
+    assert kept == 2
+    assert registry.find("부산중구집") is None
+    assert registry.find("서울중구집") is not None
+    assert registry.find("판교집") is not None

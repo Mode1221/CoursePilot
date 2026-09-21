@@ -30,9 +30,28 @@ KEEP_RATIO_WARN = 0.05  # 인덱싱 비율이 이보다 높으면 필터가 안 
 
 # 신원천은 **업종별 전국 파일**이다(일반음식점은 200만 행이 넘는다). 전부
 # 인덱싱하면 6GB VM 에서 백엔드가 OOM 으로 죽는다. 우리가 추천하는 24개 상권의
-# 시군구 행만 남긴다 — 나머지는 폐업 판정에 쓸 일이 없다.
-TARGET_SIGUNGU: frozenset[str] = frozenset(
-    d.sigungu for d in DISTRICTS if d.sigungu
+# (시도, 시군구) 행만 남긴다 — 나머지는 폐업 판정에 쓸 일이 없다.
+#
+# 시군구 이름만 보면 안 된다: "중구"는 부산·대구·인천·대전에도 있어서
+# 전국 파일에서 엉뚱한 지역이 대량으로 딸려 들어온다.
+TARGET_AREAS: frozenset[tuple[str, str]] = frozenset(
+    (d.sido, d.sigungu) for d in DISTRICTS if d.sigungu
+)
+TARGET_SIGUNGU: frozenset[str] = frozenset(sigungu for _, sigungu in TARGET_AREAS)
+
+
+def _sido_aliases(sido: str) -> tuple[str, ...]:
+    """주소 표기가 제각각이다: "서울특별시"/"서울", "경기도"/"경기"."""
+    short = sido
+    for suffix in ("특별자치도", "특별자치시", "광역시", "특별시", "도"):
+        if sido.endswith(suffix):
+            short = sido[: -len(suffix)]
+            break
+    return (sido, short) if short != sido else (sido,)
+
+
+_AREA_MATCHERS: tuple[tuple[tuple[str, ...], str], ...] = tuple(
+    (_sido_aliases(sido), sigungu) for sido, sigungu in sorted(TARGET_AREAS)
 )
 
 # LOCALDATA 표준 컬럼명. 파일마다 일부만 존재할 수 있어 후보 목록으로 둔다.
@@ -156,8 +175,17 @@ class LocalDataRegistry:
         return ((today or date.today()) - self._loaded_on).days >= RELOAD_INTERVAL_DAYS
 
     def clear(self) -> None:
-        self._by_name.clear()
+        self._by_name = {}
         self._loaded_on = None
+
+    def adopt(self, other: LocalDataRegistry) -> None:
+        """완성된 인덱스로 **원자적으로** 갈아끼운다.
+
+        새 것을 다 채운 뒤 참조만 바꾼다 — 기존 인덱스를 먼저 비우면 그 사이
+        요청들이 폐업 필터 없이 지나간다. 조회 중인 쪽은 옛 dict 를 계속 본다.
+        """
+        self._by_name = other._by_name
+        self._loaded_on = other._loaded_on
 
     # --- 적재 -------------------------------------------------------------
     def load_csv(
@@ -229,12 +257,17 @@ class LocalDataRegistry:
         )
 
     def reload_if_stale(self) -> int:
-        """설정된 디렉터리에서 주기적으로 다시 읽는다(설정 없으면 무동작)."""
+        """설정된 디렉터리에서 다시 읽는다(설정 없으면 무동작).
+
+        **배치 프로세스 전용이다.** API 요청 경로에서는 절대 부르지 않는다 —
+        수백 MB 파싱이 이벤트 루프를 막고, 적재 중인 인덱스를 비워 버린다.
+        """
         if not settings.localdata_csv_dir or not self.is_stale():
             return 0
-        self._by_name.clear()
-        self._loaded_on = None
-        return self.load_dir(settings.localdata_csv_dir)
+        fresh = LocalDataRegistry()
+        count = fresh.load_dir(settings.localdata_csv_dir)
+        self.adopt(fresh)
+        return count
 
     # --- 조회 -------------------------------------------------------------
     def find(self, name: str, address: str | None = None) -> BusinessRecord | None:
@@ -309,12 +342,18 @@ def detect_encoding(path: Path) -> str:
 
 
 def _in_target_area(address: str) -> bool:
-    """우리 상권의 시군구 행만 인덱싱한다(전국 파일에서 99% 는 버려진다).
+    """우리 상권의 (시도, 시군구) 행만 인덱싱한다(전국 파일에서 99% 는 버려진다).
 
+    시도까지 함께 봐야 부산 중구·대구 중구 같은 동명 시군구가 딸려오지 않는다.
     개방자치단체코드로 거르는 편이 더 정확하지만 공식 코드표를 대조하지 못해
     "미확인"으로 남겼다(docs/DATA_STRATEGY.md). 확인되면 코드 필터를 우선한다.
     """
-    return any(name in address for name in TARGET_SIGUNGU)
+    if not address:
+        return False
+    return any(
+        sigungu in address and any(alias in address for alias in aliases)
+        for aliases, sigungu in _AREA_MATCHERS
+    )
 
 
 @lru_cache(maxsize=1)
@@ -328,16 +367,40 @@ def get_localdata_registry() -> LocalDataRegistry:
 
 
 async def warm_localdata() -> int:
-    """기동 시 백그라운드 적재. 실패해도 서비스는 그대로 뜬다(폐업 필터만 꺼짐)."""
+    """한 번 적재해 현재 인덱스와 원자적으로 교체한다. 실패해도 서비스는 뜬다."""
     import asyncio
 
     directory = settings.localdata_csv_dir
     if not directory or not Path(directory).is_dir():
         return 0
-    registry = get_localdata_registry()
     try:
-        # 파싱은 CPU·IO 를 오래 잡는다 → 이벤트 루프를 막지 않도록 스레드에서
-        return await asyncio.to_thread(registry.load_dir, directory)
+        # 파싱은 CPU·IO 를 오래 잡는다 → 이벤트 루프를 막지 않도록 스레드에서.
+        # 새 레지스트리에 다 채운 뒤 갈아끼워, 적재 중에도 조회가 계속 된다.
+        fresh = LocalDataRegistry()
+        count = await asyncio.to_thread(fresh.load_dir, directory)
+        if count:
+            get_localdata_registry().adopt(fresh)
+        return count
     except Exception:
         logger.exception("localdata 적재 실패 — 폐업 필터 없이 계속한다")
         return 0
+
+
+REFRESH_CHECK_INTERVAL_SEC = 24 * 60 * 60  # 하루 한 번 갱신 여부만 본다
+
+
+async def localdata_refresher(
+    interval_sec: int = REFRESH_CHECK_INTERVAL_SEC,
+) -> None:
+    """기동 직후 1회 + 이후 주기적으로 적재한다(lifespan 이 취소할 때까지).
+
+    요청 경로에서 적재하지 않기 위한 짝이다 — 크론이 새 CSV 를 내려받아도
+    API 프로세스의 인덱스는 여기서만 갱신된다.
+    """
+    import asyncio
+
+    await warm_localdata()
+    while True:
+        await asyncio.sleep(interval_sec)
+        if get_localdata_registry().is_stale():
+            await warm_localdata()

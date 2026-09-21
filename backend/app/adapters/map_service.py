@@ -165,8 +165,10 @@ class ClosedFilterMapService(MapService):
 
             # 이전 조회에서 폐업·휴업으로 확인된 곳은 대장 유무와 무관하게 뺀다.
             places = [p for p in places if not _unvisitable(p)]
+            # 요청 경로에서는 절대 적재하지 않는다(수백 MB 파싱이 루프를 막는다).
+            # 기동 시 백그라운드 적재(localdata_refresher)가 채워 줄 때까지는
+            # 필터 없이 통과시킨다.
             registry = get_localdata_registry()
-            registry.reload_if_stale()
             if not registry.loaded:
                 return _with_prices(places)
             kept: list[Place] = []

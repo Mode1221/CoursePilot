@@ -10,9 +10,10 @@ class District:
     lat: float
     lng: float
     radius_m: int = 1000
-    # LOCALDATA 는 시군구 단위 파일로 배포된다. 폐업 판정을 하려면 이 상권이
-    # 속한 시군구 파일이 반드시 있어야 한다(app/batch/coverage.py 가 확인).
+    # LOCALDATA 적재·커버리지 판정에 쓴다. 시군구 이름만으로는 부족하다 —
+    # "중구"는 부산·대구·인천에도 있어서 시도까지 함께 봐야 한다.
     sigungu: str = ""
+    sido: str = "서울특별시"
 
 
 # 수도권 주요 상권 24곳. 한 곳당 4개 슬롯 × 카테고리 검색으로 전수 수집한다.
@@ -44,5 +45,5 @@ DISTRICTS: tuple[District, ...] = (
     District("잠실", 37.5133, 127.1000, sigungu="송파구"),
     District("신촌", 37.5556, 126.9368, 700, sigungu="서대문구"),
     District("대학로", 37.5820, 127.0020, 800, sigungu="종로구"),
-    District("판교", 37.3947, 127.1112, sigungu="분당구"),
+    District("판교", 37.3947, 127.1112, sigungu="분당구", sido="경기도"),
 )

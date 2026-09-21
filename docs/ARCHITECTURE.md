@@ -58,7 +58,9 @@
 - `localdata.py` — LOCALDATA(지방행정 인허가) CSV 인덱스. 폐업 판정·인허가일자(업력)·지역 폐업률. 무료·무인증, 주 1회 갱신(`LOCALDATA_CSV_DIR`).
   적재는 파일을 통째로 읽지 않고 한 줄씩 흘려 읽으며(`load_csv(path)`), 24개 상권의
   시군구(11곳) 주소가 아닌 행은 레코드를 만들지 않고 버린다 — 전국 파일을 다 담으면
-  6GB VM 에서 OOM 이 난다. 적재는 lifespan 에서 백그라운드로(`warm_localdata`).
+  6GB VM 에서 OOM 이 난다. 적재는 lifespan 의 `localdata_refresher` 태스크에서만 한다(기동 1회 + 하루 한 번 stale 확인,
+  종료 시 취소). 요청 경로(`ClosedFilterMapService`)는 적재하지 않고, 인덱스가 비어 있으면
+  필터 없이 통과한다. 갱신은 새 레지스트리를 채운 뒤 `adopt()` 로 원자 교체한다.
   주소는 `도로명주소`/`지번주소`, 인코딩은 앞 4KB 로 판별(CP949 기본), 폐업 판정은 `폐업일자` → `상세영업상태명` → `영업상태명` 순(휴업 포함). 좌표(EPSG:5174)는 쓰지 않는다 — `docs/DATA_STRATEGY.md` 의 "LOCALDATA 파싱 규약".
 - `sms.py` — NHN Cloud SMS. `payment.py` — 포트원 v1 결제 검증.
 
