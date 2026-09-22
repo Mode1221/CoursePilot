@@ -8,10 +8,15 @@
 /** 브라우저에서 쓰는 API 주소. */
 export function apiBase(): string {
   const configured = process.env.NEXT_PUBLIC_API_BASE;
-  if (configured) return configured; // 명시 설정이 있으면 그대로 따른다
-  if (typeof window === "undefined") return serverApiBase();
+  if (typeof window === "undefined") return configured || serverApiBase();
   const { protocol, hostname } = window.location;
-  if (hostname === "localhost" || hostname === "127.0.0.1") {
+  const local = hostname === "localhost" || hostname === "127.0.0.1";
+  // 명시 설정은 따르되, 배포 화면에서 localhost 를 가리키는 값은 무시한다 — 사용자 기기의
+  // localhost 로 요청이 가서 전부 실패한다(빌드 기본값이 박혀 실제로 그랬다).
+  if (configured && (local || !/^https?:\/\/(localhost|127\.0\.0\.1)(:|\/|$)/.test(configured))) {
+    return configured;
+  }
+  if (local) {
     return "http://localhost:8000"; // 로컬 개발
   }
   // 배포 규약: 프론트가 example.com 이면 API 는 api.example.com

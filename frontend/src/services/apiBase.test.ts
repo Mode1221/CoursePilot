@@ -34,6 +34,18 @@ describe("API 주소", () => {
     expect(apiBase()).toBe("https://staging-api.example.com");
   });
 
+  it("배포 화면에서는 localhost 를 가리키는 빌드 값을 무시하고 api 서브도메인을 쓴다", () => {
+    vi.stubEnv("NEXT_PUBLIC_API_BASE", "http://localhost:8000");
+    atHost("https://coursepilot-kr.duckdns.org/onboarding");
+    expect(apiBase()).toBe("https://api.coursepilot-kr.duckdns.org");
+  });
+
+  it("로컬 개발에서는 localhost 빌드 값을 그대로 쓴다", () => {
+    vi.stubEnv("NEXT_PUBLIC_API_BASE", "http://localhost:8000");
+    atHost("http://localhost:3000/");
+    expect(apiBase()).toBe("http://localhost:8000");
+  });
+
   it("SSR 은 컨테이너 내부 주소를 런타임에 읽는다", () => {
     vi.stubEnv("API_INTERNAL_BASE", "http://backend:8000");
     expect(serverApiBase()).toBe("http://backend:8000");
