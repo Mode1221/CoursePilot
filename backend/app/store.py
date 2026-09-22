@@ -90,6 +90,28 @@ class CourseStore:
                 return Course.model_validate(row.state)
         return self._mem.get(course_id)
 
+    def find_by_together_token(self, token: str) -> Course | None:
+        """합의 코스 링크 토큰으로 코스를 찾는다. 토큰은 64비트 이상 랜덤이라 추측 불가."""
+        if not token:
+            return None
+        if is_ready():
+            from sqlalchemy import select
+
+            from app.db import SessionLocal
+            from app.models import CourseModel
+
+            with SessionLocal() as s:
+                rows = s.execute(
+                    select(CourseModel.state).where(
+                        CourseModel.state["together"]["token"].as_string() == token
+                    )
+                ).all()
+                return Course.model_validate(rows[0][0]) if rows else None
+        for course in self._mem.values():
+            if course.together and course.together.token == token:
+                return course
+        return None
+
     def save(self, course: Course) -> Course:
         if is_ready():
             from app.db import SessionLocal

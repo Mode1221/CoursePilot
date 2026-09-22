@@ -69,6 +69,8 @@ class TimelineItem(BaseModel):
     # 수동 편집으로 영업시간(브레이크 포함) 밖에 놓인 자리. 자동 생성 때는 걸러지지만
     # 손으로 넣은 자리는 사용자의 선택이라 지우지 않고 표시만 한다.
     hours_conflict: bool = False
+    # 합의 코스: 이 칸에 누구의 무엇이 반영됐는지(반영 이유 칩). 없으면 빈 목록.
+    attributions: list[dict] = Field(default_factory=list)
 
 
 class Course(BaseModel):
@@ -86,6 +88,22 @@ class Course(BaseModel):
     viewed: bool = False  # 공유 열람 신호를 이미 반영한 코스
     satisfaction: bool | None = None  # 마지막 만족도(👍=True/👎=False)
     predicted_score: float | None = None  # 생성 시 코스 목적함수 점수(#17 만족도 대조용)
+    # 합의 코스 상태(상대 카드 입력·수락). None 이면 혼자 만든 코스.
+    together: TogetherState | None = None
+
+
+class TogetherState(BaseModel):
+    """"먼저 상대에게 묻기" 모드. 링크 토큰으로 비가입 상대가 카드를 낸다."""
+
+    token: str  # 상대 입력 링크. 입력·교체·수락만 가능(AI 명령·삭제 불가)
+    request_text: str  # 시작한 사람의 한 줄 요청(합칠 때 base 조건이 된다)
+    owner_name: str = "나"
+    partner_name: str = "상대"
+    # 참여자 이름 → 카드(예산 포함). 상대 응답으로 내보낼 땐 예산을 지운다.
+    inputs: dict[str, dict] = Field(default_factory=dict)
+    accepted_by: list[str] = Field(default_factory=list)  # 둘 다 있으면 확정
+    conflict_note: str | None = None
+    yielded: str | None = None
 
 
 class PlanConstraints(BaseModel):
@@ -107,3 +125,6 @@ class PlanConstraints(BaseModel):
     companion: str | None = None  # 동행유형: 데이트/친구/가족/회식/혼자 (컨텍스트 신호)
     keywords: list[str] = Field(default_factory=list)  # 조용한, 비건 등 소프트 제약
     exclude_keywords: list[str] = Field(default_factory=list)  # "술집 빼고" 같은 제외 조건
+
+
+Course.model_rebuild()

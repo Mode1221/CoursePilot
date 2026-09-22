@@ -60,6 +60,7 @@ class PlanResult:
     # 폐업·휴무로 최종 단계에서 뺀 장소 수. 되채우기가 성공하면 0 으로 돌아온다
     # (되채운 코스가 원래보다 길어질 수도 있어 음수가 되지 않게 막는다).
     closed_dropped: int = 0
+    consensus: object | None = None  # 합의 코스면 ConsensusResult(반영 이유·양보 기록)
 
 
 async def generate_course(
@@ -69,11 +70,15 @@ async def generate_course(
     on_progress: ProgressFn | None = None,
     force_relax: bool = False,
     exclude_place_ids: set[str] | None = None,
+    consensus_inputs: list | None = None,
+    consensus_prefer: str | None = None,
 ) -> PlanResult:
     """자연어 요청 → 코스.
 
     force_relax=True 면 원래 조건으로의 첫 시도를 건너뛰고 곧장 완화한다
     (사용자가 "조건을 완화해도 좋다"고 답한 뒤의 재시도용).
+    consensus_inputs 가 있으면(합의 코스) 두 사람의 카드를 분해된 조건 위에 얹고,
+    만든 코스의 칸마다 반영 이유를 붙인다.
     """
     progress = on_progress or _noop
 
@@ -82,6 +87,12 @@ async def generate_course(
     if preferences:
         _apply_preferences(constraints, preferences)
     _apply_large_party(constraints)
+    consensus = None
+    if consensus_inputs:
+        from app.pipeline.consensus import merge
+
+        consensus = merge(consensus_inputs, constraints, prefer=consensus_prefer)
+        constraints = consensus.constraints
 
     await progress("search")  # 후보 수집
     # 출발지 좌표는 재시도마다 바뀌지 않으므로 한 번만 조회한다(외부 호출 절약)
@@ -102,12 +113,14 @@ async def generate_course(
         # 그 사실을 알리고 완화 여부를 물어본다(조용히 4곳만 주지 않는다).
         # 폐업·휴무로 빠진 뒤의 개수로 판단해야 한다 — 빼기 전 개수로 재면
         # 2곳짜리 코스를 "충분하다"고 넘긴다.
+        _attach(timeline, consensus)
         return PlanResult(
             constraints,
             timeline,
             relaxed=False,
             needs_confirmation=len(timeline) < _min_usable(constraints),
             closed_dropped=max(0, before - len(timeline)),
+            consensus=consensus,
         )
 
     # 7-4 조건 완화: 소프트 제약(이동시간 여유폭)부터 단계적 완화. 하드 제약(예산)은 유지.
@@ -146,13 +159,23 @@ async def generate_course(
     timeline = await _refill(
         timeline, before_ids, final_c, map_service, origin, exclude_place_ids
     )
+    _attach(timeline, consensus)
     return PlanResult(
         relaxed_c if relaxed else constraints,
         timeline,
         relaxed=relaxed,
         needs_confirmation=len(timeline) < _min_usable(constraints),
         closed_dropped=max(0, before - len(timeline)),
+        consensus=consensus,
     )
+
+
+def _attach(timeline: list[TimelineItem], consensus) -> None:
+    if consensus is None:
+        return
+    from app.pipeline.consensus import attach_attributions
+
+    attach_attributions(timeline, consensus)
 
 
 async def _refill(
