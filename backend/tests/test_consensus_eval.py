@@ -62,3 +62,12 @@ def test_겹쳐서_양보가_요약에_보이면_반영된_것으로_본다():
     summary = [{"who": "민수", "what": "고기", "effect": "이번엔 양보 · 다음엔 먼저, 교체에서 골라볼 수 있어요"}]
     scn = Scenario(key="t", request="x", region="성수", a=ParticipantInput(name="민수", cravings=["고기"]), b=ParticipantInput(name="지은", cravings=["양식"]))
     assert score(scn, tl, summary, PlanConstraints(), CENTER).both_in_slots
+
+
+def test_이동_제한은_완화된_조건이_아니라_원래_바람으로_잰다():
+    scn = Scenario(key="t", request="x", region="성수", a=ParticipantInput(name="민수", cravings=["고기"]),
+                   b=ParticipantInput(name="지은", cravings=["디저트"], dislikes=["많이 걷기"]))
+    tl = [_item("1", "a", "음식점 > 고기", attrs=[{"who": "민수", "what": "고기", "slot": "meal"}], leg=14),
+          _item("2", "b", "카페", attrs=[{"who": "지은", "what": "디저트", "slot": "cafe"}])]
+    relaxed = PlanConstraints(max_travel_min=24)  # 플래너가 완화한 결과
+    assert not score(scn, tl, [], relaxed, CENTER).travel_ok
