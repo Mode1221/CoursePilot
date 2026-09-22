@@ -53,7 +53,7 @@ async def sms_request(req: SmsRequestBody) -> dict:
     """
     from app.auth import SmsSendFailed, TooManyRequests, request_code
 
-    if settings.is_production and not settings.sms_enabled:
+    if settings.is_production and not settings.sms_enabled and not settings.sms_dev_fallback:
         raise HTTPException(
             status_code=503,
             detail="문자 인증을 사용할 수 없습니다. 잠시 후 다시 시도해주세요.",

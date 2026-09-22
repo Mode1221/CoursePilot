@@ -89,6 +89,7 @@ services:
       NHN_SMS_APP_KEY: ${NHN_SMS_APP_KEY:-}
       NHN_SMS_SECRET_KEY: ${NHN_SMS_SECRET_KEY:-}
       NHN_SMS_SENDER: ${NHN_SMS_SENDER:-}
+      SMS_DEV_FALLBACK: ${SMS_DEV_FALLBACK:-false}
       PORTONE_API_KEY: ${PORTONE_API_KEY:-}
       PORTONE_API_SECRET: ${PORTONE_API_SECRET:-}
       # 백엔드를 2개 이상 띄울 때만 설정(단일 인스턴스면 비워둔다)

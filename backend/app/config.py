@@ -60,6 +60,10 @@ class Settings(BaseSettings):
     portone_api_secret: str = ""
     point_price_krw: int = 1000  # 포인트 1개당 가격(결제금액 검증용)
 
+    # 검증 기간 한정: SMS 키 없이도 운영에서 인증번호를 화면에 보여주는 폴백을 허용한다.
+    # 누구나 남의 번호로 가입할 수 있게 되므로 기본 false. 지인 테스트(무료·결제 없음)에서만 true.
+    sms_dev_fallback: bool = False
+
     # 검증 기간 무료 운영. True 면 AI 요청에 크레딧을 차감하지 않고(월 5회·포인트 결제 벽 없음)
     # 프론트에도 잔여 횟수·포인트 구매를 숨긴다. 첫 6개월(~2027-03) 기본값. 과금은 이 값을 False 로.
     free_mode: bool = True
