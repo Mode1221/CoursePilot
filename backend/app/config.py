@@ -60,6 +60,15 @@ class Settings(BaseSettings):
     portone_api_secret: str = ""
     point_price_krw: int = 1000  # 포인트 1개당 가격(결제금액 검증용)
 
+    # 검증 기간 무료 운영. True 면 AI 요청에 크레딧을 차감하지 않고(월 5회·포인트 결제 벽 없음)
+    # 프론트에도 잔여 횟수·포인트 구매를 숨긴다. 첫 6개월(~2027-03) 기본값. 과금은 이 값을 False 로.
+    free_mode: bool = True
+    # 영업시간 LLM 웹검색 폴백 일일 상한. Google 영업시간이 쌓이기 전에는 거의 매 코스에서
+    # 발동하므로 예산(몇만 원)을 지키려면 낮게 둔다. 50 이면 월 4만~8만원까지 나올 수 있다.
+    hours_fallback_daily_cap: int = 10
+    # AI 사용 고지 문구(AI 기본법 사전 고지). 코스 결과·공유 화면에 그대로 노출된다.
+    ai_notice: str = "AI가 만든 추천이에요. 영업시간·휴무는 방문 전 한 번 더 확인해 주세요."
+
     # 다중 인스턴스 확장: 설정 시 Socket.IO 가 Redis pub/sub 로 인스턴스 간 브로드캐스트.
     # 미설정이면 단일 프로세스 메모리 매니저(개발/소규모 운영 기본값).
     redis_url: str = ""

@@ -95,7 +95,14 @@ class UserStore:
         return self._save(user)
 
     def refund_credit(self, user_id: str) -> User | None:
-        """소비한 크레딧 1회 되돌리기. 무료 사용분을 먼저 복원, 없으면 포인트로 환불."""
+        """소비한 크레딧 1회 되돌리기. 무료 사용분을 먼저 복원, 없으면 포인트로 환불.
+
+        free_mode 에서는 차감이 없었으므로 되돌릴 것도 없다(포인트가 늘어나면 안 된다).
+        """
+        from app.config import settings
+
+        if settings.free_mode:
+            return self.get(user_id)
         if is_ready():
             return self._refund_credit_db(user_id)
 
@@ -225,7 +232,17 @@ class UserStore:
         return self._save(user)
 
     def consume_credit(self, user_id: str) -> User:
-        """AI 명령 1회 = 질문 1회 차감. 월 리셋 반영. 소진 시 CreditError."""
+        """AI 명령 1회 = 질문 1회 차감. 월 리셋 반영. 소진 시 CreditError.
+
+        settings.free_mode 면 차감하지 않는다(검증 기간 무료). 계정 존재만 확인한다.
+        """
+        from app.config import settings
+
+        if settings.free_mode:
+            user = self.get(user_id)
+            if user is None:
+                raise CreditError("user not found")
+            return user
         if is_ready():
             return self._consume_credit_db(user_id)
 

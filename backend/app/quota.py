@@ -27,7 +27,7 @@ MONTHLY_FREE_LIMITS: dict[str, int] = {
 # 일 단위 상한. 월 한도가 아니라 "하루에 이 이상은 쓰지 않는다"는 안전장치다.
 # LLM 웹검색은 건당 과금이라 코스가 몰리면 월말 전에 요금이 크게 는다.
 DAILY_LIMITS: dict[str, int] = {
-    "llm.hours_fallback": 50,
+    "llm.hours_fallback": 10,  # 기본값. 실제 상한은 settings.hours_fallback_daily_cap 이 우선
 }
 
 WARN_RATIO = 0.8  # 이 비율을 넘으면 경고(남은 한도로 월말까지 버틸 수 있는지 보라는 신호)
@@ -59,10 +59,19 @@ class QuotaStore:
     def limit(self, name: str) -> int | None:
         return MONTHLY_FREE_LIMITS.get(name)
 
+    @staticmethod
+    def daily_limit(name: str) -> int | None:
+        """일 상한. 영업시간 LLM 폴백은 예산 방어용이라 설정(hours_fallback_daily_cap)으로 조절한다."""
+        if name == "llm.hours_fallback":
+            from app.config import settings
+
+            return settings.hours_fallback_daily_cap
+        return DAILY_LIMITS.get(name)
+
     # --- 일 단위 상한 -----------------------------------------------------
     def allow_today(self, name: str, now: datetime | None = None) -> bool:
         """오늘 몫이 남았는지. 상한이 없는 이름은 항상 허용."""
-        limit = DAILY_LIMITS.get(name)
+        limit = self.daily_limit(name)
         if limit is None:
             return True
         return self.used_today(name, now) < limit
@@ -81,7 +90,7 @@ class QuotaStore:
             counter = _Counter(month=day)
             self._daily[name] = counter
         counter.used += count
-        limit = DAILY_LIMITS.get(name)
+        limit = self.daily_limit(name)
         if limit is not None and counter.used == limit:
             logger.warning("%s 오늘 상한(%d) 소진 — 남은 요청은 폴백으로 처리", name, limit)
 
