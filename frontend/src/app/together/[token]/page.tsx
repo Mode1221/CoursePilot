@@ -86,8 +86,27 @@ export default function TogetherPage({ params }: { params: { token: string } }) 
     );
   }
 
+  const alreadySent = status.submitted.includes(status.partner_name);
   return (
     <main style={wrap}>
+      {/* 코스 화면의 "내 카드 수정"으로 왔다면 되돌아갈 길이 있어야 한다(모바일엔 뒤로 버튼이 안 보이는 웹뷰도 많다) */}
+      {(status.built || alreadySent) && (
+        <nav style={{ marginBottom: "var(--sp-3)" }}>
+          {status.built ? (
+            <Link href={`/plan/${status.course_id}`} style={{ color: "var(--brand-strong)", textDecoration: "none" }}>
+              ← 코스로 돌아가기
+            </Link>
+          ) : (
+            <button
+              type="button"
+              onClick={() => setSent(true)}
+              style={{ border: "none", background: "none", padding: 0, color: "var(--brand-strong)", font: "inherit", cursor: "pointer" }}
+            >
+              ← 수정 취소
+            </button>
+          )}
+        </nav>
+      )}
       <p style={{ margin: 0, color: "var(--text-muted)", fontSize: "var(--fs-sm)" }}>
         {status.owner_name}님이 같이 정하재요 · 30초 · 가입 없음
       </p>

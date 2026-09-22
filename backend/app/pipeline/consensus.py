@@ -123,40 +123,79 @@ def merge(
         # 숫자는 상대에게 보이지 않는다 — effect 에 금액을 적지 않는다
         attributions.append(Attribution(who=who, what="예산", effect="예산 맞춤"))
 
-    # 3) 땡기는 것: 칸 나누기 (평균 내지 않는다 — 각자 최소 한 칸은 자기 취향)
-    slot_owner: dict[str, str] = {}
-    yielded: str | None = None
-    conflict_note: str | None = None
+    # 3) 땡기는 것: 칸 나누기 — 두 사람 모두 최소 한 칸은 자기 취향이 되게.
+    #    (예전엔 이름순으로 먼저 온 사람이 겹치는 칸을 가져가, 상대 취향이 코스에서 통째로 빠졌다)
     wants: list[tuple[str, str, str, str]] = []  # (name, craving, slot, keyword)
     for p in inputs:
         for cr in p.cravings:
             if cr in CRAVING_SLOT:
                 slot, kw = CRAVING_SLOT[cr]
                 wants.append((p.name, cr, slot, kw))
-    order = sorted({w[0] for w in wants}, key=lambda n: (n != prefer, n))
-    for name in order:
-        for who, cr, slot, kw in wants:
-            if who != name:
-                continue
-            if slot in slot_owner and slot_owner[slot] != who:
-                if slot_owner[slot] == prefer or prefer is None:
-                    yielded = who
-                    conflict_note = f"{_slot_ko(slot)}: {slot_owner[slot]}님 취향 우선, {who}님의 {cr}는 교체 후보로"
-                    if kw not in c.keywords:
-                        c.keywords.append(kw)
-                    continue
-            slot_owner.setdefault(slot, who)
-            if kw not in c.keywords:
-                c.keywords.append(kw)
-            attributions.append(Attribution(who=who, what=cr, effect=f"{_slot_ko(slot)} 칸", slot=slot))
-            break
-    for who, cr, slot, kw in wants:
-        if slot in slot_owner:
+    names = list(dict.fromkeys(w[0] for w in wants))
+    order = sorted(names, key=lambda n: (n != prefer, names.index(n)))
+    by_person = {n: [w for w in wants if w[0] == n] for n in order}
+    slot_owner: dict[str, str] = {}
+    chosen: dict[str, tuple[str, str, str, str]] = {}  # 사람 → 그 사람의 대표 취향(칸 확보)
+
+    def wanted_by_others(slot: str, who: str) -> bool:
+        return any(w[2] == slot for n, ws in by_person.items() if n != who for w in ws)
+
+    # 1단계: 겹치지 않는 칸부터 — 상대가 원하지 않는 칸을 먼저 주면 아무도 양보하지 않아도 된다
+    for n in order:
+        w = next((w for w in by_person[n] if w[2] not in slot_owner and not wanted_by_others(w[2], n)), None)
+        if w:
+            slot_owner[w[2]] = n
+            chosen[n] = w
+    # 2단계: 아직 칸이 없는 사람 — 빈 칸을 먼저, 없으면 겹치는 칸을 우선권으로 가른다
+    yielded: str | None = None
+    yielded_what: str | None = None
+    conflict_note: str | None = None
+    for n in order:
+        if n in chosen:
             continue
-        slot_owner[slot] = who
-        if kw not in c.keywords:
-            c.keywords.append(kw)
-        attributions.append(Attribution(who=who, what=cr, effect=f"{_slot_ko(slot)} 칸", slot=slot))
+        w = next((w for w in by_person[n] if w[2] not in slot_owner), None)
+        if w is None and by_person[n]:
+            w = by_person[n][0]
+            holder = slot_owner.get(w[2])
+            holder_has_other = holder is not None and sum(1 for s_, o in slot_owner.items() if o == holder) > 1
+            if holder is not None and (holder_has_other or n == prefer):
+                # 칸을 넘겨받는다 — 지금 주인은 다른 칸이 있거나, 이번엔 이 사람이 우선
+                yielded = holder
+                hw = chosen.get(holder)
+                yielded_what = hw[1] if hw else None
+                conflict_note = f"{_slot_ko(w[2])}: {n}님 취향 우선, {holder}님의 {hw[1] if hw else '취향'}는 교체 후보로"
+                slot_owner[w[2]] = n
+            else:
+                yielded = n
+                yielded_what = w[1]
+                conflict_note = f"{_slot_ko(w[2])}: {holder}님 취향 우선, {n}님의 {w[1]}는 교체 후보로"
+                w = None
+        if w is not None:
+            slot_owner[w[2]] = n
+            chosen[n] = w
+    # 3단계: 남은 취향으로 빈 칸 채우기(두 번째 취향도 가능한 한 넣는다)
+    extra: list[tuple[str, str, str, str]] = []
+    for w in wants:
+        if w[2] not in slot_owner:
+            slot_owner[w[2]] = w[0]
+            extra.append(w)
+    for n, w in list(chosen.items()):
+        if slot_owner.get(w[2]) != n:  # 2단계에서 칸을 넘겨준 사람의 대표 취향은 반영 안 된 것
+            chosen.pop(n)
+    for w in [*chosen.values(), *extra]:
+        if w[3] not in c.keywords:
+            c.keywords.append(w[3])
+        attributions.append(Attribution(who=w[0], what=w[1], effect=f"{_slot_ko(w[2])} 칸", slot=w[2]))
+    if yielded and yielded_what:
+        # 밀린 취향을 숨기지 않는다 — 요약 줄에 "이번엔 양보"로 보이고, 다음엔 이 사람이 우선(공평 장부)
+        attributions.append(
+            Attribution(who=yielded, what=yielded_what, effect="이번엔 양보 · 다음엔 먼저, 교체에서 골라볼 수 있어요")
+        )
+    for w in wants:  # 밀린 취향도 검색어엔 남겨 교체 후보로 잡히게
+        if w[3] not in c.keywords:
+            c.keywords.append(w[3])
+    # 칸마다 그 칸 주인의 취향으로 좁힌다(같은 식사 칸에 고기·양식이 섞여 점수로 갈리지 않게)
+    c.slot_focus = [[w[2], w[1]] for w in [*chosen.values(), *extra]]
 
     # 4) 반드시 들어갈 칸 + 칸별 검색어
     required = list(dict.fromkeys(slot_owner))

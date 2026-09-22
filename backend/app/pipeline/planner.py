@@ -634,6 +634,32 @@ UNFIT_CATEGORY = (
 UNFIT_NAME = ("구내식당", "학생식당", "푸드코트")
 
 
+def _focus_slots(candidates: list[Place], constraints: PlanConstraints) -> list[Place]:
+    """합의 코스: 칸 주인의 취향에 맞는 후보가 있으면 그 칸은 그 후보들로만 고른다.
+
+    같은 식사 칸 후보에 고기집·양식집이 섞여 있으면 평점으로 갈려, 칸을 가진 사람의 취향이
+    아니라 우연히 점수 높은 쪽이 들어간다(상대 취향만 반영된 것처럼 보였다). 맞는 곳이 하나도
+    없으면 거르지 않는다(빈 칸보다 낫고, 칩은 "못 찾았어요"로 솔직하게).
+    """
+    if not constraints.slot_focus:
+        return candidates
+    from app.pipeline.consensus import place_matches
+
+    focus: dict[str, str] = {}
+    for pair in constraints.slot_focus:
+        if len(pair) == 2:
+            focus.setdefault(pair[0], pair[1])
+    out = list(candidates)
+    for slot, craving in focus.items():
+        attr = {"what": craving, "slot": slot}
+        in_slot = [p for p in out if classify(p) == slot]
+        matching = [p for p in in_slot if place_matches(p, attr)]
+        if matching and len(matching) < len(in_slot):
+            drop = {p.id for p in in_slot} - {p.id for p in matching}
+            out = [p for p in out if p.id not in drop]
+    return out
+
+
 def is_unfit_for_date(place: Place) -> bool:
     """회사·학교 식당, 학교·병원·관공서 등 — 데이트 코스 후보로 부적절."""
     cat = place.category or ""
@@ -650,6 +676,7 @@ async def plan_course(
     """스코어링·템플릿·동선·Best-of-N 을 적용해 최적 타임라인을 반환."""
     # 데이트 코스에 안 맞는 업태(회사·학교 식당, 푸드코트 등)는 애초에 후보에서 뺀다.
     candidates = [p for p in candidates if not is_unfit_for_date(p)]
+    candidates = _focus_slots(candidates, constraints)
     if not candidates:
         return []
 
