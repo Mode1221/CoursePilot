@@ -21,10 +21,10 @@ from app.config import settings  # noqa: E402
 
 
 async def main() -> int:
-    if not settings.tourapi_service_key:
-        return skip("KOPIS", "TOURAPI_SERVICE_KEY 키 없음, 스킵")
+    if not settings.kopis_service_key:
+        return skip("KOPIS", "KOPIS_SERVICE_KEY 키 없음, 스킵 (kopis.or.kr 에서 발급 — 공공데이터포털 키와 별개)")
 
-    from app.adapters.culture import CultureClient, _xml_items, to_performance
+    from app.adapters.culture import CultureClient, _xml_items, kopis_error, to_performance
 
     s = Smoke("KOPIS")
     client = CultureClient()
@@ -33,7 +33,7 @@ async def main() -> int:
     resp = await client._client.get(
         "http://kopis.or.kr/openApi/restful/pblprfr",
         params={
-            "service": settings.tourapi_service_key,
+            "service": settings.kopis_service_key,
             "stdate": today.strftime("%Y%m%d"),
             "eddate": today.strftime("%Y%m%d"),
             "cpage": 1, "rows": 5, "signgucode": "11",
@@ -43,6 +43,11 @@ async def main() -> int:
     resp.raise_for_status()
 
     text = resp.text
+    error = kopis_error(text)
+    if error:
+        s.fail(f"KOPIS 오류 응답 — {error}. 키가 kopis.or.kr 에서 받은 서비스키인지, "
+               "승인이 끝났는지 확인(공공데이터포털 키로는 안 된다)")
+        return s.done()
     if "<dbs>" not in text and "<db>" not in text:
         s.fail("XML <db> 항목이 없음 — KOPIS 는 공공데이터포털과 별도 키를 쓴다. "
                f"응답 앞부분: {text[:200]!r}")
