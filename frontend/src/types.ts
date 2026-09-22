@@ -66,6 +66,8 @@ export interface TogetherPublic {
   conflict_note?: string | null;
   yielded?: string | null;
   request_text: string;
+  /** 코스 전체에 해당하는 이유 + 맞는 곳을 못 찾은 취향(솔직하게). 타임라인 위 한 줄. */
+  summary?: Attribution[];
 }
 
 export interface Course {

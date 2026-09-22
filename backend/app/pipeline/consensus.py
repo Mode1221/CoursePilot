@@ -77,6 +77,7 @@ class ConsensusResult(BaseModel):
     slot_owner: dict[str, str] = Field(default_factory=dict)  # slot → 이름(칸 나누기)
     yielded: str | None = None  # 이번에 양보한 사람(공평 장부용)
     conflict_note: str | None = None  # "저녁: 민수 고기 vs 지은 파스타 → 대안 1순위"
+    summary: list[dict] = Field(default_factory=list)  # 코스 전체 요약 줄(attach 후 채워짐)
 
 
 def _display_condition(cond: str) -> str:
@@ -200,23 +201,86 @@ def notes_text(inputs: list[ParticipantInput]) -> str:
     return " ".join(p.note.strip() for p in inputs if p.note and p.note.strip())
 
 
-def attach_attributions(timeline, result: ConsensusResult) -> None:
-    """만든 코스의 칸마다 반영 이유를 붙인다(코스 전체 이유는 모든 칸에, 칸 이유는 그 칸에).
+# 칩이 "반영했다"고 말하려면 실제 고른 장소가 그 취향에 맞아야 한다(맞지 않으면 말하지 않는다).
+CRAVING_MATCH: dict[str, tuple[str, ...]] = {
+    "고기": ("고기", "구이", "갈비", "삼겹", "스테이크", "바베큐", "곱창", "막창", "육류", "정육"),
+    "면": ("면", "국수", "라멘", "우동", "파스타", "쌀국수", "냉면", "소바"),
+    "한식": ("한식", "한정식", "백반", "국밥", "찌개", "갈비", "보쌈"),
+    "양식": ("양식", "이탈리", "파스타", "스테이크", "프렌치", "피자", "브런치", "레스토랑"),
+    "일식": ("일식", "초밥", "스시", "라멘", "돈까스", "이자카야", "우동", "오마카세"),
+    "디저트": ("디저트", "베이커리", "케이크", "빵", "카페", "제과", "도넛"),
+}
+SLOT_ONLY = {"술 한잔": "bar", "새로운 거": "activity"}  # 슬롯이 맞으면 반영으로 본다
 
-    슬롯 판정은 플래너의 classify 를 쓴다 — 표시와 배정 기준이 어긋나지 않게.
-    """
+
+def place_matches(place, attr: dict) -> bool:
+    """이 장소가 반영 이유(취향)를 실제로 만족하는가."""
     from app.pipeline.planner import classify
 
-    global_attrs = [a for a in result.attributions if a.slot is None]
-    by_slot: dict[str, list[Attribution]] = {}
-    for a in result.attributions:
-        if a.slot:
-            by_slot.setdefault(a.slot, []).append(a)
-    seen_slots: set[str] = set()
+    what = attr.get("what", "")
+    slot = attr.get("slot")
+    if what == "배고플 듯":
+        return classify(place) == "meal"
+    if what in SLOT_ONLY:
+        return classify(place) == SLOT_ONLY[what]
+    words = CRAVING_MATCH.get(what)
+    if words is None:
+        return slot is None or classify(place) == slot
+    hay = f"{place.category or ''} {place.name}"
+    return any(w in hay for w in words)
+
+
+def _summary(attrs: list[dict], timeline) -> list[dict]:
+    """코스 전체에 해당하는 이유를 한 줄 요약으로. 확인 가능한 것은 실제로 지켜졌을 때만."""
+    out: list[dict] = []
+    legs = [it.travel_to_next.duration_min for it in timeline if it.travel_to_next]
+    for a in attrs:
+        effect = a.get("effect", "")
+        if "이동" in effect and legs:
+            limit = next((int(x) for x in effect.replace("분", " ").split() if x.isdigit()), None)
+            if limit is not None and max(legs) > limit:
+                # 지키지 못한 부분은 말하지 않는다. 다른 부분("한 곳 덜")은 지켰으면 남긴다.
+                rest = [part for part in effect.split(", ") if "이동" not in part]
+                if not rest:
+                    continue
+                a = {**a, "effect": ", ".join(rest)}
+        if a.get("what") == "예산":
+            prices = [it.place.price for it in timeline]
+            if any(p is None for p in prices) or not prices:
+                pass  # 가격을 모르면 "맞춤"을 단정하지 않되, 조건으로는 걸었으니 남긴다
+        out.append(a)
+    return out
+
+
+def apply_attributions(timeline, all_attrs: list[dict]) -> tuple[list[dict], list[dict]]:
+    """칸에는 그 칸이 실제로 만족하는 취향만, 코스 전체 이유는 요약으로.
+
+    반환: (summary, unmet) — unmet 은 맞는 곳을 못 찾은 취향(요약 줄에 솔직하게 표시).
+    """
+    global_attrs = [a for a in all_attrs if not a.get("slot")]
+    slot_attrs = [a for a in all_attrs if a.get("slot")]
     for item in timeline:
-        slot = classify(item.place)
-        attrs = list(global_attrs) if item is timeline[0] else []
-        if slot in by_slot and slot not in seen_slots:
-            attrs.extend(by_slot[slot])
-            seen_slots.add(slot)
-        item.attributions = [a.model_dump() for a in attrs]  # 코스 JSON 스냅샷에 그대로 실린다
+        item.attributions = []
+    unmet: list[dict] = []
+    for a in slot_attrs:
+        target = next((it for it in timeline if place_matches(it.place, a)), None)
+        if target is None:
+            unmet.append({**a, "effect": "맞는 곳을 못 찾았어요 · 교체에서 골라보세요"})
+            continue
+        target.attributions.append(a)
+    return _summary(global_attrs, timeline) + unmet, unmet
+
+
+def attach_attributions(timeline, result: ConsensusResult) -> list[dict]:
+    """합친 직후 한 번. 요약 줄을 돌려준다(호출부가 course.together.summary 에 저장)."""
+    all_attrs = [a.model_dump() for a in result.attributions]
+    summary, _ = apply_attributions(timeline, all_attrs)
+    return summary
+
+
+def refresh_course_attributions(course) -> None:
+    """교체·순서 변경·추가·삭제 뒤에 칩을 다시 붙인다(바뀐 장소가 취향에 맞는지 다시 확인)."""
+    t = getattr(course, "together", None)
+    if t is None or not t.attributions:
+        return
+    t.summary, _ = apply_attributions(course.items, t.attributions)

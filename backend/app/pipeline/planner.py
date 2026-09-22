@@ -597,6 +597,15 @@ def _seq_norm(raw: float) -> float:
     return 0.5 * (raw / (raw + 3.0))
 
 
+UNFIT_FOR_DATE = ("구내식당", "학생식당", "푸드코트", "사내식당", "급식", "편의점", "도시락")
+
+
+def is_unfit_for_date(place: Place) -> bool:
+    """카카오 분류상 구내식당·푸드코트 등 — 데이트 코스 후보로 부적절."""
+    hay = f"{place.category or ''} {place.name}"
+    return any(w in hay for w in UNFIT_FOR_DATE)
+
+
 async def plan_course(
     candidates: list[Place],
     constraints: PlanConstraints,
@@ -605,6 +614,8 @@ async def plan_course(
     origin: Place | None = None,
 ) -> list[TimelineItem]:
     """스코어링·템플릿·동선·Best-of-N 을 적용해 최적 타임라인을 반환."""
+    # 데이트 코스에 안 맞는 업태(회사·학교 식당, 푸드코트 등)는 애초에 후보에서 뺀다.
+    candidates = [p for p in candidates if not is_unfit_for_date(p)]
     if not candidates:
         return []
 

@@ -87,10 +87,76 @@ def test_반영_이유를_칸에_붙인다():
         TimelineItem(place=Place(id="c", name="카페", category="카페", lat=0, lng=0)),
         TimelineItem(place=Place(id="m", name="고깃집", category="음식점 > 고기", lat=0, lng=0)),
     ]
-    attach_attributions(items, r)
+    summary = attach_attributions(items, r)
     cafe, meal = items
     assert any(a["who"] == "지은" and a["slot"] == "cafe" for a in cafe.attributions)
     assert any(a["who"] == "민수" and a["slot"] == "meal" for a in meal.attributions)
-    # 코스 전체 이유(웨이팅 빼기)는 첫 칸에 한 번만
-    assert any(a["what"] == "웨이팅" for a in cafe.attributions)
-    assert not any(a["what"] == "웨이팅" for a in meal.attributions)
+    # 코스 전체 이유(웨이팅 빼기)는 칸이 아니라 요약 줄로
+    assert any(a["what"] == "웨이팅" for a in summary)
+    assert not any(a["what"] == "웨이팅" for it in items for a in it.attributions)
+
+
+# ── 정직한 칩 / 요약 / 편집 후 재부착 ─────────────────────────────────────
+def test_취향에_맞지_않는_장소에는_칩을_붙이지_않고_요약에_솔직하게():
+    r = merge([_p("민수", cravings=["고기"])], PlanConstraints())
+    items = [TimelineItem(place=Place(id="m", name="한돌푸드", category="음식점 > 구내식당", lat=0, lng=0))]
+    summary = attach_attributions(items, r)
+    assert items[0].attributions == []
+    unmet = [a for a in summary if a["what"] == "고기"]
+    assert unmet and "못 찾았어요" in unmet[0]["effect"]
+
+
+def test_코스_전체_이유는_칸이_아니라_요약으로():
+    r = merge([_p("민수", dislikes=["웨이팅"]), _p("지은", budget_band=30000)], PlanConstraints())
+    items = [TimelineItem(place=Place(id="c", name="카페", category="카페", lat=0, lng=0))]
+    summary = attach_attributions(items, r)
+    assert items[0].attributions == []
+    assert {a["what"] for a in summary} == {"웨이팅", "예산"}
+
+
+def test_이동_제한을_지키지_못했으면_요약에서_말하지_않는다():
+    from app.schemas import Route, TravelMode
+
+    r = merge([_p("지은", condition="tired")], PlanConstraints())
+    a = Place(id="a", name="A", category="카페", lat=0, lng=0)
+    b = Place(id="b", name="B", category="카페", lat=0, lng=0)
+    items = [
+        TimelineItem(place=a, travel_to_next=Route(from_place_id="a", to_place_id="b", mode=TravelMode.WALK, duration_min=25, distance_m=2000)),
+        TimelineItem(place=b),
+    ]
+    summary = attach_attributions(items, r)
+    assert not any("이동" in s["effect"] for s in summary)
+    assert any(s["what"] == "피곤해" and s["effect"] == "한 곳 덜" for s in summary)
+
+
+def test_교체하면_새_장소_기준으로_칩을_다시_붙인다():
+    from app.pipeline.consensus import refresh_course_attributions
+    from app.schemas import Course, TogetherState
+
+    r = merge([_p("민수", cravings=["고기"])], PlanConstraints())
+    course = Course(id="x", together=TogetherState(token="t", request_text="성수"))
+    course.together.attributions = [a.model_dump() for a in r.attributions]
+    course.items = [TimelineItem(place=Place(id="1", name="구내식당", category="구내식당", lat=0, lng=0))]
+    refresh_course_attributions(course)
+    assert course.items[0].attributions == []
+    course.items = [TimelineItem(place=Place(id="2", name="성수 갈비", category="음식점 > 고기", lat=0, lng=0))]
+    refresh_course_attributions(course)
+    assert course.items[0].attributions and course.items[0].attributions[0]["what"] == "고기"
+    assert not any(s["what"] == "고기" for s in course.together.summary)
+
+
+def test_구내식당은_데이트_후보에서_뺀다():
+    from app.pipeline.planner import is_unfit_for_date
+
+    assert is_unfit_for_date(Place(id="1", name="한돌푸드", category="음식점 > 구내식당", lat=0, lng=0))
+    assert not is_unfit_for_date(Place(id="2", name="성수 갈비", category="음식점 > 고기", lat=0, lng=0))
+
+
+def test_공개_직렬화에는_카드_원문과_토큰이_없다():
+    from app.schemas import Course, TogetherState
+
+    c = Course(id="x", together=TogetherState(token="secret", request_text="성수", inputs={"지은": {"budget_band": 30000}}))
+    public = c.model_dump(mode="json")["together"]
+    assert "token" not in public and "inputs" not in public and public["submitted"] == ["지은"]
+    stored = c.model_dump(mode="json", context={"storage": True})["together"]
+    assert stored["token"] == "secret" and stored["inputs"]["지은"]["budget_band"] == 30000

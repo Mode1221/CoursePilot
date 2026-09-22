@@ -4,7 +4,13 @@ from __future__ import annotations
 from datetime import date, datetime, time
 from enum import Enum
 
-from pydantic import BaseModel, Field
+from pydantic import (
+    BaseModel,
+    Field,
+    SerializationInfo,
+    SerializerFunctionWrapHandler,
+    model_serializer,
+)
 
 
 class TravelMode(str, Enum):
@@ -104,6 +110,24 @@ class TogetherState(BaseModel):
     accepted_by: list[str] = Field(default_factory=list)  # 둘 다 있으면 확정
     conflict_note: str | None = None
     yielded: str | None = None
+    # 합친 결과의 반영 이유 전부(편집 후 다시 붙이기 위해 보관) + 코스 전체 요약 줄
+    attributions: list[dict] = Field(default_factory=list)
+    summary: list[dict] = Field(default_factory=list)
+
+    @model_serializer(mode="wrap")
+    def _public_by_default(self, handler: SerializerFunctionWrapHandler, info: SerializationInfo):
+        """저장할 때(context={"storage": True})만 카드 원문·토큰을 남긴다.
+
+        API 응답·소켓 브로드캐스트·공유 화면 등 나머지 모든 직렬화에서는 자동으로 뺀다 —
+        상대의 예산과 입력 링크 토큰이 공유 링크로 새지 않게(엔드포인트마다 잊지 않도록 모델에서).
+        """
+        data = handler(self)
+        if not (info.context or {}).get("storage"):
+            data.pop("inputs", None)
+            data.pop("token", None)
+            data.pop("attributions", None)
+            data["submitted"] = sorted(self.inputs)
+        return data
 
 
 class PlanConstraints(BaseModel):
