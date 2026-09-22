@@ -38,6 +38,14 @@ export default function TogetherPanel({ courseId }: { courseId: string }) {
     if (course?.together) refresh();
   }, [course?.together, refresh]);
 
+  // 소켓이 끊겨도 상대가 냈는지 알 수 있게, 기다리는 동안은 가볍게 확인한다
+  const waiting = !!status && !status.submitted.some((n) => n !== status.owner_name);
+  useEffect(() => {
+    if (!waiting) return;
+    const id = setInterval(refresh, 4000);
+    return () => clearInterval(id);
+  }, [waiting, refresh]);
+
   if (!userId) return null;
 
   const link = token && typeof window !== "undefined" ? `${window.location.origin}/together/${token}` : null;

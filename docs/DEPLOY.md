@@ -368,3 +368,15 @@ python scripts/build_places.py --sample --district 성수 연남
 ### 키 주의
 - Google Cloud 콘솔에서 **키 제한(IP/HTTP 리퍼러)과 일일 할당량 상한**을 반드시 설정한다. 코드 쪽 한도는 인스턴스 기준이라 최후 방어선이 아니다.
 - 네이버 경로는 NCP 전용 키(`NCP_API_KEY_ID/KEY`)를 쓴다. 개발자센터 키(`NAVER_CLIENT_ID/SECRET`)는 지역·블로그 검색용이다.
+
+
+## E2E 를 브라우저 다운로드가 막힌 환경에서 돌리기
+Playwright 의 `playwright install` 은 playwright CDN 에서 크로미움을 받는다. 그게 막힌 환경(회사망·샌드박스)에서는
+npm 레지스트리에 든 헤드리스 크로미움(`@sparticuz/chromium`)을 꺼내 `PW_CHROME_PATH` 로 넘기면 같은 스펙이 돈다.
+
+```bash
+mkdir -p /tmp/pwchrome && cd /tmp/pwchrome && npm init -y >/dev/null && npm i --silent @sparticuz/chromium
+node -e "const c=require('@sparticuz/chromium'); (c.default||c).executablePath().then(p=>console.log(p))"   # → /tmp/chromium
+cd <repo>/frontend && PW_CHROME_PATH=/tmp/chromium CI=1 RATE_LIMIT_PER_MIN=1000 pnpm exec playwright test
+```
+PR 을 올리기 전에 이걸로 E2E 를 한 번 돌리면 CI 에서만 빨간불이 나는 일을 막을 수 있다(#408·#410 이 그렇게 실패했다).
