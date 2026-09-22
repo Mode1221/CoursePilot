@@ -67,6 +67,7 @@ class TogetherStatus(BaseModel):
     accepted_by: list[str]
     request_text: str
     cards: dict
+    stale: bool = False
 
 
 def _owned(course_id: str, user_id: str | None, token: str | None) -> Course:
@@ -109,6 +110,7 @@ def _status(course: Course) -> TogetherStatus:
         built=bool(course.items),
         accepted_by=list(t.accepted_by),
         request_text=t.request_text,
+        stale=t.stale,
         cards=CARD_SPEC,
     )
 
@@ -166,8 +168,11 @@ async def partner_input(token: str, card: CardRequest) -> TogetherStatus:
     name = card.name or t.partner_name
     if name == t.owner_name:
         raise HTTPException(status_code=400, detail="이름이 시작한 사람과 같아요")
+    if t.partner_name != name:
+        t.inputs.pop(t.partner_name, None)  # 이름을 고쳐 다시 내면 옛 이름의 카드는 버린다
     t.partner_name = name
     t.inputs[name] = ParticipantInput(**card.model_dump(exclude={"name"}), name=name).model_dump()
+    _mark_changed(course)
     store.save(course)
     # 시작한 사람 화면이 "상대 답함"으로 바뀌도록 상태를 밀어준다(카드 원문은 _public 이 뺀다)
     await broadcast_state(course.id, _public(course))
@@ -189,7 +194,6 @@ async def owner_input(
     if t is None:
         raise HTTPException(status_code=404, detail="아직 시작하지 않았어요")
     name = card.name or t.owner_name
-    t.owner_name = name
     data = card.model_dump(exclude={"name"})
     if x_user_id and not data["budget_band"]:
         user = user_store.get(x_user_id)
@@ -197,8 +201,13 @@ async def owner_input(
             from app.pipeline.agent import BUDGET_CHOICES
 
             data["budget_band"] = BUDGET_CHOICES.get(user.preferences.budget)
+    if t.owner_name != name:
+        t.inputs.pop(t.owner_name, None)
+    t.owner_name = name
     t.inputs[name] = ParticipantInput(**data, name=name).model_dump()
+    _mark_changed(course)
     store.save(course)
+    await broadcast_state(course_id, _public(course))
     return _status(course)
 
 
@@ -255,6 +264,7 @@ async def build_together(
                 t.attributions = [a.model_dump() for a in result.consensus.attributions]
                 t.summary = result.consensus.summary
             t.accepted_by = []  # 새 코스면 수락도 새로
+            t.stale = False
         finally:
             course.locked = False
         store.save(course)
@@ -298,6 +308,14 @@ async def owner_accept(
     store.save(course)
     await broadcast_state(course_id, course.model_dump(mode="json"))
     return _status(course)
+
+
+def _mark_changed(course: Course) -> None:
+    """코스를 만든 뒤 카드가 바뀌면 다시 합쳐야 한다 — 수락도 무효."""
+    t = course.together
+    if t is not None and course.items:
+        t.stale = True
+        t.accepted_by = []
 
 
 def _prefer(t: TogetherState) -> str | None:

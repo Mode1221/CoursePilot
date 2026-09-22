@@ -123,28 +123,7 @@ def merge(
         # 숫자는 상대에게 보이지 않는다 — effect 에 금액을 적지 않는다
         attributions.append(Attribution(who=who, what="예산", effect="예산 맞춤"))
 
-    # 3) 컨디션: 더 제약이 큰 쪽
-    tired = [p for p in inputs if p.condition == "tired"]
-    hungry = [p for p in inputs if p.condition == "hungry"]
-    if tired:
-        p = tired[0]
-        c.max_travel_min = min(c.max_travel_min or 99, TIRED_MAX_TRAVEL_MIN)
-        if c.stop_count:
-            c.stop_count = max(2, c.stop_count - 1)
-        elif c.duration_min and c.duration_min > 180:
-            c.duration_min = max(120, c.duration_min - 60)  # 칸 수를 하나 줄이는 효과
-        if "앉아서" not in c.keywords:
-            c.keywords.append("앉아서")
-        attributions.append(
-            Attribution(who=p.name, what="피곤해", effect=f"이동 {TIRED_MAX_TRAVEL_MIN}분 이내, 한 곳 덜")
-        )
-    if hungry:
-        p = hungry[0]
-        # 첫 칸을 식사로: 플래너의 keyword_slot 이 첫 키워드로 슬롯을 잡는다
-        c.keywords.insert(0, "식당")
-        attributions.append(Attribution(who=p.name, what="배고플 듯", effect="첫 칸은 밥부터", slot="meal"))
-
-    # 4) 땡기는 것: 칸 나누기
+    # 3) 땡기는 것: 칸 나누기 (평균 내지 않는다 — 각자 최소 한 칸은 자기 취향)
     slot_owner: dict[str, str] = {}
     yielded: str | None = None
     conflict_note: str | None = None
@@ -154,26 +133,23 @@ def merge(
             if cr in CRAVING_SLOT:
                 slot, kw = CRAVING_SLOT[cr]
                 wants.append((p.name, cr, slot, kw))
-    # 각자 최소 한 칸 — 우선권 있는 사람부터, 그다음 아직 칸이 없는 사람
     order = sorted({w[0] for w in wants}, key=lambda n: (n != prefer, n))
     for name in order:
         for who, cr, slot, kw in wants:
             if who != name:
                 continue
             if slot in slot_owner and slot_owner[slot] != who:
-                # 같은 칸 충돌: 이미 주인이 있으면 이 사람이 양보 → 대안 1순위로
                 if slot_owner[slot] == prefer or prefer is None:
                     yielded = who
-                    conflict_note = f"{slot}: {slot_owner[slot]}가 우선, {who}의 {cr}는 대안 1순위"
+                    conflict_note = f"{_slot_ko(slot)}: {slot_owner[slot]}님 취향 우선, {who}님의 {cr}는 교체 후보로"
                     if kw not in c.keywords:
-                        c.keywords.append(kw)  # 대안 후보가 검색에 잡히도록 키워드는 남긴다
+                        c.keywords.append(kw)
                     continue
             slot_owner.setdefault(slot, who)
             if kw not in c.keywords:
                 c.keywords.append(kw)
             attributions.append(Attribution(who=who, what=cr, effect=f"{_slot_ko(slot)} 칸", slot=slot))
-            break  # 이 사람의 첫 칸 확보
-    # 남은 취향은 슬롯 주인이 비어 있을 때만 채운다
+            break
     for who, cr, slot, kw in wants:
         if slot in slot_owner:
             continue
@@ -181,6 +157,29 @@ def merge(
         if kw not in c.keywords:
             c.keywords.append(kw)
         attributions.append(Attribution(who=who, what=cr, effect=f"{_slot_ko(slot)} 칸", slot=slot))
+
+    # 4) 반드시 들어갈 칸 + 칸별 검색어
+    required = list(dict.fromkeys(slot_owner))
+    hungry = [p for p in inputs if p.condition == "hungry"]
+    if hungry:
+        required = ["meal", *[s_ for s_ in required if s_ != "meal"]]
+        c.lead_slot = "meal"
+        attributions.append(Attribution(who=hungry[0].name, what="배고플 듯", effect="첫 칸은 밥부터", slot="meal"))
+    c.required_slots = required
+    c.slot_queries = [list(q) for q in dict.fromkeys((slot, kw) for _, _, slot, kw in wants)]
+
+    # 5) 칸 수 — 취향 칸은 모두 들어가야 한다. 피곤하면 한 곳 줄이되 취향 칸 아래로는 안 내린다.
+    n_base = c.stop_count or max(2, min(6, (c.duration_min or 180) // 90))
+    n = max(n_base, len(required))
+    tired = [p for p in inputs if p.condition == "tired"]
+    if tired:
+        c.max_travel_min = min(c.max_travel_min or 99, TIRED_MAX_TRAVEL_MIN)
+        fewer = max(2, len(required), n - 1)
+        effect = f"이동 {TIRED_MAX_TRAVEL_MIN}분 이내" + (", 한 곳 덜" if fewer < n else "")
+        n = fewer
+        attributions.append(Attribution(who=tired[0].name, what="피곤해", effect=effect))
+    if n != n_base or base.stop_count:
+        c.stop_count = n
 
     # 5) 자유 한마디는 키워드로 덧붙인다(자연어 파서를 여기서 돌리지 않는다 — 호출부가 text 에 합친다)
     return ConsensusResult(

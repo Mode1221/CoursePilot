@@ -18,20 +18,42 @@ const BUDGET_LABEL: Record<number, string> = { 20000: "~2만원", 30000: "~3만�
  * 좋아하는 걸 말하긴 어려워도 싫은 걸 말하긴 쉽다.
  * 서로의 답은 합치기 전까지 보이지 않는다(눈치·앵커링 방지).
  */
+interface Saved {
+  condition: TogetherCard["condition"];
+  cravings: string[];
+  dislikes: string[];
+  budget: number | null;
+  note: string;
+}
+
+function readSaved(key?: string): Saved | null {
+  if (!key) return null;
+  try {
+    const raw = window.localStorage.getItem(key);
+    return raw ? (JSON.parse(raw) as Saved) : null;
+  } catch {
+    return null;
+  }
+}
+
 export default function TogetherCards({
   spec,
   submitLabel = "보냈어요",
   onSubmit,
+  storageKey,
 }: {
   spec: TogetherStatus["cards"];
   submitLabel?: string;
   onSubmit: (card: TogetherCard) => Promise<void>;
+  /** 고른 그대로(아무거나·없음 포함)를 이 기기에 남겨, 수정할 때 다시 채운다. 서버엔 저장하지 않는다. */
+  storageKey?: string;
 }) {
-  const [condition, setCondition] = useState<TogetherCard["condition"]>("normal");
-  const [cravings, setCravings] = useState<string[]>([]);
-  const [dislikes, setDislikes] = useState<string[]>([]);
-  const [budget, setBudget] = useState<number | null>(null);
-  const [note, setNote] = useState("");
+  const [saved] = useState(() => (typeof window === "undefined" ? null : readSaved(storageKey)));
+  const [condition, setCondition] = useState<TogetherCard["condition"]>(saved?.condition ?? "normal");
+  const [cravings, setCravings] = useState<string[]>(saved?.cravings ?? []);
+  const [dislikes, setDislikes] = useState<string[]>(saved?.dislikes ?? []);
+  const [budget, setBudget] = useState<number | null>(saved?.budget ?? null);
+  const [note, setNote] = useState(saved?.note ?? "");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -56,6 +78,13 @@ export default function TogetherCards({
         budget_band: budget,
         note: note.trim() || undefined,
       });
+      if (storageKey) {
+        try {
+          window.localStorage.setItem(storageKey, JSON.stringify({ condition, cravings, dislikes, budget, note }));
+        } catch {
+          /* storage 막힘 */
+        }
+      }
     } finally {
       setBusy(false);
     }

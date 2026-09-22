@@ -6,6 +6,7 @@ import { useCallback, useEffect, useState } from "react";
 import TogetherCards from "@/components/TogetherCards";
 import { Button, Skeleton } from "@/components/ui";
 import { api, ApiError, type TogetherStatus } from "@/services/api";
+import { saveTogetherToken } from "@/services/togetherToken";
 import { toast } from "@/store/toastStore";
 
 /**
@@ -24,12 +25,10 @@ export default function TogetherPage({ params }: { params: { token: string } }) 
       const s = await api.togetherStatus(token);
       setStatus(s);
       setMyName((n) => n || s.partner_name);
-      try {
-        window.localStorage.setItem(`coursepilot_together_token:${s.course_id}`, token);
-      } catch {
-        /* storage 막힘 */
-      }
-      setSent(s.submitted.includes(s.partner_name));
+      saveTogetherToken(s.course_id, token);
+      // 코스 화면의 "내 카드 수정"(?edit=1)으로 왔으면 이미 냈어도 카드를 바로 연다
+      const editing = new URLSearchParams(window.location.search).has("edit");
+      setSent((prev) => (editing && !prev ? false : prev || s.submitted.includes(s.partner_name)));
     } catch (e) {
       if (e instanceof ApiError && e.status === 404) setMissing(true);
       else toast("상태를 불러오지 못했어요.", "error");
@@ -73,10 +72,13 @@ export default function TogetherPage({ params }: { params: { token: string } }) 
           {status.owner_name}님 답이랑 합쳐볼게요. {status.built ? "코스가 준비됐어요!" : "잠깐만 기다려 주세요."}
         </p>
         {status.built && (
-          <Link href={`/share/${status.course_id}`}>
+          <Link href={`/plan/${status.course_id}`}>
             <Button variant="primary" full>코스 보러 가기</Button>
           </Link>
         )}
+        <Button full variant="ghost" onClick={() => setSent(false)} style={{ marginTop: "var(--sp-2)" }}>
+          내 답 수정하기
+        </Button>
         <p style={{ marginTop: "var(--sp-6)", fontSize: "var(--fs-xs)", color: "var(--text-faint)" }}>
           내 답은 합친 뒤에도 예산은 공개되지 않아요.
         </p>
@@ -105,6 +107,8 @@ export default function TogetherPage({ params }: { params: { token: string } }) 
       </label>
       <TogetherCards
         spec={status.cards}
+        storageKey={`coursepilot_together_card:${token}`}
+        submitLabel={status.submitted.includes(status.partner_name) ? "수정한 답 보내기" : "보냈어요"}
         onSubmit={async (card) => {
           try {
             const name = myName.trim() || status.partner_name;

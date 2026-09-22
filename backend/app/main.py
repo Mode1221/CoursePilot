@@ -213,6 +213,12 @@ api.include_router(signals_router)
 api.include_router(together_router)
 
 
+@api.get("/config/public")
+def public_config() -> dict:
+    """프론트가 런타임에 읽는 공개 설정. 비밀값은 절대 넣지 않는다(키 ID 는 원래 공개값)."""
+    return {"naver_map_client_id": settings.naver_map_client_id or settings.ncp_api_key_id or ""}
+
+
 @api.post("/courses", response_model=Course)
 async def create_course(x_user_id: str | None = Header(default=None)) -> Course:
     return store.create(owner_id=x_user_id)
@@ -478,20 +484,39 @@ class GenerateResponse(BaseModel):
     needs_confirmation: bool  # 완화로도 부족 → 사용자 확인 필요 (7-4)
 
 
+def _ai_actor(course_id: str, user_id: str | None, user_token: str | None, together_token: str | None) -> str | None:
+    """AI 명령을 누구 이름으로 실행할지. 생성자이거나, 합의 코스의 상대(링크 토큰)만 허용.
+
+    상대는 가입 없이 링크로 들어온다. 둘이 같이 정하는 제품이라 상대도 챗봇을 쓸 수 있어야 한다 —
+    단 검증 기간 무료(FREE_MODE)일 때만(과금 중엔 크레딧 주인이 생성자라 생성자만). 실행 주체는 생성자로 둔다.
+    """
+    if together_token:
+        import secrets as _secrets
+
+        course = store.get(course_id)
+        t = course.together if course else None
+        if t is not None and settings.free_mode and _secrets.compare_digest(t.token, together_token):
+            return course.owner_id
+    if user_id is None:
+        raise HTTPException(status_code=403, detail="AI 챗봇은 생성자만 사용할 수 있습니다")
+    _owned_course(course_id, user_id, user_token)
+    return user_id
+
+
 @api.post("/courses/{course_id}/relax", response_model=GenerateResponse)
 async def relax(
     course_id: str,
     x_user_id: str | None = Header(default=None),
     x_user_token: str | None = Header(default=None),
+    x_together_token: str | None = Header(default=None),
 ) -> GenerateResponse:
     """"조건을 완화해도 좋다"는 답변에 대한 재시도.
 
     직전 요청 문장을 그대로 다시 쓰되 완화를 강제한다. 사용자가 새 질문을 한 게
     아니므로 크레딧은 차감하지 않는다.
     """
-    if x_user_id is None:
-        raise HTTPException(status_code=403, detail="AI 챗봇은 생성자만 사용할 수 있습니다")
-    _owned_course(course_id, x_user_id, x_user_token)  # 공유받은 사람이 남의 코스를 갈아엎지 못하게
+    # 공유받은 사람이 남의 코스를 갈아엎지 못하게 — 생성자 또는 합의 코스 상대(무료 기간)만
+    x_user_id = _ai_actor(course_id, x_user_id, x_user_token, x_together_token)
     last_user_text = next(
         (m.text for m in reversed(chat_store.list(course_id)) if m.role == "user"), None
     )
@@ -508,7 +533,7 @@ async def relax(
         # 예전에는 None 을 넘겨, 완화하면 사용자 프로필이 통째로 무시됐다.
         before_ids = [it.place.id for it in course.items]
         prefs: dict | None = None
-        user = user_store.get(x_user_id)
+        user = user_store.get(x_user_id) if x_user_id else None
         if user is not None:
             from app.behavior import behavior_store
 
@@ -558,6 +583,7 @@ async def generate(
     req: GenerateRequest,
     x_user_id: str | None = Header(default=None),
     x_user_token: str | None = Header(default=None),
+    x_together_token: str | None = Header(default=None),
 ) -> GenerateResponse:
     """챗봇 명령: AI 파이프라인 실행. 액션 큐 직렬화 + Lock broadcast.
 
@@ -565,9 +591,8 @@ async def generate(
     참여자(비로그인)는 수동 편집만 가능 → 403.
     """
     # 존재 확인은 큐 밖에서 빠르게(단, 실제 상태는 lock 안에서 재조회한다)
-    if x_user_id is None:
-        raise HTTPException(status_code=403, detail="AI 챗봇은 생성자만 사용할 수 있습니다")
-    _owned_course(course_id, x_user_id, x_user_token)  # 생성자만 AI 명령 가능(참여자는 수동 편집만)
+    # 생성자, 또는 합의 코스의 상대(링크 토큰·무료 기간)만. 그 외 참여자는 수동 편집만.
+    x_user_id = _ai_actor(course_id, x_user_id, x_user_token, x_together_token)
 
     async def action() -> GenerateResponse:
         # 최신 상태를 lock 안에서 재조회 → 동시 요청 간 lost update 방지
@@ -576,17 +601,19 @@ async def generate(
             raise HTTPException(status_code=404, detail="코스를 찾을 수 없어요")
 
         # 크레딧 소비도 lock 안에서: 원자적 차감 + 실패 시 환불
-        try:
-            user = user_store.consume_credit(x_user_id)
-        except CreditError:
-            raise HTTPException(
-                status_code=402, detail="AI에게 질문하려면 포인트를 구매해주세요"
-            ) from None
-        prefs = user.preferences.model_dump()
-        # 행동 선호(#13): 이 사용자가 실제 자주 채택한 카테고리를 스코어링에 주입
-        from app.behavior import behavior_store
+        prefs: dict = {}
+        if x_user_id:
+            try:
+                user = user_store.consume_credit(x_user_id)
+            except CreditError:
+                raise HTTPException(
+                    status_code=402, detail="AI에게 질문하려면 포인트를 구매해주세요"
+                ) from None
+            prefs = user.preferences.model_dump()
+            # 행동 선호(#13): 이 사용자가 실제 자주 채택한 카테고리를 스코어링에 주입
+            from app.behavior import behavior_store
 
-        prefs["behavior_cats"] = behavior_store.top_categories(x_user_id)
+            prefs["behavior_cats"] = behavior_store.top_categories(x_user_id)
 
         course.locked = True
         await broadcast_lock(course_id, True)
@@ -628,7 +655,7 @@ async def generate(
         # 질문("여기 주차 되나요?")에 코스를 갈아엎지 않는다. 편집 명령이 아닌
         # 물음이면 지금 코스로 답하고 크레딧도 돌려준다.
         if edit_cmd.action == "none" and course.items and _is_question(req.text):
-            user_store.refund_credit(x_user_id)
+            (x_user_id and user_store.refund_credit(x_user_id))
             course.locked = False
             await broadcast_lock(course_id, False)
             ai_text = course_answer(course, req.text)
@@ -637,7 +664,7 @@ async def generate(
             return GenerateResponse(course=course, relaxed=False, needs_confirmation=False)
         if edit_cmd.action == "clarify":
             # 어느 자리를 바꿀지 알 수 없다 → 새 코스를 만들지 않고 되묻는다
-            user_store.refund_credit(x_user_id)
+            (x_user_id and user_store.refund_credit(x_user_id))
             course.locked = False
             await broadcast_lock(course_id, False)
             ai_text = "어느 자리를 바꿀까요? 순번(예: 2번째)이나 장소 종류로 말씀해 주세요."
@@ -649,7 +676,7 @@ async def generate(
         if edit_cmd.action == "none" and not is_actionable(
             request_text, parse_constraints(request_text)
         ):
-            user_store.refund_credit(x_user_id)
+            (x_user_id and user_store.refund_credit(x_user_id))
             course.locked = False
             await broadcast_lock(course_id, False)
             ai_text = '어떤 모임인지 알려주세요. 예: "성수동에서 토요일 저녁 데이트"'
@@ -696,7 +723,7 @@ async def generate(
         except (Exception, asyncio.CancelledError):
             # 큐 타임아웃은 CancelledError 로 들어온다(BaseException 이라 Exception 에 안 걸린다).
             # 그때도 크레딧은 돌려줘야 한다 — 결과를 못 받았으니까.
-            user_store.refund_credit(x_user_id)  # 실패 시 소비 크레딧 되돌림
+            (x_user_id and user_store.refund_credit(x_user_id))  # 실패 시 소비 크레딧 되돌림
             course.locked = False
             await broadcast_lock(course_id, False)
             raise
@@ -714,7 +741,7 @@ async def generate(
             if first:
                 time_context_store.bump_many(new_ids, daypart_of(first.hour))
         # 행동 선호(#13): 채택된 장소의 카테고리를 사용자 행동 프로필에 누적
-        if course.items:
+        if course.items and x_user_id:
             from app.pipeline.planner import classify
 
             behavior_store.bump(x_user_id, [classify(it.place) for it in course.items])
@@ -742,11 +769,11 @@ async def generate(
             ai_text = "코스를 비웠어요. 어떤 모임인지 다시 말씀해 주세요."
         elif is_edit and new_ids == old_ids and edit_cmd.action == "reorder":
             # 이미 최적 동선이면 "못 찾았다"가 아니라 그대로 좋다고 알린다
-            user_store.refund_credit(x_user_id)
+            (x_user_id and user_store.refund_credit(x_user_id))
             ai_text = "이미 이동거리가 가장 짧은 순서예요. 그대로 두는 걸 추천해요."
         elif is_edit and new_ids == old_ids:
             # 없는 순번·카테고리를 지목하면 아무것도 바뀌지 않는다 → 알리고 크레딧도 돌려준다
-            user_store.refund_credit(x_user_id)
+            (x_user_id and user_store.refund_credit(x_user_id))
             ai_text = "요청하신 자리를 찾지 못했어요. 순번(예: 2번째)이나 장소 종류로 다시 말씀해 주세요."
         elif is_edit and edit_cmd.action in ("replace", "remove", "add"):
             ai_text = _edit_reply(course, edit_cmd.action, old_ids, new_ids, old_names)

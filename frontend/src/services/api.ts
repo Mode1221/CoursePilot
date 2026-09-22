@@ -20,6 +20,7 @@ export interface TogetherStatus {
   accepted_by: string[];
   request_text: string;
   cards: { conditions: string[]; cravings: string[]; dislikes: string[]; budget_bands: number[] };
+  stale?: boolean;
 }
 
 export interface GenerateResponse {
@@ -45,6 +46,7 @@ interface RequestOptions {
   method?: string;
   body?: unknown; // JSON 직렬화됨
   userId?: string; // 있으면 X-User-Id 헤더
+  togetherToken?: string; // 합의 코스 상대의 링크 토큰 → X-Together-Token (가입 없이 AI 사용)
 }
 
 // detail 이 없거나 사람이 읽을 수 없는 형태일 때 쓰는 기본 문구
@@ -88,6 +90,7 @@ function onSessionExpired() {
 async function requestOnce<T>(path: string, opts: RequestOptions = {}): Promise<T> {
   const headers: Record<string, string> = {};
   if (opts.body !== undefined) headers["Content-Type"] = "application/json";
+  if (opts.togetherToken) headers["X-Together-Token"] = opts.togetherToken;
   if (opts.userId) {
     headers["X-User-Id"] = opts.userId;
     // 서명 토큰이 있으면 함께 보낸다(서버가 비밀키를 쓰는 환경에서는 필수)
@@ -141,12 +144,12 @@ export const api = {
   deleteCourse: (id: string, userId?: string) =>
     request<{ ok: boolean }>(`/courses/${id}`, { method: "DELETE", userId }),
 
-  generate: (id: string, text: string, userId?: string) =>
-    request<GenerateResponse>(`/courses/${id}/generate`, { method: "POST", body: { text }, userId }),
+  generate: (id: string, text: string, userId?: string, togetherToken?: string) =>
+    request<GenerateResponse>(`/courses/${id}/generate`, { method: "POST", body: { text }, userId, togetherToken }),
 
   // 완화 동의 후 재시도(크레딧 미소모)
-  relax: (id: string, userId?: string) =>
-    request<GenerateResponse>(`/courses/${id}/relax`, { method: "POST", userId }),
+  relax: (id: string, userId?: string, togetherToken?: string) =>
+    request<GenerateResponse>(`/courses/${id}/relax`, { method: "POST", userId, togetherToken }),
 
   requestSmsCode: (phone: string) =>
     request<{ sent: boolean; dev_code: string | null }>("/auth/sms/request", {
@@ -238,6 +241,7 @@ export const api = {
     request<TogetherStatus>(`/together/${token}/accept`, { method: "POST" }),
   togetherOwnerAccept: (courseId: string, userId: string) =>
     request<TogetherStatus>(`/courses/${courseId}/together/accept`, { method: "POST", userId }),
+  publicConfig: () => request<{ naver_map_client_id: string }>(`/config/public`),
   credits: (userId: string) =>
     request<{ questions_left: number; free_mode?: boolean }>(`/users/${userId}/credits`, { userId }),
 

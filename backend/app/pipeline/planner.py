@@ -334,6 +334,33 @@ def _replace_excluded(slots: list[str], excluded: set[str]) -> list[str]:
 
 
 def desired_slots(constraints: PlanConstraints) -> list[str]:
+    """코스 칸 구성. 합의 코스면 두 사람의 취향 칸(required_slots)이 반드시 들어간다."""
+    return _apply_required(_base_slots(constraints), constraints)
+
+
+def _apply_required(slots: list[str], constraints: PlanConstraints) -> list[str]:
+    required = [s for s in constraints.required_slots if s not in excluded_slots(constraints)]
+    if not required and not constraints.lead_slot:
+        return slots
+    out = list(slots)
+    for r in required:
+        if r in out:
+            continue
+        # 취향 칸이 아닌 자리를 뒤에서부터 내준다. 없으면 붙인다(최대 칸 수 안에서).
+        idx = next((i for i in range(len(out) - 1, -1, -1) if out[i] not in required), None)
+        if idx is None:
+            if len(out) < MAX_STOPS:
+                out.append(r)
+        else:
+            out[idx] = r
+    lead = constraints.lead_slot
+    if lead and lead in out and out[0] != lead:
+        out.remove(lead)
+        out.insert(0, lead)
+    return out
+
+
+def _base_slots(constraints: PlanConstraints) -> list[str]:
     dur = constraints.duration_min or 180
     # 하루를 통으로 비운 요청(8~9시간)에 4칸만 만들면 오후에 코스가 끝나 버린다
     n = max(2, min(MAX_STOPS, dur // 90))
@@ -597,13 +624,20 @@ def _seq_norm(raw: float) -> float:
     return 0.5 * (raw / (raw + 3.0))
 
 
-UNFIT_FOR_DATE = ("구내식당", "학생식당", "푸드코트", "사내식당", "급식", "편의점", "도시락")
+# 데이트 코스 후보로 부적절한 업태. 분류(category)로 판단한다 — 이름으로 보면
+# "홍익대학교 박물관"처럼 이름에 '대학교'가 든 문화시설까지 빠진다.
+UNFIT_CATEGORY = (
+    "구내식당", "학생식당", "푸드코트", "사내식당", "급식", "편의점", "도시락",
+    "교육,학문", "학교", "학원", "의료", "병원", "약국", "금융", "은행", "공공기관", "관공서",
+    "부동산", "주유소", "주차장", "교통,수송", "사무실", "기업", "산업", "종교",
+)
+UNFIT_NAME = ("구내식당", "학생식당", "푸드코트")
 
 
 def is_unfit_for_date(place: Place) -> bool:
-    """카카오 분류상 구내식당·푸드코트 등 — 데이트 코스 후보로 부적절."""
-    hay = f"{place.category or ''} {place.name}"
-    return any(w in hay for w in UNFIT_FOR_DATE)
+    """회사·학교 식당, 학교·병원·관공서 등 — 데이트 코스 후보로 부적절."""
+    cat = place.category or ""
+    return any(w in cat for w in UNFIT_CATEGORY) or any(w in place.name for w in UNFIT_NAME)
 
 
 async def plan_course(

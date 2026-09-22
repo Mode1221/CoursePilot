@@ -36,7 +36,25 @@ def test_피곤한_쪽_기준으로_이동과_칸_수():
     r = merge([_p("민수"), _p("지은", condition="tired")], PlanConstraints(stop_count=4))
     assert r.constraints.max_travel_min == TIRED_MAX_TRAVEL_MIN
     assert r.constraints.stop_count == 3
-    assert any(a.who == "지은" and a.what == "피곤해" for a in r.attributions)
+    tired = next(a for a in r.attributions if a.who == "지은" and a.what == "피곤해")
+    assert "한 곳 덜" in tired.effect
+
+
+def test_피곤해도_취향_칸_아래로는_줄이지_않고_그렇다면_한_곳_덜이라고_말하지_않는다():
+    r = merge(
+        [_p("민수", cravings=["고기"]), _p("지은", condition="tired", cravings=["디저트"])],
+        PlanConstraints(duration_min=180),
+    )
+    assert (r.constraints.stop_count or 2) == 2 and set(r.constraints.required_slots) == {"meal", "cafe"}
+    tired = next(a for a in r.attributions if a.what == "피곤해")
+    assert "한 곳 덜" not in tired.effect
+
+
+def test_취향마다_칸별_검색어를_만든다():
+    r = merge([_p("민수", cravings=["고기"]), _p("지은", cravings=["새로운 거", "디저트"])], PlanConstraints())
+    assert ["meal", "고기"] in r.constraints.slot_queries
+    assert ["activity", "전시"] in r.constraints.slot_queries
+    assert "앉아서" not in r.constraints.keywords
 
 
 def test_많이_걷기_싫으면_이동_제한():
@@ -47,7 +65,7 @@ def test_많이_걷기_싫으면_이동_제한():
 
 def test_배고프면_첫_칸은_식사():
     r = merge([_p("민수", condition="hungry")], PlanConstraints(keywords=["조용한"]))
-    assert r.constraints.keywords[0] == "식당"
+    assert r.constraints.lead_slot == "meal" and r.constraints.required_slots[0] == "meal"
     assert any(a.slot == "meal" and a.what == "배고플 듯" for a in r.attributions)
 
 
@@ -117,7 +135,7 @@ def test_코스_전체_이유는_칸이_아니라_요약으로():
 def test_이동_제한을_지키지_못했으면_요약에서_말하지_않는다():
     from app.schemas import Route, TravelMode
 
-    r = merge([_p("지은", condition="tired")], PlanConstraints())
+    r = merge([_p("지은", condition="tired")], PlanConstraints(stop_count=3))
     a = Place(id="a", name="A", category="카페", lat=0, lng=0)
     b = Place(id="b", name="B", category="카페", lat=0, lng=0)
     items = [
@@ -145,11 +163,40 @@ def test_교체하면_새_장소_기준으로_칩을_다시_붙인다():
     assert not any(s["what"] == "고기" for s in course.together.summary)
 
 
-def test_구내식당은_데이트_후보에서_뺀다():
+def test_구내식당_학교는_데이트_후보에서_빼되_이름에_대학교가_든_문화시설은_남긴다():
     from app.pipeline.planner import is_unfit_for_date
 
     assert is_unfit_for_date(Place(id="1", name="한돌푸드", category="음식점 > 구내식당", lat=0, lng=0))
+    assert is_unfit_for_date(Place(id="3", name="홍익대학교 서울캠퍼스", category="교육,학문 > 학교 > 대학교", lat=0, lng=0))
+    assert not is_unfit_for_date(Place(id="4", name="홍익대학교 박물관", category="문화,예술 > 문화시설 > 박물관", lat=0, lng=0))
     assert not is_unfit_for_date(Place(id="2", name="성수 갈비", category="음식점 > 고기", lat=0, lng=0))
+
+
+def test_합의_코스는_취향_칸이_반드시_들어가고_배고프면_밥이_먼저():
+    from app.pipeline.planner import desired_slots
+
+    c = PlanConstraints(duration_min=180, companion="데이트", required_slots=["activity", "meal"])
+    slots = desired_slots(c)
+    assert "activity" in slots and "meal" in slots
+    c2 = PlanConstraints(duration_min=270, required_slots=["meal", "cafe"], lead_slot="meal")
+    assert desired_slots(c2)[0] == "meal"
+
+
+async def test_합의_코스는_칸마다_따로_검색한다():
+    from app.pipeline.agent import _slot_search
+
+    calls = []
+
+    class _Svc:
+        async def search_places(self, region, keywords, limit=10):
+            calls.append(tuple(keywords))
+            return [Place(id=f"{region}-{'-'.join(keywords)}-{i}", name="x", lat=0, lng=0) for i in range(2)]
+
+    c = PlanConstraints(region="홍대", required_slots=["meal", "activity"], slot_queries=[["meal", "고기"], ["activity", "전시"]], duration_min=180)
+    found = await _slot_search(c, _Svc(), "홍대")
+    assert ("고기",) in calls and ("전시",) in calls
+    assert all(len(k) <= 1 for k in calls)  # "고기 전시" 같은 합친 질의는 없다
+    assert found
 
 
 def test_공개_직렬화에는_카드_원문과_토큰이_없다():

@@ -44,7 +44,7 @@ describe("ChatPanel", () => {
     render(<ChatPanel courseId="c1" />);
     fireEvent.change(screen.getByLabelText("조건 입력"), { target: { value: "성수동 3시간" } });
     fireEvent.click(screen.getByText("전송"));
-    await waitFor(() => expect(api.generate).toHaveBeenCalledWith("c1", "성수동 3시간", "u1"));
+    await waitFor(() => expect(api.generate).toHaveBeenCalledWith("c1", "성수동 3시간", "u1", undefined));
     await waitFor(() => expect(useCourseStore.getState().course?.title).toBe("성수 코스"));
   });
 
@@ -64,7 +64,7 @@ describe("ChatPanel", () => {
     fireEvent.click(screen.getByText("전송"));
     const accept = await screen.findByText("완화 수락");
     fireEvent.click(accept);
-    await waitFor(() => expect(api.relax).toHaveBeenCalledWith("c1", "u1"));
+    await waitFor(() => expect(api.relax).toHaveBeenCalledWith("c1", "u1", undefined));
     expect(await screen.findByText(/완화된 조건으로 코스를 다시 구성했어요/)).toBeDefined();
   });
 

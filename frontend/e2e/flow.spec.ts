@@ -164,16 +164,32 @@ test("먼저 상대에게 묻기: 링크 → 상대 카드 → 합친 코스에 
   await expect(page.getByRole("list", { name: "코스 전체에 반영된 의견" })).toBeVisible({ timeout: 20_000 });
   await expect(page.getByText(/👤지은 매운 거/)).toBeVisible();
 
-  // 수락: 시작한 사람 + 상대(공유 화면)
+  // 수락: 시작한 사람 → 상대는 링크에서 "코스 보러 가기"로 편집 가능한 코스 화면에 들어간다
   await page.getByText("이 코스 좋아요").click();
   await expect(partner.getByText("코스 보러 가기")).toBeVisible({ timeout: 15_000 });
   await partner.getByText("코스 보러 가기").click();
-  // 실시간: 시작한 사람이 한 칸을 지우면 상대의 공유 화면에 새로고침 없이 반영된다
-  await expect(partner.getByText(/^1\. /)).toBeVisible({ timeout: 10_000 }); // 공유 화면이 코스를 다 그린 뒤에 센다
-  const before = await partner.getByText(/^\d+\. /).count();
-  await page.getByRole("button", { name: "삭제" }).first().click();
-  await expect(partner.getByText(/^\d+\. /)).toHaveCount(before - 1, { timeout: 10_000 });
+  await expect(partner.getByText(/민수님과 같이 정하는 중/)).toBeVisible({ timeout: 10_000 });
+  // 상대도 편집 버튼과 챗봇을 쓴다(가입 없이, 링크 토큰으로)
+  await expect(partner.getByRole("button", { name: "교체" }).first()).toBeVisible();
+  await expect(partner.getByText(/같이 정하는 중 · AI에게 바로 말해 보세요/)).toBeVisible();
+  // 실시간: 상대가 한 칸을 지우면 시작한 사람 화면에 새로고침 없이 반영된다
+  await expect(page.getByText(/^1\. /)).toBeVisible();
+  const before = await page.getByText(/^\d+\. /).count();
+  await partner.getByRole("button", { name: "삭제" }).first().click();
+  await expect(page.getByText(/^\d+\. /)).toHaveCount(before - 1, { timeout: 10_000 });
   await partner.getByText("이 코스 좋아요").click();
-  await expect(partner.getByText(/둘 다 좋아요 · 확정/)).toBeVisible();
+  await expect(partner.getByText(/둘 다 좋아요 · 확정/)).toBeVisible({ timeout: 10_000 });
+
+  // 카드 수정: 상대가 답을 고치면 시작한 사람에게 "다시 합치기" 안내, 수락은 초기화
+  await partner.getByText("내 카드 수정").click();
+  await expect(partner.getByText("수정한 답 보내기")).toBeVisible();
+  await expect(partner.getByText("디저트")).toHaveAttribute("aria-pressed", "true"); // 이전 답이 채워져 있다
+  await partner.getByText("양식").click();
+  await partner.getByText("수정한 답 보내기").click();
+  await expect(page.getByText(/카드가 바뀌었어요/)).toBeVisible({ timeout: 10_000 });
   await partner.close();
+
+  // 코스 화면에서 빠져나가기: 내 코스 · 새 코스
+  await page.getByRole("link", { name: "내 코스" }).click();
+  await expect(page).toHaveURL(/\/mypage/);
 });

@@ -113,6 +113,8 @@ class TogetherState(BaseModel):
     # 합친 결과의 반영 이유 전부(편집 후 다시 붙이기 위해 보관) + 코스 전체 요약 줄
     attributions: list[dict] = Field(default_factory=list)
     summary: list[dict] = Field(default_factory=list)
+    # 코스를 만든 뒤 누군가 카드를 고쳤다 → "다시 합치기" 안내(수락도 초기화)
+    stale: bool = False
 
     @model_serializer(mode="wrap")
     def _public_by_default(self, handler: SerializerFunctionWrapHandler, info: SerializationInfo):
@@ -149,6 +151,11 @@ class PlanConstraints(BaseModel):
     companion: str | None = None  # 동행유형: 데이트/친구/가족/회식/혼자 (컨텍스트 신호)
     keywords: list[str] = Field(default_factory=list)  # 조용한, 비건 등 소프트 제약
     exclude_keywords: list[str] = Field(default_factory=list)  # "술집 빼고" 같은 제외 조건
+    # 합의 코스: 반드시 들어가야 할 칸(두 사람의 취향), 첫 칸 고정, 칸별 검색어.
+    # 한 번의 "지역 + 키워드 전부" 질의는 "홍대 고기 전시"처럼 엉뚱한 결과를 내므로 칸마다 따로 찾는다.
+    required_slots: list[str] = Field(default_factory=list)
+    lead_slot: str | None = None
+    slot_queries: list[list[str]] = Field(default_factory=list)  # [[slot, keyword], ...]
 
 
 Course.model_rebuild()

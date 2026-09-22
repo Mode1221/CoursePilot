@@ -30,6 +30,9 @@ class Settings(BaseSettings):
     # 경로(네이버 클라우드 플랫폼 Maps). 개발자센터 키와 별개이므로 분리해서 받는다.
     # 미설정이면 개발자센터 키로 폴백하지만, 운영에서는 반드시 NCP 키를 넣어야 한다.
     ncp_api_key_id: str = ""
+    # 프론트 지도(Web Dynamic Map) 키 ID. 공개값(스크립트 URL 에 실린다). 비우면 NCP_API_KEY_ID 를 쓴다 —
+    # 같은 NCP Maps 애플리케이션에서 Dynamic Map 을 켜면 키 ID 가 같다. 런타임에 내려주므로 이미지를 다시 굽지 않는다.
+    naver_map_client_id: str = ""
     ncp_api_key: str = ""
 
     # 관광·문화시설 정보(공공데이터포털 TourAPI). 미설정 시 미사용.

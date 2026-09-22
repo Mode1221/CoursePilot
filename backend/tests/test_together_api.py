@@ -101,3 +101,38 @@ def test_한_명만_냈어도_초안을_만든다(client):
     client.post(f"/courses/{cid}/together/input", json={"cravings": ["고기"]}, headers=h)
     r = client.post(f"/courses/{cid}/together/build", headers=h)
     assert r.status_code == 200 and r.json()["course"]["items"]
+
+
+def test_코스를_만든_뒤_카드를_고치면_다시_합치기_상태가_되고_수락이_초기화된다(client):
+    uid, h, cid, token = _start(client)
+    client.post(f"/courses/{cid}/together/input", json={"cravings": ["고기"]}, headers=h)
+    client.post(f"/together/{token}/input", json={"cravings": ["디저트"]})
+    client.post(f"/courses/{cid}/together/build", headers=h)
+    client.post(f"/together/{token}/accept")
+    st = client.post(f"/together/{token}/input", json={"cravings": ["양식"], "dislikes": ["웨이팅"]}).json()
+    assert st["stale"] is True and st["accepted_by"] == []
+    st = client.post(f"/courses/{cid}/together/build", headers=h).json()["status"]
+    assert st["stale"] is False
+
+
+def test_공개_설정은_지도_키_ID_만(client, monkeypatch):
+    from app.config import settings
+
+    monkeypatch.setattr(settings, "naver_map_client_id", "")
+    monkeypatch.setattr(settings, "ncp_api_key_id", "key-id")
+    monkeypatch.setattr(settings, "ncp_api_key", "SECRET")
+    body = client.get("/config/public").json()
+    assert body == {"naver_map_client_id": "key-id"}
+
+
+def test_상대는_링크_토큰으로_무료_기간에_AI_를_쓸_수_있다(client, monkeypatch):
+    from app.config import settings
+
+    uid, h, cid, token = _start(client)
+    monkeypatch.setattr(settings, "free_mode", True)
+    r = client.post(f"/courses/{cid}/generate", json={"text": "성수동 오후 2시 카페"}, headers={"X-Together-Token": token})
+    assert r.status_code == 200, r.text
+    # 틀린 토큰·과금 기간은 여전히 생성자만
+    assert client.post(f"/courses/{cid}/generate", json={"text": "성수"}, headers={"X-Together-Token": "nope"}).status_code == 403
+    monkeypatch.setattr(settings, "free_mode", False)
+    assert client.post(f"/courses/{cid}/generate", json={"text": "성수"}, headers={"X-Together-Token": token}).status_code == 403

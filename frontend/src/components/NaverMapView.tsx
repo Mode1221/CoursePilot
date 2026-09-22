@@ -7,7 +7,11 @@ import { type TimelineItem } from "@/types";
 // 네이버 지도 JS SDK 렌더러. NEXT_PUBLIC_NAVER_MAP_CLIENT_ID 있을 때만 사용.
 // SDK 스크립트는 최초 1회만 로드하고 이후 재사용한다.
 declare global {
-  interface Window { naver?: NaverMaps }
+  interface Window {
+    naver?: NaverMaps;
+    /** 네이버 지도 SDK 가 인증 실패(미등록 도메인·잘못된 키) 시 부르는 전역 콜백 */
+    navermap_authFailure?: () => void;
+  }
 }
 
 // 네이버 지도 SDK 최소 타입(런타임 로드). 정밀 타입 불필요 부분은 넓게 둔다.
@@ -32,7 +36,8 @@ function loadSdk(clientId: string): Promise<void> {
   sdkPromise = new Promise((resolve, reject) => {
     const s = document.createElement("script");
     s.id = SDK_ID;
-    s.src = `https://oapi.map.naver.com/openapi/v3/maps.js?ncpClientId=${clientId}`;
+    // 신규 NCP Maps 는 ncpKeyId 파라미터를 쓴다(구 ncpClientId 는 인증 오류).
+    s.src = `https://oapi.map.naver.com/openapi/v3/maps.js?ncpKeyId=${clientId}`;
     s.async = true;
     s.onload = () => resolve();
     s.onerror = () => reject(new Error("naver maps sdk load failed"));
@@ -57,6 +62,10 @@ export default function NaverMapView({
 
   useEffect(() => {
     let cancelled = false;
+    // 스크립트는 받아지는데 키가 틀리거나 도메인이 미등록이면 SDK 가 이 콜백만 부른다 → 폴백
+    window.navermap_authFailure = () => {
+      if (!cancelled) onFail?.();
+    };
     loadSdk(clientId)
       .then(() => {
         if (cancelled || !ref.current || !window.naver?.maps || items.length === 0) return;

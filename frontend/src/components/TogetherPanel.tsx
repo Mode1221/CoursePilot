@@ -25,6 +25,7 @@ export default function TogetherPanel({ courseId }: { courseId: string }) {
   const [token, setToken] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [open, setOpen] = useState(false);
+  const [editing, setEditing] = useState(false);
 
   const refresh = useCallback(async () => {
     if (!userId) return;
@@ -167,18 +168,30 @@ export default function TogetherPanel({ courseId }: { courseId: string }) {
             <code style={{ fontSize: "var(--fs-xs)", color: "var(--text-muted)", wordBreak: "break-all" }}>{link}</code>
             <Button size="sm" onClick={copy}>링크 복사</Button>
           </div>
-          {!mySent && (
+          {(!mySent || editing) && (
             <TogetherCards
               spec={status.cards}
-              submitLabel="내 카드 저장"
+              submitLabel={editing ? "수정한 카드 저장" : "내 카드 저장"}
+              storageKey={`coursepilot_together_card:owner:${courseId}`}
               onSubmit={async (card) => {
                 try {
                   setStatus(await api.togetherOwnerInput(courseId, userId!, { ...card, name: status.owner_name }));
+                  setEditing(false);
                 } catch {
                   toast("저장하지 못했어요.", "error");
                 }
               }}
             />
+          )}
+          {mySent && !editing && (
+            <Button size="sm" variant="ghost" onClick={() => setEditing(true)} style={{ justifySelf: "start" }}>
+              내 카드 수정
+            </Button>
+          )}
+          {(status.stale || course?.together?.stale) && (
+            <p role="status" style={{ margin: 0, color: "var(--warn)", fontSize: "var(--fs-sm)" }}>
+              카드가 바뀌었어요. 다시 합치면 새 답으로 코스를 만들어요.
+            </p>
           )}
           <div style={{ display: "flex", gap: "var(--sp-2)", flexWrap: "wrap" }}>
             <Button variant="primary" onClick={build} disabled={busy || status.submitted.length === 0}>

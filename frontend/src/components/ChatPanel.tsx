@@ -6,6 +6,7 @@ import { useCallback, useEffect, useState } from "react";
 import CourseTitle from "@/components/CourseTitle";
 import { Badge, Button, Input } from "@/components/ui";
 import { api, ApiError } from "@/services/api";
+import { readTogetherToken } from "@/services/togetherToken";
 import { saveCalendar } from "@/services/calendar";
 import { shareService } from "@/services/shareService";
 import { useCourseStore } from "@/store/courseStore";
@@ -57,6 +58,10 @@ export default function ChatPanel({ courseId }: { courseId: string }) {
 
   // 검증 기간 무료(free_mode)면 잔여 횟수·포인트 구매를 아예 보이지 않는다.
   const [freeMode, setFreeMode] = useState(true);
+  // 합의 코스 상대(비가입)는 링크 토큰으로 AI 를 쓴다(무료 기간). 가입자는 기존대로.
+  const [partnerToken, setPartnerToken] = useState<string | null>(null);
+  useEffect(() => setPartnerToken(readTogetherToken(courseId)), [courseId]);
+  const canUseAi = userId != null || partnerToken != null;
   const refreshCredits = useCallback(() => {
     if (userId)
       api
@@ -88,7 +93,7 @@ export default function ChatPanel({ courseId }: { courseId: string }) {
     setNotice(null);
     setSending(true);
     try {
-      const res = await api.generate(courseId, text, userId ?? undefined);
+      const res = await api.generate(courseId, text, userId ?? undefined, partnerToken ?? undefined);
       setCourse(res.course);
       setText("");
       if (res.needs_confirmation) {
@@ -116,7 +121,7 @@ export default function ChatPanel({ courseId }: { courseId: string }) {
     setNotice("조건을 완화해 다시 찾는 중이에요…");
     setSending(true);
     try {
-      const res = await api.relax(courseId, userId ?? undefined);
+      const res = await api.relax(courseId, userId ?? undefined, partnerToken ?? undefined);
       setCourse(res.course);
       setNotice(
         res.needs_confirmation
@@ -340,7 +345,8 @@ export default function ChatPanel({ courseId }: { courseId: string }) {
               <Button size="sm" variant="ghost" onClick={buyPoints}>포인트 구매</Button>
             </span>
           )}
-          {userId == null && (
+          {userId == null && partnerToken != null && <span>같이 정하는 중 · AI에게 바로 말해 보세요</span>}
+          {!canUseAi && (
             <span style={{ display: "flex", alignItems: "center", gap: "var(--sp-2)" }}>
               참여자는 수동 편집만 가능합니다
               <Link href="/onboarding" style={{ color: "var(--brand-strong)", fontWeight: 600 }}>
@@ -355,13 +361,13 @@ export default function ChatPanel({ courseId }: { courseId: string }) {
             onChange={(e) => setText(e.target.value)}
             onKeyDown={(e) => e.key === "Enter" && send()}
             placeholder={
-              userId == null ? "가입하면 AI에게 조건을 말할 수 있어요" : "예: 토요일 오후 1시 성수동, 3시간"
+              !canUseAi ? "가입하면 AI에게 조건을 말할 수 있어요" : "예: 2번 다른 곳으로, 매운 거 빼줘"
             }
-            disabled={sending || userId == null}
+            disabled={sending || !canUseAi}
             aria-label="조건 입력"
             style={{ flex: 1 }}
           />
-          <Button variant="primary" onClick={send} disabled={sending || locked || userId == null}>
+          <Button variant="primary" onClick={send} disabled={sending || locked || !canUseAi}>
             {sending ? "생성 중…" : "전송"}
           </Button>
         </div>
