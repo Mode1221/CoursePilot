@@ -365,3 +365,36 @@ def test_KOPIS_는_공공데이터포털_키가_아니라_자기_키를_쓴다(m
     monkeypatch.setattr(settings, "kopis_service_key", "kopis-key")
     client = CultureClient()
     assert client.enabled is True and client._key == "kopis-key"
+
+
+_KOPIS_ERROR = (
+    "<?xml version='1.0' encoding='UTF-8'?><dbs><db>"
+    "<returncode>02</returncode><errmsg>SERVICE KEY IS NOT REGISTERED ERROR.</errmsg>"
+    "<responsetime>2026-09-21</responsetime></db></dbs>"
+)
+
+
+def test_KOPIS_오류_응답을_알아본다():
+    from app.adapters.culture import kopis_error
+
+    assert kopis_error(_KOPIS_ERROR) == "02: SERVICE KEY IS NOT REGISTERED ERROR."
+    assert kopis_error(text("kopis_performances.xml")) is None
+
+
+async def test_KOPIS_오류_응답은_공연으로_읽지_않고_폴백으로_센다():
+    from app.adapters.culture import CultureClient
+    from app.metrics import metrics_store
+
+    def _fallbacks() -> int:
+        stats = next(
+            (e for e in metrics_store.snapshot()["externals"] if e["name"] == "kopis.performances"),
+            None,
+        )
+        return stats["fallback"] if stats else 0
+
+    before = _fallbacks()
+    client = CultureClient()
+    client._key = "k"
+    client._client = _client(body=_KOPIS_ERROR)
+    assert await client.performances(date(2026, 9, 21)) == []
+    assert _fallbacks() == before + 1

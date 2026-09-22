@@ -9,9 +9,13 @@ from __future__ import annotations
 from dataclasses import dataclass
 from datetime import date, datetime
 
+import logging
+
 import httpx
 
 from app.config import settings
+
+logger = logging.getLogger("coursepilot")
 
 _KOPIS_URL = "http://kopis.or.kr/openApi/restful/pblprfr"
 
@@ -88,13 +92,38 @@ class CultureClient:
         try:
             resp = await self._client.get(_KOPIS_URL, params=params)
             resp.raise_for_status()
+            error = kopis_error(resp.text)
+            if error:
+                # KOPIS 는 키 오류도 HTTP 200 + <returncode>/<errmsg> 로 준다. 이걸 공연으로
+                # 읽으면 조용히 0건이 되니 원인을 로그에 남기고 폴백으로 센다.
+                raise RuntimeError(f"KOPIS 오류 {error}")
             items = _xml_items(resp.text)
             metrics_store.record_external("kopis.performances", ok=True)
-        except Exception:
+        except Exception as exc:
+            logger.warning("KOPIS 일정 조회 실패: %s", exc)
             metrics_store.record_external("kopis.performances", ok=False)
             return []  # 일정 조회 실패는 코스 생성을 막지 않는다
         found = [to_performance(item) for item in items]
         return [p for p in found if p and p.runs_on(day)]
+
+
+def kopis_error(xml_text: str) -> str | None:
+    """오류 응답이면 "returncode: errmsg", 정상이면 None.
+
+    KOPIS 는 키가 틀리거나 미승인이어도 HTTP 200 으로
+    <dbs><db><returncode>..</returncode><errmsg>..</errmsg></db></dbs> 를 준다.
+    """
+    from xml.etree import ElementTree
+
+    try:
+        root = ElementTree.fromstring(xml_text)
+    except ElementTree.ParseError:
+        return None
+    code = root.findtext(".//returncode")
+    msg = root.findtext(".//errmsg")
+    if code is None and msg is None:
+        return None
+    return f"{(code or '').strip()}: {(msg or '').strip()}"
 
 
 def _xml_items(xml_text: str) -> list[dict]:
