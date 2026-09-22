@@ -78,7 +78,7 @@ async def lifespan(_app: FastAPI):
             )
     set_ready(init_db())  # 전 스토어가 참조하는 단일 readiness
     if settings.is_production and settings.sms_dev_fallback and not settings.sms_enabled:
-        logger.warning(
+        logging.getLogger("coursepilot").warning(
             "SMS_DEV_FALLBACK=true — 인증번호가 응답에 그대로 노출됩니다. "
             "누구나 남의 번호로 가입할 수 있으니 지인 테스트 기간에만 쓰고, 공개 전에 끄세요."
         )
