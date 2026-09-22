@@ -12,10 +12,10 @@
   --brand-contrast: #ffffff;
 
   /* 사람 — 시작한 사람(owner)과 상대(partner). 칩·배지·레일 마커에만 쓴다 */
-  --owner: #b45309;
-  --owner-weak: #fbeddc;
-  --partner: #0f766e;
-  --partner-weak: #dcefec;
+  --owner: #9a3412;
+  --owner-weak: #fde7d3;
+  --partner: #0b5f58;
+  --partner-weak: #d5ece8;
 
   /* 의미색 */
   --danger: #b91c1c;
@@ -23,15 +23,15 @@
   --accent: #1d4ed8;
 
   /* 표면·텍스트 — 종이 한 장 위의 잉크 */
-  --bg: #f7f7f5;
-  --bg-subtle: #efeeea;
+  --bg: #f8f8f7;
+  --bg-subtle: #f0efec;
   --surface: #ffffff;
-  --surface-2: #f2f1ed;
-  --border: #e4e1da;
-  --line: #d6d2c9;
-  --text: #1c1917;
-  --text-muted: #57534e;
-  --text-faint: #8a8580;
+  --surface-2: #f3f2ef;
+  --border: #e3e0da;
+  --line: #cfcac1;
+  --text: #171412;
+  --text-muted: #45413d;
+  --text-faint: #6f6a64;
 
   /* 간격 (4의 배수) */
   --sp-1: 4px;  --sp-2: 8px;  --sp-3: 12px; --sp-4: 16px;
@@ -167,8 +167,8 @@ button:not(:disabled):active, [role="button"]:not([aria-disabled="true"]):active
 }
 
 /* 사람 칩 — 이 제품에서 색을 가장 세게 쓰는 유일한 자리 */
-.cp-person { display: inline-flex; align-items: center; gap: 6px; padding: 4px 10px 4px 6px; border-radius: var(--r-full);
-  font-size: var(--fs-sm); font-weight: 500; line-height: 1.3; }
+.cp-person { display: inline-flex; align-items: center; gap: 6px; padding: 5px 11px 5px 7px; border-radius: var(--r-full);
+  font-size: var(--fs-sm); font-weight: 600; line-height: 1.3; }
 .cp-person--owner { background: var(--owner-weak); color: var(--owner); }
 .cp-person--partner { background: var(--partner-weak); color: var(--partner); }
 .cp-person__dot { width: 8px; height: 8px; border-radius: 50%; background: currentColor; flex: none; }
@@ -185,3 +185,7 @@ button:not(:disabled):active, [role="button"]:not([aria-disabled="true"]):active
 /* 시트(모바일 채팅) */
 .cp-sheet { border-top: 1px solid var(--border); background: var(--surface); box-shadow: 0 -8px 24px rgba(0,0,0,.06);
   padding-bottom: env(safe-area-inset-bottom, 0px); }
+
+/* 지도: 이 안에서는 우리 종이색·필터가 새어 들어가면 안 된다(타일은 흰 배경 위에 그대로) */
+.cp-map { isolation: isolate; background: #fff; filter: none; }
+.cp-map * { filter: none; }

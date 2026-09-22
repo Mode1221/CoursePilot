@@ -54,7 +54,7 @@ export default function ToastHost() {
         transform: "translateX(-50%)",
         display: "grid",
         gap: "var(--sp-2)",
-        zIndex: 50,
+        zIndex: 2100,
         maxWidth: "min(90vw, 420px)",
       }}
     >

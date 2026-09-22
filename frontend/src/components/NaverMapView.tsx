@@ -105,7 +105,7 @@ export default function NaverMapView({
             map,
             title: it.place.name,
             icon: {
-              content: `<div style="background:#0f9d84;color:#fff;border-radius:50%;width:26px;height:26px;line-height:26px;text-align:center;font-weight:700;border:2px solid #fff">${i + 1}</div>`,
+              content: `<div style="background:#1c1917;color:#fff;border-radius:50%;width:28px;height:28px;line-height:28px;text-align:center;font-weight:700;font-size:13px;border:2px solid #fff;box-shadow:0 1px 4px rgba(0,0,0,.35)">${i + 1}</div>`,
             },
           });
           if (onSelect) naver.maps.Event.addListener(marker, "click", () => onSelect(i));
@@ -113,7 +113,7 @@ export default function NaverMapView({
         });
         if (path.length > 1) {
           overlaysRef.current.push(
-            new naver.maps.Polyline({ map, path, strokeColor: "#0f9d84", strokeWeight: 4, strokeStyle: "shortdash" }),
+            new naver.maps.Polyline({ map, path, strokeColor: "#0f766e", strokeWeight: 4, strokeStyle: "shortdash" }),
           );
           const lats = items.map((it) => it.place.lat);
           const lngs = items.map((it) => it.place.lng);
@@ -136,7 +136,8 @@ export default function NaverMapView({
   return (
     <div
       ref={ref}
-      style={{ width: "100%", height, borderRadius: 8, background: "var(--surface-2)" }}
+      className="cp-map"
+      style={{ width: "100%", height, borderRadius: 8, background: "#ffffff" }}
       aria-label="코스 지도"
     />
   );
