@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 
 import SiteFooter from "@/components/SiteFooter";
-import { Button, Card } from "@/components/ui";
+import { Button } from "@/components/ui";
 import { api } from "@/services/api";
 import { toast } from "@/store/toastStore";
 import { storedUserId, useUserStore } from "@/store/userStore";
@@ -42,30 +42,26 @@ export default function Home() {
   }
 
   return (
-    <main style={{ padding: "var(--sp-12) var(--sp-4)", maxWidth: 620, margin: "0 auto" }}>
-      <div
-        style={{
-          display: "inline-block",
-          background: "var(--brand-weak)",
-          color: "var(--brand-strong)",
-          padding: "4px 12px",
-          borderRadius: "var(--r-full)",
-          fontSize: "var(--fs-xs)",
-          fontWeight: 700,
-          marginBottom: "var(--sp-4)",
-        }}
-      >
-        둘이 같이 정하는 데이트 코스
-      </div>
-
-      <h1>데이트 계획, 검색 말고 상대에게 먼저 물어보세요</h1>
-      <p style={{ color: "var(--text-muted)", fontSize: "var(--fs-lg)" }}>
+    <main style={{ padding: "var(--sp-8) var(--sp-4) var(--sp-8)", maxWidth: 560, margin: "0 auto" }}>
+      {/* 히어로는 이 제품에서 가장 특징적인 것으로 연다: 두 사람의 답이 하나가 되는 순간 */}
+      <h1 style={{ fontSize: "clamp(28px, 8.5vw, 38px)", lineHeight: 1.15, marginTop: "var(--sp-6)", maxWidth: "12em" }}>
+        데이트 계획, 검색 말고 상대에게 먼저 물어보세요
+      </h1>
+      <p style={{ color: "var(--text-muted)", fontSize: "var(--fs-lg)", lineHeight: 1.6, maxWidth: "34ch" }}>
         링크 하나 보내면 상대는 30초. 둘 다 괜찮은 코스가 누구 의견이 어디 들어갔는지까지 보여주며 나와요.
-        영업시간·폐업·동선은 기본으로 확인합니다.
       </p>
 
-      <Button variant="primary" onClick={() => start()} disabled={loading} style={{ marginTop: "var(--sp-4)" }}>
-        {loading ? "생성 중…" : "새 코스 시작"}
+      <ul
+        aria-label="예시"
+        style={{ listStyle: "none", padding: 0, margin: "var(--sp-5) 0 var(--sp-6)", display: "flex", flexWrap: "wrap", gap: 6 }}
+      >
+        <li className="cp-person cp-person--owner"><span className="cp-person__dot" aria-hidden="true" /><b>민수</b> 고기 → 저녁 칸</li>
+        <li className="cp-person cp-person--partner"><span className="cp-person__dot" aria-hidden="true" /><b>지은</b> 피곤해 → 이동 10분 이내</li>
+        <li className="cp-person cp-person--partner"><span className="cp-person__dot" aria-hidden="true" /><b>지은</b> 매운 거 → 빼기</li>
+      </ul>
+
+      <Button variant="primary" onClick={() => start()} disabled={loading} style={{ minWidth: 200 }}>
+        {loading ? "만드는 중…" : "코스 만들고 링크 보내기"}
       </Button>
 
       {!userId && (
@@ -77,29 +73,31 @@ export default function Home() {
         </p>
       )}
 
-      <h4 style={{ marginTop: "var(--sp-8)" }}>이런 코스는 어때요?</h4>
-      <ul style={{ listStyle: "none", padding: 0, display: "grid", gap: "var(--sp-2)" }}>
+      <p style={{ marginTop: "var(--sp-12)", marginBottom: "var(--sp-2)", fontSize: "var(--fs-sm)", color: "var(--text-faint)" }}>
+        이렇게 시작해도 돼요
+      </p>
+      <ul style={{ listStyle: "none", padding: 0, margin: 0, borderTop: "1px solid var(--line)" }}>
         {EXAMPLES.map((ex) => (
-          <li key={ex.label}>
-            <Card interactive style={{ padding: 0 }}>
-              <button
-                onClick={() => start(`${ex.label} ${ex.hint}`)}
-                disabled={loading}
-                style={{
-                  width: "100%",
-                  textAlign: "left",
-                  background: "none",
-                  border: "none",
-                  padding: "var(--sp-3) var(--sp-4)",
-                  cursor: loading ? "wait" : "pointer",
-                  color: "inherit",
-                  font: "inherit",
-                }}
-              >
-                <div style={{ fontWeight: 600 }}>{ex.label}</div>
-                <div style={{ color: "var(--text-muted)", fontSize: "var(--fs-sm)" }}>{ex.hint}</div>
-              </button>
-            </Card>
+          <li key={ex.label} style={{ borderBottom: "1px solid var(--border)" }}>
+            <button
+              onClick={() => start(`${ex.label} ${ex.hint}`)}
+              disabled={loading}
+              style={{
+                width: "100%",
+                textAlign: "left",
+                background: "none",
+                border: "none",
+                padding: "var(--sp-4) 0",
+                cursor: loading ? "wait" : "pointer",
+                color: "inherit",
+                font: "inherit",
+                display: "grid",
+                gap: 2,
+              }}
+            >
+              <span style={{ fontWeight: 600 }}>{ex.label}</span>
+              <span style={{ color: "var(--text-muted)", fontSize: "var(--fs-sm)" }}>{ex.hint}</span>
+            </button>
           </li>
         ))}
       </ul>

@@ -29,7 +29,7 @@ async function asMember(page: import("@playwright/test").Page) {
 /** 코스를 하나 만들고 타임라인이 뜰 때까지 기다린다. */
 async function createCourse(page: import("@playwright/test").Page, text: string) {
   await page.goto("/");
-  await page.getByText("새 코스 시작").click();
+  await page.getByRole("button", { name: "코스 만들고 링크 보내기" }).click();
   await page.getByLabel("조건 입력").fill(text);
   await page.getByText("전송").click();
   await expect(page.getByText(/1\. 성수동 장소/)).toBeVisible({ timeout: 15_000 });
@@ -39,7 +39,7 @@ async function createCourse(page: import("@playwright/test").Page, text: string)
 
 test("참여자(비로그인)는 AI 챗봇을 쓸 수 없다", async ({ page }) => {
   await page.goto("/");
-  await page.getByText("새 코스 시작").click();
+  await page.getByRole("button", { name: "코스 만들고 링크 보내기" }).click();
   await expect(page.getByText(/참여자는 수동 편집만 가능/)).toBeVisible();
 });
 
@@ -134,7 +134,7 @@ test("온보딩에서 선호를 저장하면 다시 열었을 때 채워져 있�
 test("먼저 상대에게 묻기: 링크 → 상대 카드 → 합친 코스에 반영 칩 → 둘 다 수락", async ({ page, context }) => {
   await asMember(page);
   await page.goto("/");
-  await page.getByText("새 코스 시작").click();
+  await page.getByRole("button", { name: "코스 만들고 링크 보내기" }).click();
   await page.getByLabel("내 이름").fill("민수");
   await page.getByLabel("상대 이름").fill("지은");
   await page.getByLabel("언제 어디서").fill("토요일 3시 성수");
@@ -144,7 +144,7 @@ test("먼저 상대에게 묻기: 링크 → 상대 카드 → 합친 코스에 
   await page.getByText("고기").click();
   await page.getByText("웨이팅").click();
   await page.getByText("내 카드 저장").click();
-  await expect(page.getByText("내 카드 완료")).toBeVisible();
+  await expect(page.getByText("민수 카드 ✓")).toBeVisible();
 
   // 상대는 다른 브라우저 컨텍스트(비가입)에서 링크를 연다
   const link = (await page.locator("code").first().textContent())?.trim();
@@ -162,10 +162,10 @@ test("먼저 상대에게 묻기: 링크 → 상대 카드 → 합친 코스에 
   await expect(page.getByText(/지은 답함/)).toBeVisible({ timeout: 10_000 });
   await page.getByText("둘의 카드 합쳐서 코스 만들기").click();
   await expect(page.getByRole("list", { name: "코스 전체에 반영된 의견" })).toBeVisible({ timeout: 20_000 });
-  await expect(page.getByText(/👤지은 매운 거/)).toBeVisible();
+  await expect(page.getByText(/지은 매운 거/).first()).toBeVisible();
   // 양쪽 반영: 상대의 취향(디저트)도 칸이나 요약 어딘가에 이름으로 드러난다
-  await expect(page.getByText(/👤지은 디저트/)).toBeVisible();
-  await expect(page.getByText(/👤민수 고기/)).toBeVisible();
+  await expect(page.getByText(/지은 디저트/).first()).toBeVisible();
+  await expect(page.getByText(/민수 고기/).first()).toBeVisible();
 
   // 수락: 시작한 사람 → 상대는 링크에서 "코스 보러 가기"로 편집 가능한 코스 화면에 들어간다
   await page.getByText("이 코스 좋아요").click();

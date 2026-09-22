@@ -39,9 +39,9 @@ export default function PartnerBar({ courseId }: { courseId: string }) {
     <section
       style={{
         padding: "var(--sp-3) var(--sp-4)",
-        border: "1px solid var(--border)",
         borderRadius: "var(--r-lg)",
         background: "var(--surface)",
+        boxShadow: "var(--shadow-1)",
         marginBottom: "var(--sp-3)",
         display: "flex",
         alignItems: "center",

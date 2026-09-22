@@ -144,7 +144,7 @@ export default function PlanPage({ params }: { params: { id: string } }) {
                 cursor: "pointer",
               }}
             >
-              {t === "map" ? "지도·타임라인" : "AI 챗봇"}
+              {t === "map" ? "코스" : "AI에게 말하기"}
             </button>
           ))}
         </div>

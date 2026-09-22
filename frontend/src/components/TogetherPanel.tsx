@@ -114,18 +114,18 @@ export default function TogetherPanel({ courseId }: { courseId: string }) {
   if (!status) {
     return (
       <section style={box}>
-        <h3 style={{ margin: "0 0 var(--sp-1)" }}>검색 말고, 상대에게 먼저 물어보기</h3>
-        <p style={{ margin: "0 0 var(--sp-3)", color: "var(--text-muted)", fontSize: "var(--fs-sm)" }}>
-          링크를 보내면 상대가 30초 카드에 답해요. 둘 다 괜찮은 코스가 나옵니다.
+        <h3 style={{ margin: "0 0 var(--sp-1)", fontSize: "var(--fs-lg)" }}>상대에게 먼저 물어보기</h3>
+        <p style={{ margin: "0 0 var(--sp-4)", color: "var(--text-muted)", fontSize: "var(--fs-sm)", lineHeight: 1.5 }}>
+          링크를 보내면 상대가 30초 카드에 답해요. 둘의 답을 합쳐 코스를 만듭니다.
         </p>
-        <div style={{ display: "flex", gap: "var(--sp-2)", marginBottom: "var(--sp-2)" }}>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(140px, 1fr))", gap: "var(--sp-2)", marginBottom: "var(--sp-2)" }}>
           <input
             value={ownerName}
             onChange={(e) => setOwnerName(e.target.value)}
             placeholder="내 이름 (예: 민수)"
             aria-label="내 이름"
             maxLength={10}
-            style={{ flex: 1, padding: "var(--sp-2) var(--sp-3)", border: "1px solid var(--border)", borderRadius: "var(--r-md)", font: "inherit" }}
+            style={{ minWidth: 0, padding: "12px 14px", border: "1.5px solid var(--line)", borderRadius: "var(--r-md)", font: "inherit", background: "var(--surface)" }}
           />
           <input
             value={partnerName}
@@ -133,16 +133,16 @@ export default function TogetherPanel({ courseId }: { courseId: string }) {
             placeholder="상대 이름 (예: 지은)"
             aria-label="상대 이름"
             maxLength={10}
-            style={{ flex: 1, padding: "var(--sp-2) var(--sp-3)", border: "1px solid var(--border)", borderRadius: "var(--r-md)", font: "inherit" }}
+            style={{ minWidth: 0, padding: "12px 14px", border: "1.5px solid var(--line)", borderRadius: "var(--r-md)", font: "inherit", background: "var(--surface)" }}
           />
         </div>
-        <div style={{ display: "flex", gap: "var(--sp-2)" }}>
+        <div style={{ display: "grid", gridTemplateColumns: "minmax(0, 1fr) auto", gap: "var(--sp-2)" }}>
           <input
             value={text}
             onChange={(e) => setText(e.target.value)}
-            placeholder="토요일 3시 성수"
+            placeholder="언제 어디서 · 예: 토요일 3시 성수…"
             aria-label="언제 어디서"
-            style={{ flex: 1, padding: "var(--sp-2) var(--sp-3)", border: "1px solid var(--border)", borderRadius: "var(--r-md)", font: "inherit" }}
+            style={{ minWidth: 0, padding: "12px 14px", border: "1.5px solid var(--line)", borderRadius: "var(--r-md)", font: "inherit", background: "var(--surface)" }}
           />
           <Button variant="primary" onClick={start} disabled={busy}>
             링크 만들기
@@ -154,16 +154,37 @@ export default function TogetherPanel({ courseId }: { courseId: string }) {
 
   return (
     <section style={box}>
-      <div style={{ display: "flex", alignItems: "center", gap: "var(--sp-2)", marginBottom: "var(--sp-2)" }}>
-        <h3 style={{ margin: 0 }}>같이 정하기</h3>
-        <Badge tone={partnerSent ? "brand" : "neutral"}>{partnerSent ? `${status.partner_name} 답함` : "상대 기다리는 중"}</Badge>
-        <Badge tone={mySent ? "brand" : "neutral"}>{mySent ? "내 카드 완료" : "내 카드 전"}</Badge>
-        <Button size="sm" variant="ghost" onClick={() => setOpen((o) => !o)} style={{ marginLeft: "auto" }}>
-          {open ? "접기" : "펼치기"}
-        </Button>
-      </div>
+      <button
+        type="button"
+        onClick={() => setOpen((o) => !o)}
+        aria-expanded={open}
+        style={{
+          width: "100%",
+          display: "flex",
+          alignItems: "center",
+          gap: "var(--sp-2)",
+          background: "none",
+          border: 0,
+          padding: 0,
+          font: "inherit",
+          color: "inherit",
+          cursor: "pointer",
+          textAlign: "left",
+        }}
+      >
+        <span style={{ flex: 1, minWidth: 0, display: "grid", gap: 6 }}>
+          <span style={{ fontWeight: 700, fontSize: "var(--fs-md)" }}>
+            {status.owner_name}·{status.partner_name} 같이 정하는 중
+          </span>
+          <span style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+            <Badge tone={mySent ? "owner" : "neutral"}>{mySent ? `${status.owner_name} 카드 ✓` : `${status.owner_name} 카드 전`}</Badge>
+            <Badge tone={partnerSent ? "partner" : "neutral"}>{partnerSent ? `${status.partner_name} 답함` : `${status.partner_name} 기다리는 중`}</Badge>
+          </span>
+        </span>
+        <span aria-hidden="true" style={{ color: "var(--text-faint)", fontSize: 12 }}>{open ? "▲" : "▼"}</span>
+      </button>
       {open && (
-        <div style={{ display: "grid", gap: "var(--sp-4)" }}>
+        <div style={{ display: "grid", gap: "var(--sp-4)", marginTop: "var(--sp-4)" }}>
           <div style={{ display: "flex", gap: "var(--sp-2)", alignItems: "center", flexWrap: "wrap" }}>
             <code style={{ fontSize: "var(--fs-xs)", color: "var(--text-muted)", wordBreak: "break-all" }}>{link}</code>
             <Button size="sm" onClick={copy}>링크 복사</Button>
@@ -218,8 +239,8 @@ export default function TogetherPanel({ courseId }: { courseId: string }) {
 
 const box = {
   padding: "var(--sp-4)",
-  border: "1px solid var(--border)",
   borderRadius: "var(--r-lg)",
   background: "var(--surface)",
+  boxShadow: "var(--shadow-1)",
   marginBottom: "var(--sp-3)",
 } as const;

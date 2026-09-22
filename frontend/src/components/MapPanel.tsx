@@ -69,6 +69,19 @@ export default function MapPanel({
   }
 
   const mapHeight = split ? "calc(100% - 8px)" : 240;
+  const conditions = course.together?.summary && course.together.summary.length > 0 && (
+    <section aria-label="둘의 조건" style={{ marginTop: split ? 0 : "var(--sp-4)" }}>
+      <h3 style={{ margin: "0 0 var(--sp-2)", fontSize: "var(--fs-md)", color: "var(--text-muted)", fontWeight: 600 }}>
+        {course.together.owner_name}·{course.together.partner_name}의 조건
+      </h3>
+      <AttributionChips
+        items={course.together.summary}
+        label="코스 전체에 반영된 의견"
+        ownerName={course.together.owner_name}
+        size="md"
+      />
+    </section>
+  );
   return (
     <div
       style={
@@ -91,16 +104,12 @@ export default function MapPanel({
             : { marginBottom: "var(--sp-4)" }
         }
       >
-        <div style={split ? { flex: 1, minHeight: 280 } : undefined}>
+        {split && conditions}
+        <div style={split ? { flex: 1, minHeight: 220, marginTop: split ? "var(--sp-3)" : 0 } : undefined}>
           <MapCanvas items={course.items} onSelect={(i) => setSelected(course.items[i].place)} height={mapHeight} />
         </div>
         {course.items.length > 0 && <AiNotice />}
-        {course.together?.summary && course.together.summary.length > 0 && (
-          <div style={{ marginTop: "var(--sp-2)" }}>
-            <span style={{ fontSize: "var(--fs-xs)", color: "var(--text-muted)" }}>둘의 조건</span>
-            <AttributionChips items={course.together.summary} label="코스 전체에 반영된 의견" />
-          </div>
-        )}
+        {!split && conditions}
       </div>
 
       <div style={split ? { overflowY: "auto", minHeight: 0, paddingRight: 4 } : undefined}>
@@ -140,7 +149,7 @@ export default function MapPanel({
         />
       )}
 
-      <ol aria-label="코스 타임라인" style={{ listStyle: "none", padding: 0 }}>
+      <ol aria-label="코스 타임라인" className="cp-rail">
         {course.items.map((item, i) => (
           <li
             key={item.place.id}
@@ -148,35 +157,36 @@ export default function MapPanel({
             onDragStart={() => setDragIndex(i)}
             onDragOver={(e) => e.preventDefault()}
             onDrop={() => onDrop(i)}
-            className="cp-enter"
+            className="cp-stop"
             style={{
-              background: "var(--surface)",
-              border: "1px solid var(--border)",
-              borderRadius: "var(--r-lg)",
-              boxShadow: "var(--shadow-1)",
-              padding: "var(--sp-3)",
-              marginBottom: "var(--sp-2)",
               cursor: editDisabled ? "default" : "grab",
               opacity: dragIndex === i ? 0.5 : 1,
               transition: "opacity var(--dur) var(--ease)",
             }}
           >
-            <div style={{ display: "flex", justifyContent: "space-between" }}>
-              <span
-                role="button"
-                tabIndex={0}
+            <span className="cp-stop__n" aria-hidden="true">{i + 1}</span>
+            <div style={{ display: "flex", justifyContent: "space-between", gap: "var(--sp-2)", alignItems: "baseline" }}>
+              <button
+                type="button"
                 onClick={() => setSelected(item.place)}
-                onKeyDown={(e) => {
-                  if (e.key === "Enter" || e.key === " ") {
-                    e.preventDefault();
-                    setSelected(item.place);
-                  }
+                style={{
+                  cursor: "pointer",
+                  fontWeight: 700,
+                  fontSize: "var(--fs-lg)",
+                  letterSpacing: "-.01em",
+                  color: "var(--text)",
+                  background: "none",
+                  border: 0,
+                  padding: 0,
+                  textAlign: "left",
+                  font: "inherit",
+                  minWidth: 0,
+                  overflowWrap: "anywhere",
                 }}
-                style={{ cursor: "pointer", fontWeight: 700, color: "var(--text)" }}
                 aria-label={`${item.place.name} 상세 보기`}
               >
-                {i + 1}. {item.place.name}
-              </span>
+                <span style={{ fontWeight: 700, fontSize: "var(--fs-lg)", letterSpacing: "-.01em" }}>{i + 1}. {item.place.name}</span>
+              </button>
               <span style={{ color: "var(--text-muted)", fontSize: "var(--fs-sm)", whiteSpace: "nowrap" }}>
                 {item.arrive?.slice(0, 5)}~{item.depart?.slice(0, 5)}
                 {/* 상세를 열지 않아도 영업시간이 미확인이라는 걸 알 수 있어야 한다 */}
@@ -198,13 +208,16 @@ export default function MapPanel({
                 )}
               </span>
             </div>
-            <AttributionChips items={item.attributions} />
+            <div style={{ margin: "6px 0" }}>
+              <AttributionChips items={item.attributions} ownerName={course.together?.owner_name} />
+            </div>
             <div
               style={{
                 color: "var(--text-muted)",
                 fontSize: "var(--fs-sm)",
                 display: "flex",
                 gap: "var(--sp-2)",
+                flexWrap: "wrap",
               }}
             >
               {item.place.category && <span>{item.place.category}</span>}
@@ -233,8 +246,8 @@ export default function MapPanel({
               </div>
             )}
             {item.travel_to_next && (
-              <div style={{ color: "var(--brand-strong)", fontSize: "var(--fs-sm)", marginTop: "var(--sp-1)" }}>
-                → 다음까지 {item.travel_to_next.duration_min}분 ({MODE_LABEL[item.travel_to_next.mode]})
+              <div className="cp-stop__leg">
+                {MODE_LABEL[item.travel_to_next.mode]} {item.travel_to_next.duration_min}분 뒤 다음 장소
               </div>
             )}
             {!readOnly && replaceIndex === i && (
