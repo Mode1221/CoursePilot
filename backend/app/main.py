@@ -41,6 +41,7 @@ from app.realtime import (
 from app.schemas import Course, Place, PlanConstraints
 from app.signals_api import signals_router
 from app.store import store
+from app.together_api import together_router
 from app.users import CreditError, user_store
 
 # 개발 기본값 그대로면 비밀번호를 설정하지 않은 것으로 본다
@@ -204,6 +205,7 @@ async def readiness(response: Response) -> dict:
 api.include_router(admin_router)
 api.include_router(accounts_router)
 api.include_router(signals_router)
+api.include_router(together_router)
 
 
 @api.post("/courses", response_model=Course)

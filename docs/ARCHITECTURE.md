@@ -44,6 +44,9 @@
 - `planner.py` — `score_place`(우천·인원·제외 보정 포함), `desired_slots`, `route_order`/`route_order_from`(출발지 기준), `seq_order`, `_cf_pick`, `course_score`, `plan_course`.
 - `validation.py` — `is_open_during`, `best_route`(도보 20분 초과 구간은 대중교통으로 전환), `build_timeline`, `recompute`(병렬).
 - `edit.py` — 편집 명령 파싱/적용(교체·삭제·추가), `_infer_mode`.
+- `consensus.py` — 합의 코스: 두 사람 카드 → `PlanConstraints` 좁히기 + 반영 이유(`merge`, `attach_attributions`).
+  `agent.generate_course(consensus_inputs=...)` 가 호출. 규칙 기반(설명 가능), LLM 미사용.
+- (backend) `together_api.py` — 합의 코스 라우터(시작·토큰 카드 제출·합치기·수락). 토큰은 제출·수락만 가능.
 
 ### 어댑터 (`app/adapters/`) — 벤더 직접호출 금지, 반드시 경유
 - `seeded.py` — 벤더 키가 하나도 없고 DB 에 시드 장소가 있으면 검색을 이걸로 대신한다.
