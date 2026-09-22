@@ -50,7 +50,10 @@ test("생성자는 코스를 생성하고 타임라인을 본다", async ({ page
   // AI 응답 + 타임라인 렌더 확인 (특정 장소명 대신 순번 프리픽스로 일반화)
   await expect(page.getByText(/곳으로 코스를 구성했어요/)).toBeVisible({ timeout: 15_000 });
   await expect(page.getByText(/1\. 성수동 장소/)).toBeVisible();
-  await expect(page.getByText(/질문 \d+회 남음/)).toBeVisible();
+  // 검증 기간 무료(FREE_MODE 기본 true): 잔여 횟수·포인트 구매는 보이지 않고, AI 사용 고지가 보인다
+  await expect(page.getByText(/질문 \d+회 남음/)).toHaveCount(0);
+  await expect(page.getByText("포인트 구매")).toHaveCount(0);
+  await expect(page.getByRole("note")).toContainText("AI가 만든 추천");
 });
 
 test("장소 상세 모달이 리뷰 요약을 보여준다", async ({ page }) => {

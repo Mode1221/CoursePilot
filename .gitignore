@@ -33,3 +33,5 @@ frontend/.playwright/
 # 운영 로그·백업(크론이 저장소 아래에 쌓는다)
 /logs/
 /backups/
+frontend/pnpm-workspace.yaml
+frontend/pnpm-workspace.yaml

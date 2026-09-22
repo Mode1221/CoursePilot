@@ -165,7 +165,8 @@ async def get_credits(user_id: str, x_user_id: str | None = Header(default=None)
     if user is None:
         raise HTTPException(status_code=404, detail="계정을 찾을 수 없어요")
     # 사용자에겐 "질문 N회 남음"으로만 노출 (토큰 비노출, 9-5)
-    return {"questions_left": user.credits_left}
+    # free_mode 면 프론트가 잔여 횟수·구매 버튼을 숨긴다.
+    return {"questions_left": user.credits_left, "free_mode": settings.free_mode}
 
 
 class PurchaseRequest(BaseModel):

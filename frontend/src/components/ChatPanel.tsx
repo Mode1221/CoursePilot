@@ -55,8 +55,17 @@ export default function ChatPanel({ courseId }: { courseId: string }) {
 
   const { userId, questionsLeft, load, setQuestionsLeft } = useUserStore();
 
+  // 검증 기간 무료(free_mode)면 잔여 횟수·포인트 구매를 아예 보이지 않는다.
+  const [freeMode, setFreeMode] = useState(true);
   const refreshCredits = useCallback(() => {
-    if (userId) api.credits(userId).then((c) => setQuestionsLeft(c.questions_left)).catch(() => {});
+    if (userId)
+      api
+        .credits(userId)
+        .then((c) => {
+          setFreeMode(c.free_mode !== false);
+          setQuestionsLeft(c.questions_left);
+        })
+        .catch(() => {});
   }, [userId, setQuestionsLeft]);
 
   useEffect(() => {
@@ -322,10 +331,10 @@ export default function ChatPanel({ courseId }: { courseId: string }) {
             minHeight: 20,
           }}
         >
-          {userId != null && questionsLeft != null && questionsLeft > 0 && (
+          {userId != null && !freeMode && questionsLeft != null && questionsLeft > 0 && (
             <span>질문 {questionsLeft}회 남음</span>
           )}
-          {userId != null && questionsLeft === 0 && (
+          {userId != null && !freeMode && questionsLeft === 0 && (
             <span style={{ color: "var(--warn)", display: "flex", alignItems: "center", gap: "var(--sp-2)" }}>
               질문 횟수를 모두 사용했어요
               <Button size="sm" variant="ghost" onClick={buyPoints}>포인트 구매</Button>

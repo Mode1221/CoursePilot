@@ -3,6 +3,7 @@
 import dynamic from "next/dynamic";
 import { useEffect, useState } from "react";
 
+import AiNotice from "@/components/AiNotice";
 import MapCanvas from "@/components/MapCanvas";
 import { Badge, Button, EmptyState } from "@/components/ui";
 import { api } from "@/services/api";
@@ -63,6 +64,7 @@ export default function MapPanel({ readOnly = false }: { readOnly?: boolean }) {
     <div style={{ padding: "var(--sp-4)" }}>
       <div style={{ marginBottom: "var(--sp-4)" }}>
         <MapCanvas items={course.items} onSelect={(i) => setSelected(course.items[i].place)} />
+        {course.items.length > 0 && <AiNotice />}
       </div>
 
       <div style={{ display: "flex", alignItems: "center", gap: "var(--sp-2)", marginBottom: "var(--sp-3)" }}>

@@ -167,13 +167,15 @@ def test_DB에서도_달이_바뀌면_0부터(monkeypatch, tmp_path):
     assert store.used("google.details", now=FEB) == 0
 
 
-def test_LLM_영업시간_폴백에_일_상한이_있다():
-    """건당 과금이라 코스가 몰리면 월말 전에 요금이 크게 는다."""
-    from app.quota import DAILY_LIMITS, QuotaStore
+def test_LLM_영업시간_폴백에_일_상한이_있다(monkeypatch):
+    """건당 과금이라 코스가 몰리면 월말 전에 요금이 크게 는다. 상한은 설정으로 조절."""
+    from app.config import settings
+    from app.quota import QuotaStore
 
+    monkeypatch.setattr(settings, "hours_fallback_daily_cap", 10)
     store = QuotaStore()
-    limit = DAILY_LIMITS["llm.hours_fallback"]
-    assert limit == 50
+    limit = store.daily_limit("llm.hours_fallback")
+    assert limit == 10
     store.record_today("llm.hours_fallback", limit - 1)
     assert store.allow_today("llm.hours_fallback") is True
     store.record_today("llm.hours_fallback")

@@ -170,6 +170,8 @@ async def health() -> dict:
             "sms": settings.sms_enabled,
             "payment": settings.payment_enabled,
         },
+        "free_mode": settings.free_mode,
+        "ai_notice": settings.ai_notice,
     }
 
 

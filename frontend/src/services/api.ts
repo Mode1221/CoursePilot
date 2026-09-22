@@ -199,7 +199,7 @@ export const api = {
     request<void>(`/users/${userId}/bookmarks/${courseId}`, { method: "PUT", userId }),
 
   credits: (userId: string) =>
-    request<{ questions_left: number }>(`/users/${userId}/credits`, { userId }),
+    request<{ questions_left: number; free_mode?: boolean }>(`/users/${userId}/credits`, { userId }),
 
   // 별점은 사람·장소당 한 표(다시 매기면 이전 점수 대체)라 사용자 id 를 함께 보낸다
   ratePlace: (placeId: string, stars: number, userId?: string) =>
