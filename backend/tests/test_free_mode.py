@@ -60,3 +60,15 @@ def test_폴백_일일_상한은_설정을_따른다(monkeypatch):
     assert q.allow_today("llm.hours_fallback")
     q.record_today("llm.hours_fallback", 2)
     assert not q.allow_today("llm.hours_fallback")
+
+
+def test_운영에서_SMS_키_없으면_거절하지만_dev_fallback_이면_코드를_준다(monkeypatch):
+    monkeypatch.setattr(settings, "env", "production")
+    for k in ("nhn_sms_app_key", "nhn_sms_secret_key", "nhn_sms_sender"):
+        monkeypatch.setattr(settings, k, "")
+    client = TestClient(api)
+    monkeypatch.setattr(settings, "sms_dev_fallback", False)
+    assert client.post("/auth/sms/request", json={"phone": "010-9999-0101"}).status_code == 503
+    monkeypatch.setattr(settings, "sms_dev_fallback", True)
+    r = client.post("/auth/sms/request", json={"phone": "010-9999-0102"})
+    assert r.status_code == 200 and r.json()["dev_code"]
