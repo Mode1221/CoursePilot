@@ -57,6 +57,10 @@ class Score:
     unmet: list[str] = field(default_factory=list)
     yielded: str | None = None
     error: str | None = None
+    # 데이트 품질(통과 조건엔 넣지 않고 수치로 본다)
+    chains: list[str] = field(default_factory=list)  # 저가 프랜차이즈
+    same_slot_in_row: bool = False  # 카페 → 카페처럼 같은 성격이 연달아
+    slots: list[str] = field(default_factory=list)
 
     def passed(self) -> bool:
         return (
@@ -116,6 +120,11 @@ def score(scn: Scenario, timeline, summary: list[dict], constraints, center: tup
                     hay = f"{it.place.name} {it.place.category or ''}"
                     if sign in hay:
                         s.dislike_hits.append(f"{p.name}:{d}→{it.place.name}")
+    from app.pipeline.planner import classify, franchise_level
+
+    s.slots = [classify(it.place) for it in timeline]
+    s.same_slot_in_row = any(a == b for a, b in zip(s.slots, s.slots[1:], strict=False))
+    s.chains = [it.place.name for it in timeline if franchise_level(it.place) == 2]
     legs = [it.travel_to_next.duration_min for it in timeline if it.travel_to_next]
     s.max_leg = max(legs) if legs else 0
     limit = getattr(constraints, "max_travel_min", None)
@@ -161,4 +170,24 @@ def summarize(scores: list[Score]) -> dict:
         "duplicates": sum(s.duplicates for s in scores),
         "errors": sum(s.error is not None for s in scores),
         "avg_stops": round(sum(s.stops for s in scores) / n, 2),
+        # 데이트 품질
+        "three_plus_stops": round(sum(s.stops >= 3 for s in scores) / n, 3),
+        "same_slot_in_row_runs": sum(s.same_slot_in_row for s in scores),
+        "budget_chain_runs": sum(bool(s.chains) for s in scores),
+        "max_place_share_per_region": _max_share(scores),
     }
+
+
+def _max_share(scores: list[Score]) -> float:
+    """상권 안에서 가장 자주 나온 한 장소의 등장 비율(다양성). 1.0 이면 모든 코스에 같은 곳."""
+    from collections import Counter
+
+    worst = 0.0
+    by_region: dict[str, list[Score]] = {}
+    for s in scores:
+        by_region.setdefault(s.region, []).append(s)
+    for runs in by_region.values():
+        c = Counter(n for s in runs for n in set(s.names))
+        if c and runs:
+            worst = max(worst, c.most_common(1)[0][1] / len(runs))
+    return round(worst, 3)

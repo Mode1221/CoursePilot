@@ -33,6 +33,9 @@ _SLOT_KEYWORDS: dict[str, tuple[str, ...]] = {
         "영화", "볼링", "방탈출", "노래", "박물관", "체험", "공연", "보드게임",
     ),
 }
+_SLOT_KEYWORDS_FLAT = frozenset(k for ks in _SLOT_KEYWORDS.values() for k in ks) | frozenset(
+    ("커피전문점", "카페", "디저트카페", "제과,베이커리", "육류,고기", "술집", "전시관", "갈비", "한식", "양식")
+)
 
 
 def classify(place: Place) -> str:
@@ -40,6 +43,10 @@ def classify(place: Place) -> str:
     from app.adapters.kakao import slot_for
 
     slot = slot_for(place.category_code, place.category)
+    if slot == "meal" and _is_dessert(place):
+        # 카카오는 제과·베이커리·떡집·아이스크림을 '음식점(FD6)' 그룹에 넣는다 → 식사 칸에 빵집이
+        # 들어가 "디저트 → 빵집" 코스가 나왔다(평가 하네스 실측). 분류명으로 카페 칸으로 돌린다.
+        return "cafe"
     if slot:
         return slot
     cat = (place.category or "").lower()
@@ -49,6 +56,35 @@ def classify(place: Place) -> str:
         if any(k in cat for k in _SLOT_KEYWORDS[slot]):
             return slot
     return "activity"  # 미분류는 활동으로
+
+
+DESSERT_SIGNS = ("제과", "베이커리", "디저트", "떡,한과", "아이스크림", "빙수", "도넛", "케이크", "와플", "요거트", "초콜릿", "마카롱")
+
+
+def _is_dessert(place: Place) -> bool:
+    return any(w in (place.category or "") for w in DESSERT_SIGNS)
+
+
+# 데이트에 약한 저가·대형 프랜차이즈. 카카오는 프랜차이즈의 마지막 분류에 브랜드명을 넣는다
+# ("… > 커피전문점 > 이디야커피") — 이름이 그 브랜드로 시작하면 프랜차이즈로 본다.
+BUDGET_CHAINS = (
+    "메가MGC", "메가커피", "이디야", "빽다방", "컴포즈", "더벤티", "매머드", "커피베이", "요거프레소",
+    "애슐리", "크라운호프", "역전할머니", "봉구비어", "맘스터치", "롯데리아", "김밥천국",
+)
+
+
+def franchise_level(place: Place) -> int:
+    """0: 개인 가게, 1: 프랜차이즈, 2: 저가 프랜차이즈(데이트엔 약함)."""
+    name = place.name or ""
+    if any(name.startswith(b) or b in name.split(" ")[0] for b in BUDGET_CHAINS):
+        return 2
+    parts = [p.strip() for p in (place.category or "").split(">") if p.strip()]
+    if len(parts) >= 3:
+        brand = parts[-1]
+        generic = brand in _SLOT_KEYWORDS_FLAT or len(brand) < 2
+        if not generic and name.startswith(brand):
+            return 1
+    return 0
 
 
 # ── 후보 스코어링 (A) ────────────────────────────────────────────
@@ -153,6 +189,13 @@ def score_place(
     if place.tour_listed:
         score += w.tour_listed
     score += w.awareness * awareness_signal(place)
+
+    # 데이트 코스: 저가 프랜차이즈는 크게, 일반 프랜차이즈는 조금 감점(그 동네에 그것뿐이면 그래도 나온다).
+    level = franchise_level(place)
+    if level == 2:
+        score -= 1.0
+    elif level == 1:
+        score -= 0.3
     return score
 
 
