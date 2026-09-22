@@ -319,8 +319,9 @@ def _mark_changed(course: Course) -> None:
 
 
 def _prefer(t: TogetherState) -> str | None:
-    """공평 장부: 지난번 양보한 사람이 이번엔 우선. 기록이 없으면 None."""
-    return t.yielded
+    """공평 장부: 지난번 양보한 사람이 이번엔 우선. 처음이면 **물어본 상대가 우선** —
+    계획한 사람이 먼저 상대를 배려하는 게 이 제품의 약속이다(예전엔 이름순이라 사실상 무작위)."""
+    return t.yielded or t.partner_name
 
 
 def _public(course: Course) -> dict:

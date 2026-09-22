@@ -11,16 +11,18 @@ const PAD = 40;
 export default function MapView({
   items,
   onSelect,
+  height = 240,
 }: {
   items: TimelineItem[];
   onSelect?: (index: number) => void;
+  height?: number | string;
 }) {
   const pts = project(items);
 
   return (
     <svg
       viewBox={`0 0 ${W} ${H}`}
-      style={{ display: "block", width: "100%", height: 240, background: "var(--surface-2)", borderRadius: 8 }}
+      style={{ display: "block", width: "100%", height, background: "var(--surface-2)", borderRadius: 8 }}
       role="img"
       aria-label="코스 지도"
     >

@@ -156,6 +156,7 @@ class PlanConstraints(BaseModel):
     required_slots: list[str] = Field(default_factory=list)
     lead_slot: str | None = None
     slot_queries: list[list[str]] = Field(default_factory=list)  # [[slot, keyword], ...]
+    slot_focus: list[list[str]] = Field(default_factory=list)  # [[slot, craving], ...] 칸 주인의 취향
 
 
 Course.model_rebuild()

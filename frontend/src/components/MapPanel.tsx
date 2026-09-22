@@ -20,7 +20,14 @@ const PlaceDetailModal = dynamic(() => import("@/components/PlaceDetailModal"));
 const PlaceSearchPanel = dynamic(() => import("@/components/PlaceSearchPanel"));
 
 // 시각화 패널: 지도(SVG 렌더) + 타임라인. 실제 지도 SDK 는 mapService 어댑터로 교체 예정.
-export default function MapPanel({ readOnly = false }: { readOnly?: boolean }) {
+export default function MapPanel({
+  readOnly = false,
+  split = false,
+}: {
+  readOnly?: boolean;
+  /** 넓은 화면: 왼쪽 큰 지도, 오른쪽 타임라인(각자 스크롤). 좁은 화면·공유 화면은 위아래로. */
+  split?: boolean;
+}) {
   const course = useCourseStore((s) => s.course);
   const locked = useCourseStore((s) => s.locked);
   const reorder = useCourseStore((s) => s.reorder);
@@ -61,10 +68,32 @@ export default function MapPanel({ readOnly = false }: { readOnly?: boolean }) {
     setDragIndex(null);
   }
 
+  const mapHeight = split ? "calc(100% - 8px)" : 240;
   return (
-    <div style={{ padding: "var(--sp-4)" }}>
-      <div style={{ marginBottom: "var(--sp-4)" }}>
-        <MapCanvas items={course.items} onSelect={(i) => setSelected(course.items[i].place)} />
+    <div
+      style={
+        split
+          ? {
+              padding: "var(--sp-4)",
+              display: "grid",
+              gridTemplateColumns: "minmax(0, 3fr) minmax(320px, 2fr)",
+              gap: "var(--sp-4)",
+              height: "100%",
+              minHeight: 0,
+            }
+          : { padding: "var(--sp-4)" }
+      }
+    >
+      <div
+        style={
+          split
+            ? { display: "flex", flexDirection: "column", minHeight: 0, overflowY: "auto" }
+            : { marginBottom: "var(--sp-4)" }
+        }
+      >
+        <div style={split ? { flex: 1, minHeight: 280 } : undefined}>
+          <MapCanvas items={course.items} onSelect={(i) => setSelected(course.items[i].place)} height={mapHeight} />
+        </div>
         {course.items.length > 0 && <AiNotice />}
         {course.together?.summary && course.together.summary.length > 0 && (
           <div style={{ marginTop: "var(--sp-2)" }}>
@@ -74,7 +103,8 @@ export default function MapPanel({ readOnly = false }: { readOnly?: boolean }) {
         )}
       </div>
 
-      <div style={{ display: "flex", alignItems: "center", gap: "var(--sp-2)", marginBottom: "var(--sp-3)" }}>
+      <div style={split ? { overflowY: "auto", minHeight: 0, paddingRight: 4 } : undefined}>
+      <div style={{ display: "flex", alignItems: "center", gap: "var(--sp-2)", marginBottom: "var(--sp-3)", flexWrap: "wrap" }}>
         <h3 style={{ margin: 0 }}>타임라인</h3>
         {course.items.length > 0 && <CourseSummary course={course} />}
         {locked && <Badge tone="warn">잠금</Badge>}
@@ -102,7 +132,11 @@ export default function MapPanel({ readOnly = false }: { readOnly?: boolean }) {
       {course.items.length === 0 && (
         <EmptyState
           title="아직 코스가 없어요"
-          description="오른쪽 채팅에 조건을 입력하면 검증된 동선을 만들어 드려요."
+          description={
+            split
+              ? "위에서 상대에게 먼저 물어보거나, 아래 채팅에 조건을 입력해 보세요."
+              : "채팅에 조건을 입력하면 검증된 동선을 만들어 드려요."
+          }
         />
       )}
 
@@ -246,6 +280,7 @@ export default function MapPanel({ readOnly = false }: { readOnly?: boolean }) {
           <PlaceSearchPanel disabled={editDisabled} />
         </div>
       )}
+      </div>
 
       {selected && (
         <PlaceDetailModal place={selected} onClose={() => setSelected(null)} editable={!editDisabled} />

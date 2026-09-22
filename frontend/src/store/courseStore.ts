@@ -21,6 +21,8 @@ interface CourseState {
   notFound: boolean; // 코스 없음(404)
   history: string[][]; // 수동 편집 되돌리기 스택 (편집 직전 place_id 목록)
   setCourse: (course: Course) => void;
+  /** 다른 코스로 이동할 때 이전 코스가 잠깐이라도 보이지 않게 비운다 */
+  clearCourse: () => void;
   setLocked: (locked: boolean) => void;
   setStage: (stage: string | null) => void;
   setMessages: (messages: ChatMessage[]) => void;
@@ -59,6 +61,7 @@ export const useCourseStore = create<CourseState>((set, get) => ({
   notFound: false,
   history: [],
   setCourse: (course) => set({ course, locked: course.locked, notFound: false }),
+  clearCourse: () => set({ course: null, locked: false, history: [] }),
   setLocked: (locked) => set({ locked }),
   setStage: (stage) => set({ stage }),
   setMessages: (messages) => set({ messages }),

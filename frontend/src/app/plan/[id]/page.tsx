@@ -18,6 +18,7 @@ import type { Course } from "@/types";
 export default function PlanPage({ params }: { params: { id: string } }) {
   const { id } = params;
   const setCourse = useCourseStore((s) => s.setCourse);
+  const clearCourse = useCourseStore((s) => s.clearCourse);
   const setLocked = useCourseStore((s) => s.setLocked);
   const setStage = useCourseStore((s) => s.setStage);
   const setMessages = useCourseStore((s) => s.setMessages);
@@ -28,9 +29,12 @@ export default function PlanPage({ params }: { params: { id: string } }) {
   const notFound = useCourseStore((s) => s.notFound);
   const narrow = useIsNarrow();
   const [tab, setTab] = useState<"map" | "chat">("map");
+  const [chatOpen, setChatOpen] = useState(true);
 
   useEffect(() => {
     setNotFound(false); // 다른 코스로 이동 시 이전 404 상태 초기화
+    clearCourse(); // 새 코스로 옮기면 이전 코스(지도·타임라인)가 남아 보이던 문제
+    setMessages([]);
     // 캐시 유실/재연결 시 서버에서 현재 상태 refetch (5-4)
     // 다른 코스로 이동하면 이전 코스의 늦은 응답이 현재 화면을 덮어쓸 수 있다
     let cancelled = false;
@@ -86,6 +90,7 @@ export default function PlanPage({ params }: { params: { id: string } }) {
   }, [
     id,
     setCourse,
+    clearCourse,
     setLocked,
     setStage,
     setMessages,
@@ -171,18 +176,57 @@ export default function PlanPage({ params }: { params: { id: string } }) {
     <div style={{ display: "flex", flexDirection: "column", height: "100dvh" }}>
       <AppNav />
       <ConnectionBanner />
-      <div style={{ display: "flex", flex: 1, overflow: "hidden" }}>
-        <div style={{ flex: 1, borderRight: "1px solid var(--border)", overflow: "auto" }}>
-          <div style={{ padding: "var(--sp-4) var(--sp-4) 0" }}>
-            <TogetherPanel courseId={id} />
-            <PartnerBar courseId={id} />
-          </div>
-          <MapPanel />
-        </div>
-        <div style={{ width: 380, display: "flex", flexDirection: "column" }}>
-          <ChatPanel courseId={id} />
-        </div>
+      {/* 넓은 화면: 위 — 같이 정하기 / 가운데 — 큰 지도 + 오른쪽 타임라인 / 아래 — 채팅(접기 가능) */}
+      <div style={{ padding: "var(--sp-3) var(--sp-4) 0" }}>
+        <TogetherPanel courseId={id} />
+        <PartnerBar courseId={id} />
       </div>
+      <div style={{ flex: 1, minHeight: 0 }}>
+        <MapPanel split />
+      </div>
+      <section
+        aria-label="AI 챗봇"
+        style={{
+          height: chatOpen ? 232 : 40,
+          borderTop: "1px solid var(--border)",
+          display: "flex",
+          flexDirection: "column",
+          transition: "height var(--dur) var(--ease)",
+          position: "relative",
+        }}
+      >
+        <button
+          type="button"
+          onClick={() => setChatOpen((o) => !o)}
+          aria-expanded={chatOpen}
+          style={{
+            // 채팅 위 경계선에 걸친 손잡이 — 채팅 헤더의 버튼(다녀왔어요·캘린더·공유)을 가리지 않는다
+            position: "absolute",
+            left: "50%",
+            transform: "translate(-50%, -50%)",
+            top: 0,
+            zIndex: 2,
+            border: "1px solid var(--border)",
+            background: "var(--surface)",
+            borderRadius: "var(--r-full)",
+            padding: "2px 10px",
+            fontSize: "var(--fs-xs)",
+            cursor: "pointer",
+          }}
+        >
+          {chatOpen ? "채팅 접기 ▾" : "채팅 열기 ▴"}
+        </button>
+        {chatOpen && (
+          <div style={{ flex: 1, minHeight: 0, display: "flex", flexDirection: "column" }}>
+            <ChatPanel courseId={id} />
+          </div>
+        )}
+        {!chatOpen && (
+          <div style={{ padding: "10px 16px", fontSize: "var(--fs-sm)", color: "var(--text-muted)" }}>
+            AI 챗봇 — {"\u201c2번 다른 곳으로\u201d, \u201c매운 거 빼줘\u201d"}
+          </div>
+        )}
+      </section>
     </div>
   );
 }

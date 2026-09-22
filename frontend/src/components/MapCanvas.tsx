@@ -30,9 +30,11 @@ function mapKeyId(): Promise<string> {
 export default function MapCanvas({
   items,
   onSelect,
+  height = 240,
 }: {
   items: TimelineItem[];
   onSelect?: (index: number) => void;
+  height?: number | string;
 }) {
   const [keyId, setKeyId] = useState(BUILD_ID);
   const [sdkFailed, setSdkFailed] = useState(false);
@@ -47,7 +49,7 @@ export default function MapCanvas({
   }, []);
 
   if (keyId && !sdkFailed) {
-    return <NaverMapView items={items} clientId={keyId} onSelect={onSelect} onFail={onFail} />;
+    return <NaverMapView items={items} clientId={keyId} onSelect={onSelect} onFail={onFail} height={height} />;
   }
-  return <MapView items={items} onSelect={onSelect} />;
+  return <MapView items={items} onSelect={onSelect} height={height} />;
 }

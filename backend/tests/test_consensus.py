@@ -207,3 +207,39 @@ def test_공개_직렬화에는_카드_원문과_토큰이_없다():
     assert "token" not in public and "inputs" not in public and public["submitted"] == ["지은"]
     stored = c.model_dump(mode="json", context={"storage": True})["together"]
     assert stored["token"] == "secret" and stored["inputs"]["지은"]["budget_band"] == 30000
+
+
+# ── 양쪽 반영(공평) ─────────────────────────────────────────────────────
+def test_겹치지_않는_칸부터_나눠_둘_다_한_칸씩():
+    # 지은은 양식·와인, 민수는 고기 — 식사 칸이 겹치지만 지은에게 술 칸을 주면 아무도 양보하지 않는다
+    r = merge([_p("민수", cravings=["고기"]), _p("지은", cravings=["양식", "술 한잔"])], PlanConstraints())
+    assert r.slot_owner["meal"] == "민수" and r.slot_owner["bar"] == "지은"
+    assert r.yielded is None
+    assert ["meal", "고기"] in r.constraints.slot_focus and ["bar", "술 한잔"] in r.constraints.slot_focus
+
+
+def test_정말_겹치면_우선권으로_가르고_양보한_취향도_요약에_보인다():
+    r = merge([_p("민수", cravings=["고기"]), _p("지은", cravings=["양식"])], PlanConstraints(), prefer="지은")
+    assert r.slot_owner["meal"] == "지은" and r.yielded == "민수"
+    assert any(a.who == "민수" and a.what == "고기" and "양보" in a.effect and a.slot is None for a in r.attributions)
+
+
+def test_칸_주인의_취향으로_후보를_좁힌다():
+    from app.pipeline.planner import _focus_slots
+
+    meat = Place(id="m", name="갈비", category="음식점 > 한식 > 육류,고기", lat=0, lng=0)
+    pasta = Place(id="p", name="파스타", category="음식점 > 양식 > 이탈리안", lat=0, lng=0)
+    cafe = Place(id="c", name="카페", category="음식점 > 카페", lat=0, lng=0)
+    out = _focus_slots([meat, pasta, cafe], PlanConstraints(slot_focus=[["meal", "양식"]]))
+    assert {p.id for p in out} == {"p", "c"}
+    # 맞는 곳이 없으면 거르지 않는다
+    out = _focus_slots([meat, cafe], PlanConstraints(slot_focus=[["meal", "양식"]]))
+    assert {p.id for p in out} == {"m", "c"}
+
+
+def test_처음엔_물어본_상대가_우선():
+    from app.schemas import TogetherState
+    from app.together_api import _prefer
+
+    assert _prefer(TogetherState(token="t", request_text="x", owner_name="민수", partner_name="지은")) == "지은"
+    assert _prefer(TogetherState(token="t", request_text="x", partner_name="지은", yielded="민수")) == "민수"

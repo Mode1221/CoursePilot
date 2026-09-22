@@ -16,12 +16,21 @@ declare global {
 
 // 네이버 지도 SDK 최소 타입(런타임 로드). 정밀 타입 불필요 부분은 넓게 둔다.
 type LatLng = object;
+interface Overlay {
+  setMap: (map: NaverMap | null) => void;
+}
+interface NaverMap {
+  setCenter: (p: LatLng) => void;
+  setZoom: (z: number) => void;
+  fitBounds: (b: object, margin?: Record<string, number>) => void;
+}
 interface NaverMaps {
   maps: {
     LatLng: new (lat: number, lng: number) => LatLng;
-    Map: new (el: HTMLElement, opts: Record<string, unknown>) => object;
-    Marker: new (opts: Record<string, unknown>) => object;
-    Polyline: new (opts: Record<string, unknown>) => object;
+    LatLngBounds: new (sw: LatLng, ne: LatLng) => object;
+    Map: new (el: HTMLElement, opts: Record<string, unknown>) => NaverMap;
+    Marker: new (opts: Record<string, unknown>) => Overlay;
+    Polyline: new (opts: Record<string, unknown>) => Overlay;
     Event: { addListener: (target: object, type: string, cb: () => void) => void };
   };
 }
@@ -51,14 +60,18 @@ export default function NaverMapView({
   clientId,
   onSelect,
   onFail,
+  height = 240,
 }: {
   items: TimelineItem[];
   clientId: string;
   onSelect?: (index: number) => void;
   /** SDK 로드 실패 시 호출(상위에서 SVG 폴백으로 전환). */
   onFail?: () => void;
+  height?: number | string;
 }) {
   const ref = useRef<HTMLDivElement>(null);
+  const mapRef = useRef<NaverMap | null>(null);
+  const overlaysRef = useRef<Overlay[]>([]);
 
   useEffect(() => {
     let cancelled = false;
@@ -68,11 +81,22 @@ export default function NaverMapView({
     };
     loadSdk(clientId)
       .then(() => {
-        if (cancelled || !ref.current || !window.naver?.maps || items.length === 0) return;
+        if (cancelled || !ref.current || !window.naver?.maps) return;
         const naver = window.naver;
-        const center = new naver.maps.LatLng(items[0].place.lat, items[0].place.lng);
-        const map = new naver.maps.Map(ref.current, { center, zoom: 14 });
-        const path: unknown[] = [];
+        // 이전 코스의 마커·선을 먼저 지운다 — 새 코스(빈 코스)로 옮겼는데 옛 동선이 남아 보이던 문제
+        overlaysRef.current.forEach((o) => o.setMap(null));
+        overlaysRef.current = [];
+        const seoul = new naver.maps.LatLng(37.5563, 126.9236);
+        if (!mapRef.current) {
+          mapRef.current = new naver.maps.Map(ref.current, { center: seoul, zoom: 13 });
+        }
+        const map = mapRef.current;
+        if (items.length === 0) {
+          map.setCenter(seoul);
+          map.setZoom(13);
+          return;
+        }
+        const path: LatLng[] = [];
         items.forEach((it, i) => {
           const pos = new naver.maps.LatLng(it.place.lat, it.place.lng);
           path.push(pos);
@@ -85,9 +109,20 @@ export default function NaverMapView({
             },
           });
           if (onSelect) naver.maps.Event.addListener(marker, "click", () => onSelect(i));
+          overlaysRef.current.push(marker);
         });
         if (path.length > 1) {
-          new naver.maps.Polyline({ map, path, strokeColor: "#0f9d84", strokeWeight: 4, strokeStyle: "shortdash" });
+          overlaysRef.current.push(
+            new naver.maps.Polyline({ map, path, strokeColor: "#0f9d84", strokeWeight: 4, strokeStyle: "shortdash" }),
+          );
+          const lats = items.map((it) => it.place.lat);
+          const lngs = items.map((it) => it.place.lng);
+          const sw = new naver.maps.LatLng(Math.min(...lats), Math.min(...lngs));
+          const ne = new naver.maps.LatLng(Math.max(...lats), Math.max(...lngs));
+          map.fitBounds(new naver.maps.LatLngBounds(sw, ne), { top: 40, right: 40, bottom: 40, left: 40 });
+        } else {
+          map.setCenter(path[0]);
+          map.setZoom(15);
         }
       })
       .catch(() => {
@@ -98,5 +133,11 @@ export default function NaverMapView({
     };
   }, [items, clientId, onSelect, onFail]);
 
-  return <div ref={ref} style={{ width: "100%", height: 240, borderRadius: 8, background: "var(--surface-2)" }} aria-label="코스 지도" />;
+  return (
+    <div
+      ref={ref}
+      style={{ width: "100%", height, borderRadius: 8, background: "var(--surface-2)" }}
+      aria-label="코스 지도"
+    />
+  );
 }

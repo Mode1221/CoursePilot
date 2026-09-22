@@ -163,6 +163,9 @@ test("먼저 상대에게 묻기: 링크 → 상대 카드 → 합친 코스에 
   await page.getByText("둘의 카드 합쳐서 코스 만들기").click();
   await expect(page.getByRole("list", { name: "코스 전체에 반영된 의견" })).toBeVisible({ timeout: 20_000 });
   await expect(page.getByText(/👤지은 매운 거/)).toBeVisible();
+  // 양쪽 반영: 상대의 취향(디저트)도 칸이나 요약 어딘가에 이름으로 드러난다
+  await expect(page.getByText(/👤지은 디저트/)).toBeVisible();
+  await expect(page.getByText(/👤민수 고기/)).toBeVisible();
 
   // 수락: 시작한 사람 → 상대는 링크에서 "코스 보러 가기"로 편집 가능한 코스 화면에 들어간다
   await page.getByText("이 코스 좋아요").click();
@@ -183,13 +186,21 @@ test("먼저 상대에게 묻기: 링크 → 상대 카드 → 합친 코스에 
   // 카드 수정: 상대가 답을 고치면 시작한 사람에게 "다시 합치기" 안내, 수락은 초기화
   await partner.getByText("내 카드 수정").click();
   await expect(partner.getByText("수정한 답 보내기")).toBeVisible();
+  await expect(partner.getByText("← 코스로 돌아가기")).toBeVisible(); // 모바일 웹뷰에서도 돌아갈 길
   await expect(partner.getByText("디저트")).toHaveAttribute("aria-pressed", "true"); // 이전 답이 채워져 있다
   await partner.getByText("양식").click();
   await partner.getByText("수정한 답 보내기").click();
   await expect(page.getByText(/카드가 바뀌었어요/)).toBeVisible({ timeout: 10_000 });
   await partner.close();
 
-  // 코스 화면에서 빠져나가기: 내 코스 · 새 코스
+  // 새 코스로 옮기면 이전 코스의 타임라인이 남지 않는다
+  const oldUrl = page.url();
+  await page.getByRole("button", { name: "+ 새 코스" }).click();
+  await expect(page).not.toHaveURL(oldUrl);
+  await expect(page.getByText("아직 코스가 없어요")).toBeVisible({ timeout: 10_000 });
+  await expect(page.getByText(/^1\. /)).toHaveCount(0);
+
+  // 코스 화면에서 빠져나가기: 내 코스
   await page.getByRole("link", { name: "내 코스" }).click();
   await expect(page).toHaveURL(/\/mypage/);
 });
