@@ -45,6 +45,27 @@ export interface TimelineItem {
   travel_to_next?: Route | null;
   /** 손으로 넣은 자리가 영업시간(브레이크 포함) 밖일 때 true. */
   hours_conflict?: boolean;
+  /** 합의 코스: 이 칸에 누구의 무엇이 반영됐는지(반영 이유 칩). */
+  attributions?: Attribution[];
+}
+
+/** 반영 이유 한 조각 — "👤지은 피곤해 → 이동 10분 이내". */
+export interface Attribution {
+  who: string;
+  what: string;
+  effect: string;
+  slot?: string | null;
+}
+
+/** 합의 코스 상태(상대에게 나가는 형태 — 카드 원문·토큰 없음). */
+export interface TogetherPublic {
+  owner_name: string;
+  partner_name: string;
+  submitted: string[];
+  accepted_by: string[];
+  conflict_note?: string | null;
+  yielded?: string | null;
+  request_text: string;
 }
 
 export interface Course {
@@ -56,4 +77,5 @@ export interface Course {
   items: TimelineItem[];
   locked: boolean;
   completed?: boolean; // "다녀왔어요" 를 이미 누른 코스
+  together?: TogetherPublic | null;
 }

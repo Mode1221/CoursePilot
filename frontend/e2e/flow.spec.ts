@@ -126,3 +126,43 @@ test("온보딩에서 선호를 저장하면 다시 열었을 때 채워져 있�
   await page.goto("/onboarding");
   await expect(page.getByPlaceholder("예: 성수동")).toHaveValue("연남동", { timeout: 10_000 });
 });
+
+test("먼저 상대에게 묻기: 링크 → 상대 카드 → 합친 코스에 반영 칩 → 둘 다 수락", async ({ page, context }) => {
+  await asMember(page);
+  await page.goto("/");
+  await page.getByText("새 코스 시작").click();
+  await page.getByLabel("언제 어디서").fill("토요일 3시 성수");
+  await page.getByText("링크 만들기").click();
+
+  // 내 카드
+  await page.getByText("고기").click();
+  await page.getByText("웨이팅").click();
+  await page.getByText("내 카드 저장").click();
+  await expect(page.getByText("내 카드 완료")).toBeVisible();
+
+  // 상대는 다른 브라우저 컨텍스트(비가입)에서 링크를 연다
+  const link = (await page.locator("code").first().textContent())?.trim();
+  expect(link).toContain("/together/");
+  const partner = await context.browser()!.newPage();
+  await partner.goto(link!);
+  await expect(partner.getByText(/같이 정하재요 · 30초 · 가입 없음/)).toBeVisible();
+  await partner.getByText("피곤해 (많이 못 걸어)").click();
+  await partner.getByText("디저트").click();
+  await partner.getByText("매운 거").click();
+  await partner.getByText("보냈어요").click();
+  await expect(partner.getByText(/보냈어요 ✨/)).toBeVisible();
+
+  // 합치기 → 반영 칩
+  await expect(page.getByText(/답함/)).toBeVisible({ timeout: 10_000 });
+  await page.getByText("둘의 카드 합쳐서 코스 만들기").click();
+  await expect(page.getByRole("list", { name: "반영된 의견" }).first()).toBeVisible({ timeout: 20_000 });
+  await expect(page.getByText(/👤.*피곤해/)).toBeVisible();
+
+  // 수락: 시작한 사람 + 상대(공유 화면)
+  await page.getByText("이 코스 좋아요").click();
+  await expect(partner.getByText("코스 보러 가기")).toBeVisible({ timeout: 15_000 });
+  await partner.getByText("코스 보러 가기").click();
+  await partner.getByText("이 코스 좋아요").click();
+  await expect(partner.getByText(/둘 다 좋아요 · 확정/)).toBeVisible();
+  await partner.close();
+});

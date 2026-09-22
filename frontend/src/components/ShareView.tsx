@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 
 import MapPanel from "@/components/MapPanel";
+import ShareAccept from "@/components/ShareAccept";
 import NotFound from "@/components/NotFound";
 import { Button } from "@/components/ui";
 import { api } from "@/services/api";
@@ -102,6 +103,7 @@ export default function ShareView({ id }: { id: string }) {
           )}
         </span>
       </header>
+      {course?.together && <ShareAccept course={course} />}
       <MapPanel readOnly />
     </div>
   );

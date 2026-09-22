@@ -1,6 +1,27 @@
 import { storedUserToken, useUserStore } from "@/store/userStore";
 import type { Course } from "@/types";
 
+/** 합의 코스 카드(30초). 예산은 서버에 저장되지만 상대에게는 나가지 않는다. */
+export interface TogetherCard {
+  name?: string;
+  condition: "fresh" | "normal" | "tired" | "hungry";
+  cravings: string[];
+  dislikes: string[];
+  budget_band?: number | null;
+  note?: string;
+}
+
+export interface TogetherStatus {
+  course_id: string;
+  owner_name: string;
+  partner_name: string;
+  submitted: string[];
+  built: boolean;
+  accepted_by: string[];
+  request_text: string;
+  cards: { conditions: string[]; cravings: string[]; dislikes: string[]; budget_bands: number[] };
+}
+
 export interface GenerateResponse {
   course: Course;
   relaxed: boolean;
@@ -198,6 +219,25 @@ export const api = {
   addBookmark: (userId: string, courseId: string) =>
     request<void>(`/users/${userId}/bookmarks/${courseId}`, { method: "PUT", userId }),
 
+  // ── 합의 코스("먼저 상대에게 묻기") ─────────────────────────────────────
+  togetherStart: (courseId: string, userId: string, body: { text: string; owner_name?: string; partner_name?: string }) =>
+    request<TogetherStatus>(`/courses/${courseId}/together`, { method: "POST", body, userId }),
+  togetherLink: (courseId: string, userId: string) =>
+    request<{ token: string }>(`/courses/${courseId}/together/link`, { userId }),
+  togetherStatus: (token: string) => request<TogetherStatus>(`/together/${token}`),
+  togetherPartnerInput: (token: string, card: TogetherCard) =>
+    request<TogetherStatus>(`/together/${token}/input`, { method: "POST", body: card }),
+  togetherOwnerInput: (courseId: string, userId: string, card: TogetherCard) =>
+    request<TogetherStatus>(`/courses/${courseId}/together/input`, { method: "POST", body: card, userId }),
+  togetherBuild: (courseId: string, userId: string) =>
+    request<{ course: Course; status: TogetherStatus }>(`/courses/${courseId}/together/build`, {
+      method: "POST",
+      userId,
+    }),
+  togetherPartnerAccept: (token: string) =>
+    request<TogetherStatus>(`/together/${token}/accept`, { method: "POST" }),
+  togetherOwnerAccept: (courseId: string, userId: string) =>
+    request<TogetherStatus>(`/courses/${courseId}/together/accept`, { method: "POST", userId }),
   credits: (userId: string) =>
     request<{ questions_left: number; free_mode?: boolean }>(`/users/${userId}/credits`, { userId }),
 
