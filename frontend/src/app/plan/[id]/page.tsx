@@ -6,6 +6,7 @@ import ChatPanel from "@/components/ChatPanel";
 import ConnectionBanner from "@/components/ConnectionBanner";
 import MapPanel from "@/components/MapPanel";
 import NotFound from "@/components/NotFound";
+import TogetherPanel from "@/components/TogetherPanel";
 import { useIsNarrow } from "@/hooks/useIsNarrow";
 import { api } from "@/services/api";
 import { getSocket } from "@/services/socket";
@@ -145,6 +146,9 @@ export default function PlanPage({ params }: { params: { id: string } }) {
           aria-labelledby="tab-map"
           style={{ flex: 1, overflow: "auto", display: tab === "map" ? "block" : "none" }}
         >
+          <div style={{ padding: "var(--sp-4) var(--sp-4) 0" }}>
+            <TogetherPanel courseId={id} />
+          </div>
           <MapPanel />
         </div>
         <div
@@ -164,6 +168,9 @@ export default function PlanPage({ params }: { params: { id: string } }) {
       <ConnectionBanner />
       <div style={{ display: "flex", flex: 1, overflow: "hidden" }}>
         <div style={{ flex: 1, borderRight: "1px solid var(--border)", overflow: "auto" }}>
+          <div style={{ padding: "var(--sp-4) var(--sp-4) 0" }}>
+            <TogetherPanel courseId={id} />
+          </div>
           <MapPanel />
         </div>
         <div style={{ width: 380, display: "flex", flexDirection: "column" }}>

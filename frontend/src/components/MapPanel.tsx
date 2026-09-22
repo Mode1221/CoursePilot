@@ -4,6 +4,7 @@ import dynamic from "next/dynamic";
 import { useEffect, useState } from "react";
 
 import AiNotice from "@/components/AiNotice";
+import AttributionChips from "@/components/AttributionChips";
 import MapCanvas from "@/components/MapCanvas";
 import { Badge, Button, EmptyState } from "@/components/ui";
 import { api } from "@/services/api";
@@ -157,6 +158,7 @@ export default function MapPanel({ readOnly = false }: { readOnly?: boolean }) {
                 )}
               </span>
             </div>
+            <AttributionChips items={item.attributions} />
             <div
               style={{
                 color: "var(--text-muted)",

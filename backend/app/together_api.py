@@ -169,7 +169,9 @@ async def partner_input(token: str, card: CardRequest) -> TogetherStatus:
     t.partner_name = name
     t.inputs[name] = ParticipantInput(**card.model_dump(exclude={"name"}), name=name).model_dump()
     store.save(course)
-    await broadcast_message(course.id, "system", f"{name}님이 카드를 보냈어요. 합쳐볼게요.")
+    # 시작한 사람 화면이 "상대 답함"으로 바뀌도록 상태를 밀어준다(카드 원문은 _public 이 뺀다)
+    await broadcast_state(course.id, _public(course))
+    await broadcast_message(course.id, "ai", f"{name}님이 카드를 보냈어요. 합쳐볼게요.")
     return _status(course)
 
 

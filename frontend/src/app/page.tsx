@@ -12,10 +12,10 @@ import { storedUserId, useUserStore } from "@/store/userStore";
 
 // 랜딩: 가치 제안 + 예시 프롬프트로 바로 시작(예시 클릭 시 해당 조건으로 코스 생성).
 const EXAMPLES = [
-  { label: "토요일 오후 성수동 데이트", hint: "3시간 · 도보 10분 이내" },
-  { label: "금요일 저녁 강남역 회식", hint: "4명 · 1인 3만원" },
+  { label: "토요일 3시 성수", hint: "둘이 5만원 · 도보 10분 이내" },
+  { label: "○○카페 들렀다가 저녁까지", hint: "정해둔 한 곳 기준으로 앞뒤 채우기" },
+  { label: "비 오는 토요일 홍대", hint: "실내 위주 · 두 군데" },
   { label: "일요일 연남동 브런치", hint: "오전 11시 시작" },
-  { label: "비 오는 날 홍대", hint: "실내 위주 · 두 군데" },
 ];
 
 export default function Home() {
@@ -55,12 +55,13 @@ export default function Home() {
           marginBottom: "var(--sp-4)",
         }}
       >
-        영업시간 · 이동시간까지 검증
+        둘이 같이 정하는 데이트 코스
       </div>
 
-      <h1>말만 하면, 실제로 갈 수 있는 코스</h1>
+      <h1>데이트 계획, 검색 말고 상대에게 먼저 물어보세요</h1>
       <p style={{ color: "var(--text-muted)", fontSize: "var(--fs-lg)" }}>
-        조건을 자연어로 입력하면 문 닫은 곳·무리한 동선을 걸러낸 모임 코스를 만들어 드려요.
+        링크 하나 보내면 상대는 30초. 둘 다 괜찮은 코스가 누구 의견이 어디 들어갔는지까지 보여주며 나와요.
+        영업시간·폐업·동선은 기본으로 확인합니다.
       </p>
 
       <Button variant="primary" onClick={() => start()} disabled={loading} style={{ marginTop: "var(--sp-4)" }}>
