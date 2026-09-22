@@ -91,8 +91,8 @@ export default function TogetherCards({
   }
 
   return (
-    <div style={{ display: "grid", gap: "var(--sp-5)" }}>
-      <Section title="1. 그날 컨디션은?">
+    <div style={{ display: "grid", gap: "var(--sp-6)" }}>
+      <Section title="그날 컨디션은?">
         <Chips
           options={spec.conditions}
           label={(c) => CONDITION_LABEL[c as TogetherCard["condition"]] ?? c}
@@ -100,22 +100,23 @@ export default function TogetherCards({
           onPick={(c) => setCondition(c as TogetherCard["condition"])}
         />
       </Section>
-      <Section title="2. 요즘 땡기는 건? (여러 개)">
+      <Section title="요즘 땡기는 건?">
         <Chips
           options={spec.cravings}
           selected={cravings}
           onPick={(c) => toggle(cravings, setCravings, c, "아무거나")}
         />
         {anything && (
-          <p style={{ margin: "var(--sp-2) 0 0", color: "var(--brand-strong)", fontSize: "var(--fs-sm)" }}>
-            좋아요, 그럼 이것만 피할게요 👇
+          <p style={{ margin: "var(--sp-2) 0 0", color: "var(--partner)", fontSize: "var(--fs-sm)", fontWeight: 500 }}>
+            좋아요, 그럼 이것만 피할게요 ↓
           </p>
         )}
       </Section>
-      <Section title="3. 이건 빼줘" highlight={anything}>
+      <Section title="이건 빼줘" highlight={anything}>
         <Chips options={spec.dislikes} selected={dislikes} onPick={(d) => toggle(dislikes, setDislikes, d, "없음")} />
       </Section>
-      <Section title="4. 1인 예산은? (선택 · 상대에겐 안 보여요)">
+      <Section title="1인 예산은?">
+        <p style={{ margin: "0 0 var(--sp-2)", fontSize: "var(--fs-sm)", color: "var(--text-faint)" }}>선택 · 상대에겐 안 보여요</p>
         <Chips
           options={spec.budget_bands.map(String)}
           label={(b) => BUDGET_LABEL[Number(b)] ?? b}
@@ -123,19 +124,22 @@ export default function TogetherCards({
           onPick={(b) => setBudget(budget === Number(b) ? null : Number(b))}
         />
       </Section>
-      <Section title="+ 하고 싶은 거 있으면 한마디 (선택)">
+      <Section title="하고 싶은 거 있으면 한마디">
         <input
           value={note}
           onChange={(e) => setNote(e.target.value)}
           maxLength={200}
-          placeholder="예: 팝업 가보고 싶어"
+          placeholder="예: 팝업 가보고 싶어…"
           aria-label="한마디"
+          autoComplete="off"
+          enterKeyHint="done"
           style={{
             width: "100%",
-            padding: "var(--sp-2) var(--sp-3)",
-            border: "1px solid var(--border)",
+            padding: "12px 14px",
+            border: "1.5px solid var(--line)",
             borderRadius: "var(--r-md)",
             font: "inherit",
+            background: "var(--surface)",
           }}
         />
       </Section>
@@ -152,18 +156,22 @@ export default function TogetherCards({
 }
 
 function Section({ title, children, highlight }: { title: string; children: React.ReactNode; highlight?: boolean }) {
+  // 각 카드는 하나의 질문 = fieldset. 강조(아무거나 → 싫은 것)는 배경이 아니라 왼쪽 선으로.
   return (
-    <section
+    <fieldset
       style={{
-        padding: highlight ? "var(--sp-3)" : 0,
-        borderRadius: "var(--r-lg)",
-        background: highlight ? "var(--brand-weak)" : "transparent",
-        transition: "background var(--dur) var(--ease)",
+        border: 0,
+        margin: 0,
+        padding: "0 0 0 var(--sp-4)",
+        borderLeft: `3px solid ${highlight ? "var(--partner)" : "var(--line)"}`,
+        transition: "border-color var(--dur) var(--ease)",
       }}
     >
-      <h3 style={{ margin: "0 0 var(--sp-2)", fontSize: "var(--fs-md)" }}>{title}</h3>
+      <legend style={{ padding: 0, marginBottom: "var(--sp-3)", fontWeight: 700, fontSize: "var(--fs-lg)", letterSpacing: "-.01em" }}>
+        {title}
+      </legend>
       {children}
-    </section>
+    </fieldset>
   );
 }
 
@@ -189,13 +197,15 @@ function Chips({
             aria-pressed={on}
             onClick={() => onPick(o)}
             style={{
-              padding: "10px 14px",
+              padding: "11px 16px",
               minHeight: 44,
               borderRadius: "var(--r-full)",
-              border: `1px solid ${on ? "var(--brand-strong)" : "var(--border)"}`,
-              background: on ? "var(--brand-strong)" : "var(--surface)",
-              color: on ? "#fff" : "var(--text)",
+              border: `1.5px solid ${on ? "var(--text)" : "var(--line)"}`,
+              background: on ? "var(--text)" : "var(--surface)",
+              color: on ? "var(--bg)" : "var(--text)",
               font: "inherit",
+              fontSize: "var(--fs-md)",
+              fontWeight: on ? 600 : 500,
               cursor: "pointer",
             }}
           >

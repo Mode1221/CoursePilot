@@ -60,7 +60,7 @@ describe("MapPanel", () => {
     render(<MapPanel />);
     expect(screen.getByText("1. 카페 A")).toBeDefined();
     expect(screen.getByText("13:00~14:00")).toBeDefined();
-    expect(screen.getByText(/다음까지 15분 \(대중교통\)/)).toBeDefined();
+    expect(screen.getByText(/대중교통 15분 뒤 다음 장소/)).toBeDefined();
   });
 
   it("가격이 있는 장소만 1인 예상 비용을 표시한다", () => {
