@@ -33,7 +33,7 @@ export default function AttributionChips({
             className={`cp-person cp-person--${who}`}
             style={{
               fontSize: size === "md" ? "var(--fs-md)" : "var(--fs-sm)",
-              opacity: unmet || yielded ? 0.75 : 1,
+              opacity: unmet || yielded ? 0.9 : 1,
               borderStyle: unmet ? "dashed" : undefined,
               border: unmet ? "1px dashed currentColor" : yielded ? "1px solid currentColor" : "1px solid transparent",
               background: unmet ? "transparent" : undefined,

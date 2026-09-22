@@ -104,7 +104,7 @@ export default function PlaceDetailModal({
         display: "flex",
         alignItems: "center",
         justifyContent: "center",
-        zIndex: 10,
+        zIndex: 2000, // 네이버 지도 컨트롤(축척·로고 z-index 수백~1000)보다 위
       }}
     >
       <div
