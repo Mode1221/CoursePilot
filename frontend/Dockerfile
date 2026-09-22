@@ -16,8 +16,11 @@ FROM base AS build
 WORKDIR /app
 COPY --from=deps /app/node_modules ./node_modules
 COPY . .
-# NEXT_PUBLIC_* 는 빌드 시점에 번들에 주입된다(런타임 아님) → build arg 로 받음
-ARG NEXT_PUBLIC_API_BASE=http://localhost:8000
+# NEXT_PUBLIC_* 는 빌드 시점에 번들에 주입된다(런타임 아님) → build arg 로 받음.
+# API 주소는 기본을 **비워 둔다** — 비어 있어야 브라우저가 api.<현재 도메인>을 스스로 유도한다
+# (services/apiBase.ts). 예전 기본값 localhost:8000 이 박혀 배포 화면이 사용자 기기의 localhost 로
+# 요청을 보내 모든 API 가 실패했다.
+ARG NEXT_PUBLIC_API_BASE=
 ARG NEXT_PUBLIC_NAVER_MAP_CLIENT_ID=
 ENV NEXT_PUBLIC_API_BASE=$NEXT_PUBLIC_API_BASE
 ENV NEXT_PUBLIC_NAVER_MAP_CLIENT_ID=$NEXT_PUBLIC_NAVER_MAP_CLIENT_ID
