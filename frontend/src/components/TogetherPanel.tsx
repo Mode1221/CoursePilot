@@ -18,6 +18,9 @@ export default function TogetherPanel({ courseId }: { courseId: string }) {
   const course = useCourseStore((s) => s.course);
   const setCourse = useCourseStore((s) => s.setCourse);
   const [text, setText] = useState("");
+  // 칩이 "👤지은 피곤해"처럼 이름으로 나와야 "내 말 들었네"가 된다 — 나/상대로는 약하다
+  const [ownerName, setOwnerName] = useState("");
+  const [partnerName, setPartnerName] = useState("");
   const [status, setStatus] = useState<TogetherStatus | null>(null);
   const [token, setToken] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -55,9 +58,15 @@ export default function TogetherPanel({ courseId }: { courseId: string }) {
 
   async function start() {
     if (!text.trim()) return toast("언제 어디서 볼지 한 줄만 적어 주세요. 예: 토요일 3시 성수", "error");
+    if (!ownerName.trim() || !partnerName.trim()) return toast("내 이름과 상대 이름을 적어 주세요. 칩에 이름으로 보여요.", "error");
+    if (ownerName.trim() === partnerName.trim()) return toast("두 이름이 같아요. 구분되게 적어 주세요.", "error");
     setBusy(true);
     try {
-      await api.togetherStart(courseId, userId!, { text: text.trim() });
+      await api.togetherStart(courseId, userId!, {
+        text: text.trim(),
+        owner_name: ownerName.trim(),
+        partner_name: partnerName.trim(),
+      });
       await refresh();
       setOpen(true);
     } catch {
@@ -108,6 +117,24 @@ export default function TogetherPanel({ courseId }: { courseId: string }) {
         <p style={{ margin: "0 0 var(--sp-3)", color: "var(--text-muted)", fontSize: "var(--fs-sm)" }}>
           링크를 보내면 상대가 30초 카드에 답해요. 둘 다 괜찮은 코스가 나옵니다.
         </p>
+        <div style={{ display: "flex", gap: "var(--sp-2)", marginBottom: "var(--sp-2)" }}>
+          <input
+            value={ownerName}
+            onChange={(e) => setOwnerName(e.target.value)}
+            placeholder="내 이름 (예: 민수)"
+            aria-label="내 이름"
+            maxLength={10}
+            style={{ flex: 1, padding: "var(--sp-2) var(--sp-3)", border: "1px solid var(--border)", borderRadius: "var(--r-md)", font: "inherit" }}
+          />
+          <input
+            value={partnerName}
+            onChange={(e) => setPartnerName(e.target.value)}
+            placeholder="상대 이름 (예: 지은)"
+            aria-label="상대 이름"
+            maxLength={10}
+            style={{ flex: 1, padding: "var(--sp-2) var(--sp-3)", border: "1px solid var(--border)", borderRadius: "var(--r-md)", font: "inherit" }}
+          />
+        </div>
         <div style={{ display: "flex", gap: "var(--sp-2)" }}>
           <input
             value={text}

@@ -113,13 +113,19 @@ class CourseStore:
         return None
 
     def save(self, course: Course) -> Course:
+        # 합의 코스면 편집(교체·순서·추가·삭제) 뒤 칩을 다시 붙인다 — 바뀐 장소가 취향에
+        # 맞는지 다시 확인해, 옛 이유가 남거나(거짓말) 새 장소에 이유가 비는 일을 막는다.
+        if course.together is not None and course.together.attributions:
+            from app.pipeline.consensus import refresh_course_attributions
+
+            refresh_course_attributions(course)
         if is_ready():
             from app.db import SessionLocal
             from app.models import CourseModel
 
             with SessionLocal() as s:
                 row = s.get(CourseModel, course.id)
-                state = course.model_dump(mode="json")
+                state = course.model_dump(mode="json", context={"storage": True})
                 if row is None:
                     row = CourseModel(id=course.id, title=course.title, state=state)
                     s.add(row)

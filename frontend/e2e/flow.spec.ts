@@ -121,7 +121,11 @@ test("온보딩에서 선호를 저장하면 다시 열었을 때 채워져 있�
   await page.goto("/onboarding");
   await page.getByPlaceholder("예: 성수동").fill("연남동");
   await page.getByLabel("분위기").selectOption("조용한");
-  await page.getByText("저장").click();
+  // 저장 요청이 끝나기 전에 페이지를 떠나면 가끔 저장이 누락된다(flaky) → 응답을 기다린다
+  await Promise.all([
+    page.waitForResponse((r) => r.url().includes("/preferences") && r.request().method() !== "GET" && r.ok()),
+    page.getByText("저장").click(),
+  ]);
 
   await page.goto("/onboarding");
   await expect(page.getByPlaceholder("예: 성수동")).toHaveValue("연남동", { timeout: 10_000 });
@@ -131,6 +135,8 @@ test("먼저 상대에게 묻기: 링크 → 상대 카드 → 합친 코스에 
   await asMember(page);
   await page.goto("/");
   await page.getByText("새 코스 시작").click();
+  await page.getByLabel("내 이름").fill("민수");
+  await page.getByLabel("상대 이름").fill("지은");
   await page.getByLabel("언제 어디서").fill("토요일 3시 성수");
   await page.getByText("링크 만들기").click();
 
@@ -152,16 +158,21 @@ test("먼저 상대에게 묻기: 링크 → 상대 카드 → 합친 코스에 
   await partner.getByText("보냈어요").click();
   await expect(partner.getByText(/보냈어요 ✨/)).toBeVisible();
 
-  // 합치기 → 반영 칩
-  await expect(page.getByText(/답함/)).toBeVisible({ timeout: 10_000 });
+  // 합치기 → 이름으로 된 반영 칩(코스 전체 조건은 요약 줄)
+  await expect(page.getByText(/지은 답함/)).toBeVisible({ timeout: 10_000 });
   await page.getByText("둘의 카드 합쳐서 코스 만들기").click();
-  await expect(page.getByRole("list", { name: "반영된 의견" }).first()).toBeVisible({ timeout: 20_000 });
-  await expect(page.getByText(/👤.*피곤해/)).toBeVisible();
+  await expect(page.getByRole("list", { name: "코스 전체에 반영된 의견" })).toBeVisible({ timeout: 20_000 });
+  await expect(page.getByText(/👤지은 매운 거/)).toBeVisible();
 
   // 수락: 시작한 사람 + 상대(공유 화면)
   await page.getByText("이 코스 좋아요").click();
   await expect(partner.getByText("코스 보러 가기")).toBeVisible({ timeout: 15_000 });
   await partner.getByText("코스 보러 가기").click();
+  // 실시간: 시작한 사람이 한 칸을 지우면 상대의 공유 화면에 새로고침 없이 반영된다
+  await expect(partner.getByText(/^1\. /)).toBeVisible({ timeout: 10_000 }); // 공유 화면이 코스를 다 그린 뒤에 센다
+  const before = await partner.getByText(/^\d+\. /).count();
+  await page.getByRole("button", { name: "삭제" }).first().click();
+  await expect(partner.getByText(/^\d+\. /)).toHaveCount(before - 1, { timeout: 10_000 });
   await partner.getByText("이 코스 좋아요").click();
   await expect(partner.getByText(/둘 다 좋아요 · 확정/)).toBeVisible();
   await partner.close();

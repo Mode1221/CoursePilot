@@ -7,9 +7,11 @@ import ShareAccept from "@/components/ShareAccept";
 import NotFound from "@/components/NotFound";
 import { Button } from "@/components/ui";
 import { api } from "@/services/api";
+import { getSocket } from "@/services/socket";
 import { saveCalendar } from "@/services/calendar";
 import { formatPlanDate } from "@/services/courseDate";
 import { useCourseStore } from "@/store/courseStore";
+import type { Course } from "@/types";
 import { toast } from "@/store/toastStore";
 import { useUserStore } from "@/store/userStore";
 
@@ -37,8 +39,20 @@ export default function ShareView({ id }: { id: string }) {
         if (!cancelled) setNotFound(true);
       });
     api.view(id).catch(() => {}); // 열람 신호(#5)
+    // 공유 화면도 같은 방에 들어가 실시간으로 받는다 — 상대가 교체·수락하면 새로고침 없이 반영.
+    const socket = getSocket();
+    const join = () => socket.emit("join", { course_id: id });
+    const onState = (c: Course) => {
+      if (!cancelled && c.id === id) setCourse(c);
+    };
+    join();
+    socket.on("connect", join);
+    socket.on("state", onState);
     return () => {
       cancelled = true;
+      socket.off("connect", join);
+      socket.off("state", onState);
+      socket.emit("leave", { course_id: id });
     };
   }, [id, setCourse, setNotFound, load]);
 

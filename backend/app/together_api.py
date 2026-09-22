@@ -252,6 +252,8 @@ async def build_together(
             if result.consensus is not None:
                 t.conflict_note = result.consensus.conflict_note
                 t.yielded = result.consensus.yielded
+                t.attributions = [a.model_dump() for a in result.consensus.attributions]
+                t.summary = result.consensus.summary
             t.accepted_by = []  # 새 코스면 수락도 새로
         finally:
             course.locked = False
@@ -304,11 +306,5 @@ def _prefer(t: TogetherState) -> str | None:
 
 
 def _public(course: Course) -> dict:
-    """상대에게도 갈 수 있는 코스 JSON — 카드 원문(예산 포함)은 뺀다."""
-    data = course.model_dump(mode="json")
-    if data.get("together"):
-        data["together"] = {
-            k: v for k, v in data["together"].items() if k not in {"inputs", "token"}
-        }
-        data["together"]["submitted"] = sorted(course.together.inputs) if course.together else []
-    return data
+    """상대에게도 갈 수 있는 코스 JSON. 카드 원문·토큰은 TogetherState 직렬화가 자동으로 뺀다."""
+    return course.model_dump(mode="json")

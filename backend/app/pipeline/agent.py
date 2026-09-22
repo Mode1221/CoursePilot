@@ -175,7 +175,7 @@ def _attach(timeline: list[TimelineItem], consensus) -> None:
         return
     from app.pipeline.consensus import attach_attributions
 
-    attach_attributions(timeline, consensus)
+    consensus.summary = attach_attributions(timeline, consensus)
 
 
 async def _refill(

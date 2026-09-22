@@ -17,11 +17,13 @@ export default function TogetherPage({ params }: { params: { token: string } }) 
   const [status, setStatus] = useState<TogetherStatus | null>(null);
   const [missing, setMissing] = useState(false);
   const [sent, setSent] = useState(false);
+  const [myName, setMyName] = useState("");
 
   const load = useCallback(async () => {
     try {
       const s = await api.togetherStatus(token);
       setStatus(s);
+      setMyName((n) => n || s.partner_name);
       try {
         window.localStorage.setItem(`coursepilot_together_token:${s.course_id}`, token);
       } catch {
@@ -88,14 +90,25 @@ export default function TogetherPage({ params }: { params: { token: string } }) 
         {status.owner_name}님이 같이 정하재요 · 30초 · 가입 없음
       </p>
       <h1 style={{ marginTop: "var(--sp-1)" }}>{status.request_text}</h1>
-      <p style={{ color: "var(--text-muted)", marginBottom: "var(--sp-5)" }}>
+      <p style={{ color: "var(--text-muted)", marginBottom: "var(--sp-3)" }}>
         탭만 하면 돼요. 서로의 답은 합치기 전까지 안 보여요.
       </p>
+      <label style={{ display: "block", marginBottom: "var(--sp-5)", fontSize: "var(--fs-sm)" }}>
+        내 이름{" "}
+        <input
+          value={myName}
+          onChange={(e) => setMyName(e.target.value)}
+          maxLength={10}
+          aria-label="내 이름"
+          style={{ marginLeft: "var(--sp-2)", padding: "6px 10px", border: "1px solid var(--border)", borderRadius: "var(--r-md)", font: "inherit" }}
+        />
+      </label>
       <TogetherCards
         spec={status.cards}
         onSubmit={async (card) => {
           try {
-            const s = await api.togetherPartnerInput(token, { ...card, name: status.partner_name });
+            const name = myName.trim() || status.partner_name;
+            const s = await api.togetherPartnerInput(token, { ...card, name });
             setStatus(s);
             setSent(true);
           } catch {

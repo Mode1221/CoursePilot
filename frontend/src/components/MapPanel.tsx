@@ -66,6 +66,12 @@ export default function MapPanel({ readOnly = false }: { readOnly?: boolean }) {
       <div style={{ marginBottom: "var(--sp-4)" }}>
         <MapCanvas items={course.items} onSelect={(i) => setSelected(course.items[i].place)} />
         {course.items.length > 0 && <AiNotice />}
+        {course.together?.summary && course.together.summary.length > 0 && (
+          <div style={{ marginTop: "var(--sp-2)" }}>
+            <span style={{ fontSize: "var(--fs-xs)", color: "var(--text-muted)" }}>둘의 조건</span>
+            <AttributionChips items={course.together.summary} label="코스 전체에 반영된 의견" />
+          </div>
+        )}
       </div>
 
       <div style={{ display: "flex", alignItems: "center", gap: "var(--sp-2)", marginBottom: "var(--sp-3)" }}>

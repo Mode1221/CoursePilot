@@ -70,12 +70,13 @@ def test_합쳐서_만든_코스에_반영_이유가_붙고_예산은_안_나간
     course = body["course"]
     assert course["items"], "코스가 비어 있다"
     whos = {a["who"] for it in course["items"] for a in it["attributions"]}
+    whos |= {a["who"] for a in course["together"]["summary"]}  # 코스 전체 이유·못 찾은 취향은 요약 줄
     assert {"민수", "지은"} <= whos
     assert "inputs" not in course["together"] and "token" not in course["together"]
     assert "\"budget_band\":" not in r.text  # 카드 원문(예산 포함)은 어디에도 실리지 않는다
     # 공유 링크로 보는 코스에도 반영 칩은 있다
     shared = client.get(f"/courses/{cid}").json()
-    assert any(it["attributions"] for it in shared["items"])
+    assert shared["together"]["summary"] and "token" not in shared["together"] and "inputs" not in shared["together"]
 
 
 def test_토큰으로는_AI_명령을_못_한다(client):
