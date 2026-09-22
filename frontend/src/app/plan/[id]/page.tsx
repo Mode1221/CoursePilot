@@ -5,7 +5,9 @@ import { useEffect, useState } from "react";
 import ChatPanel from "@/components/ChatPanel";
 import ConnectionBanner from "@/components/ConnectionBanner";
 import MapPanel from "@/components/MapPanel";
+import AppNav from "@/components/AppNav";
 import NotFound from "@/components/NotFound";
+import PartnerBar from "@/components/PartnerBar";
 import TogetherPanel from "@/components/TogetherPanel";
 import { useIsNarrow } from "@/hooks/useIsNarrow";
 import { api } from "@/services/api";
@@ -101,6 +103,7 @@ export default function PlanPage({ params }: { params: { id: string } }) {
   if (narrow) {
     return (
       <div style={{ display: "flex", flexDirection: "column", height: "100dvh" }}>
+        <AppNav />
         <ConnectionBanner />
         <div
           role="tablist"
@@ -148,6 +151,7 @@ export default function PlanPage({ params }: { params: { id: string } }) {
         >
           <div style={{ padding: "var(--sp-4) var(--sp-4) 0" }}>
             <TogetherPanel courseId={id} />
+            <PartnerBar courseId={id} />
           </div>
           <MapPanel />
         </div>
@@ -165,11 +169,13 @@ export default function PlanPage({ params }: { params: { id: string } }) {
 
   return (
     <div style={{ display: "flex", flexDirection: "column", height: "100dvh" }}>
+      <AppNav />
       <ConnectionBanner />
       <div style={{ display: "flex", flex: 1, overflow: "hidden" }}>
         <div style={{ flex: 1, borderRight: "1px solid var(--border)", overflow: "auto" }}>
           <div style={{ padding: "var(--sp-4) var(--sp-4) 0" }}>
             <TogetherPanel courseId={id} />
+            <PartnerBar courseId={id} />
           </div>
           <MapPanel />
         </div>

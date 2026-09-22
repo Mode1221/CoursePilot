@@ -68,6 +68,8 @@ export interface TogetherPublic {
   request_text: string;
   /** 코스 전체에 해당하는 이유 + 맞는 곳을 못 찾은 취향(솔직하게). 타임라인 위 한 줄. */
   summary?: Attribution[];
+  /** 코스를 만든 뒤 카드가 바뀌어 다시 합쳐야 함 */
+  stale?: boolean;
 }
 
 export interface Course {

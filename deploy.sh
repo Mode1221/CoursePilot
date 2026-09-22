@@ -15,9 +15,12 @@ fi
 # .env 는 bash 로 읽는다(compose 와 달리 셸 규칙이 적용된다).
 # 값에 따옴표 없는 공백·#·$·` 가 있으면 잘리거나 다른 것으로 치환된다 —
 # 비밀번호가 조용히 반토막 나면 원인을 찾기 어렵다. 먼저 훑어서 경고한다.
+# (예전 패턴의 \t 가 대괄호 안에서 글자 't' 로 읽혀 't' 가 든 모든 값을 잡았다 — [[:space:]] 로.
+#  값 없이 주석만 붙은 줄 'KEY=   # 설명' 은 해석이 달라지지 않으므로 제외.)
 risky="$(grep -nE '^[A-Z_][A-Z0-9_]*=' .env \
   | grep -vE "^[0-9]+:[A-Z_][A-Z0-9_]*='[^']*'$" \
-  | grep -E '^[0-9]+:[A-Z_][A-Z0-9_]*=.*[ \t#$`\\"]' || true)"
+  | grep -vE '^[0-9]+:[A-Z_][A-Z0-9_]*=[[:space:]]*(#.*)?$' \
+  | grep -E '^[0-9]+:[A-Z_][A-Z0-9_]*=.*[[:space:]#$`\\"]' || true)"
 if [ -n "$risky" ]; then
   echo "⚠ .env 에 셸이 다르게 해석할 문자가 있습니다(공백·#·\$·\`·큰따옴표):" >&2
   echo "$risky" >&2
@@ -53,12 +56,25 @@ fi
 
 COMPOSE="docker compose -f docker-compose.prod.yml"
 
-# GHCR 패키지가 비공개면 로그인 없이는 pull 이 401 로 막힌다.
-# 여기서 먼저 알려 주지 않으면 "왜 안 뜨지"로 시간을 버린다.
-if ! docker manifest inspect \
-    "${IMAGE_REGISTRY:-ghcr.io/mode1221/coursepilot}-backend:${IMAGE_TAG:-latest}" \
-    >/dev/null 2>&1; then
-  echo "✗ 이미지를 볼 수 없습니다: ${IMAGE_REGISTRY:-ghcr.io/mode1221/coursepilot}-backend:${IMAGE_TAG:-latest}" >&2
+# 머지 직후 배포하면 CI(Release images)가 아직 이미지를 굽는 중일 수 있다(2~3분).
+# 태그가 없으면 바로 실패하지 말고 준비될 때까지 기다린다. IMAGE_WAIT_SEC 로 조절(기본 600초).
+# 그래도 없으면 GHCR 비공개(로그인 필요)이거나 빌드가 실패한 것이다.
+wait_for_image() {
+  local ref="$1" waited=0 limit="${IMAGE_WAIT_SEC:-600}"
+  until docker manifest inspect "$ref" >/dev/null 2>&1; do
+    if [ "$waited" -ge "$limit" ]; then return 1; fi
+    [ "$waited" -eq 0 ] && echo "… 이미지를 기다리는 중: $ref (CI 가 굽는 중일 수 있음, 최대 ${limit}초)"
+    sleep 15; waited=$((waited + 15))
+  done
+  [ "$waited" -gt 0 ] && echo "✓ 이미지 준비됨 (${waited}초 대기)"
+  return 0
+}
+for svc in backend frontend; do
+  ref="${IMAGE_REGISTRY:-ghcr.io/mode1221/coursepilot}-${svc}:${IMAGE_TAG:-latest}"
+  wait_for_image "$ref" || { missing_ref="$ref"; break; }
+done
+if [ -n "${missing_ref:-}" ]; then
+  echo "✗ 이미지를 볼 수 없습니다: ${missing_ref}" >&2
   echo "  · CI(Release images)가 아직 안 돌았거나," >&2
   echo "  · GHCR 패키지가 비공개입니다 → 다음 중 하나:" >&2
   echo "      docker login ghcr.io -u <github-id>   # read:packages 권한 PAT" >&2
@@ -102,9 +118,16 @@ $COMPOSE pull
 localdata_dir="${LOCALDATA_HOST_DIR:-./data/localdata}"
 mkdir -p "$localdata_dir" || {
   echo "✗ $localdata_dir 를 만들지 못했습니다." >&2; exit 1; }
-[ -w "$localdata_dir" ] || {
-  echo "✗ $localdata_dir 에 쓸 수 없습니다(소유자 확인: ls -ld $localdata_dir)." >&2
-  echo "  sudo chown -R \"$(id -u):$(id -g)\" $localdata_dir" >&2; exit 1; }
+# 이 디렉터리에 쓰는 건 컨테이너(uid ${APP_UID:-1000})다 — 현재 사용자 기준으로 검사하면
+# Oracle 우분투처럼 ubuntu=1001 인 환경에서 멀쩡한 디렉터리를 거절한다(실제로 그랬다).
+app_uid="${APP_UID:-1000}"
+owner_uid="$(stat -c %u "$localdata_dir")"
+perm="$(stat -c %a "$localdata_dir")"
+if [ "$owner_uid" != "$app_uid" ] && [ "${perm: -1}" != "7" ] && [ "${perm: -1}" != "3" ]; then
+  echo "✗ 컨테이너(uid $app_uid)가 $localdata_dir 에 쓸 수 없습니다(소유자 uid $owner_uid, 권한 $perm)." >&2
+  echo "  sudo chown -R $app_uid:$app_uid $localdata_dir   # 또는  sudo chmod -R a+rwX $localdata_dir" >&2
+  exit 1
+fi
 
 echo "▶ 기동 (${DOMAIN})..."
 $COMPOSE up -d --remove-orphans

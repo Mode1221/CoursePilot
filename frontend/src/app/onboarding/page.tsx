@@ -73,12 +73,14 @@ export default function Onboarding() {
       .getPreferences(userId)
       .then((p) => {
         if (cancelled) return;
-        setMood(p.mood ?? "");
-        setRegion(p.region ?? "");
-        setTransport(p.transport ?? "");
-        setBudget(p.budget ?? "");
-        setDiet(p.diet ?? []);
-        setMustHaves(p.must_haves ?? []);
+        // 불러오기가 늦게 도착하면 그새 사용자가 입력한 값을 덮어써 버렸다(E2E 간헐 실패의 원인:
+        // 입력 → 늦은 빈 응답이 덮어씀 → 빈 값 저장). 사용자가 이미 채운 칸은 건드리지 않는다.
+        setMood((cur) => cur || (p.mood ?? ""));
+        setRegion((cur) => cur || (p.region ?? ""));
+        setTransport((cur) => cur || (p.transport ?? ""));
+        setBudget((cur) => cur || (p.budget ?? ""));
+        setDiet((cur) => (cur.length ? cur : (p.diet ?? [])));
+        setMustHaves((cur) => (cur.length ? cur : (p.must_haves ?? [])));
       })
       .catch(() => {});
     return () => {

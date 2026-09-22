@@ -364,6 +364,33 @@ CANDIDATES_PER_SLOT = 6  # 칸마다 이 정도 후보가 있어야 카테고리
 MAX_CANDIDATES = 40  # 6칸 코스(칸당 6후보)까지 채울 수 있는 상한
 
 
+# 칸마다 따로 찾을 때, 취향 검색어가 없는 칸에 쓰는 일반 검색어
+SLOT_GENERIC_QUERY = {"meal": "맛집", "cafe": "카페", "activity": "가볼만한곳", "bar": "술집"}
+
+
+async def _slot_search(constraints: PlanConstraints, map_service: MapService, region: str) -> list[Place]:
+    """합의 코스: 칸마다 따로 검색해 합친다.
+
+    "지역 + 키워드 전부"를 한 질의로 보내면("홍대 고기 전시") 어느 칸에도 안 맞는 결과가 나온다
+    (실배포에서 박물관·대학 캠퍼스만 나왔다). 취향 칸은 그 취향으로, 나머지 칸은 일반어로 찾는다.
+    """
+    queries: list[tuple[str, str]] = [(q[0], q[1]) for q in constraints.slot_queries if len(q) == 2]
+    covered = {s for s, _ in queries}
+    for slot in desired_slots(constraints):
+        if slot not in covered:
+            queries.append((slot, SLOT_GENERIC_QUERY.get(slot, "")))
+            covered.add(slot)
+    found: dict[str, Place] = {}
+    for _slot, kw in queries:
+        try:
+            places = await map_service.search_places(region, [kw] if kw else [], limit=CANDIDATES_PER_SLOT * 2)
+        except Exception:  # 한 칸 검색 실패가 전체를 막지 않는다
+            continue
+        for p in places:
+            found.setdefault(p.id, p)
+    return list(found.values())[:MAX_CANDIDATES]
+
+
 async def _attempt(
     constraints: PlanConstraints,
     map_service: MapService,
@@ -375,7 +402,10 @@ async def _attempt(
     query_keywords = constraints.keywords[:MAX_QUERY_KEYWORDS]
     # 칸 수가 많을수록 후보가 더 필요하다(영업시간·카테고리 필터로 상당수가 탈락)
     limit = min(MAX_CANDIDATES, max(10, len(desired_slots(constraints)) * CANDIDATES_PER_SLOT))
-    candidates = await map_service.search_places(region, query_keywords, limit=limit)
+    if constraints.slot_queries or constraints.required_slots:
+        candidates = await _slot_search(constraints, map_service, region)
+    else:
+        candidates = await map_service.search_places(region, query_keywords, limit=limit)
     if exclude_place_ids:
         # "전부 다른 곳으로" — 지금 코스에 있는 장소는 후보에서 뺀다
         filtered = [p for p in candidates if p.id not in exclude_place_ids]
