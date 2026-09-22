@@ -243,3 +243,32 @@ def test_처음엔_물어본_상대가_우선():
 
     assert _prefer(TogetherState(token="t", request_text="x", owner_name="민수", partner_name="지은")) == "지은"
     assert _prefer(TogetherState(token="t", request_text="x", partner_name="지은", yielded="민수")) == "민수"
+
+
+# ── 평가 하네스 1차 결과로 고친 것 ─────────────────────────────────────
+def test_카카오가_음식점으로_분류한_베이커리_떡집은_카페_칸():
+    from app.pipeline.planner import classify
+
+    bakery = Place(id="b", name="그레이펭귄커피", category="음식점 > 간식 > 제과,베이커리", category_code="FD6", lat=0, lng=0)
+    rice_cake = Place(id="r", name="톨쌀롱", category="음식점 > 간식 > 떡,한과", category_code="FD6", lat=0, lng=0)
+    meat = Place(id="m", name="삼육식당", category="음식점 > 한식 > 육류,고기", category_code="FD6", lat=0, lng=0)
+    assert classify(bakery) == "cafe" and classify(rice_cake) == "cafe" and classify(meat) == "meal"
+
+
+def test_저가_프랜차이즈를_알아보고_개인_가게는_건드리지_않는다():
+    from app.pipeline.planner import franchise_level
+
+    assert franchise_level(Place(id="1", name="메가MGC커피 이태원점", category="음식점 > 카페 > 커피전문점 > 메가MGC커피", lat=0, lng=0)) == 2
+    assert franchise_level(Place(id="2", name="빽다방 강남역지하도점", category="음식점 > 카페 > 커피전문점 > 빽다방", lat=0, lng=0)) == 2
+    assert franchise_level(Place(id="3", name="투썸플레이스 잠실점", category="음식점 > 카페 > 커피전문점 > 투썸플레이스", lat=0, lng=0)) == 1
+    assert franchise_level(Place(id="4", name="늘봄숯불갈비", category="음식점 > 한식 > 육류,고기 > 갈비", lat=0, lng=0)) == 0
+    assert franchise_level(Place(id="5", name="샌드카베", category="음식점 > 카페 > 디저트카페", lat=0, lng=0)) == 0
+
+
+def test_시간_개수를_말하지_않은_데이트는_3곳():
+    from app.pipeline.planner import desired_slots
+
+    r = merge([_p("민수", cravings=["고기"]), _p("지은", cravings=["디저트"])], PlanConstraints())
+    assert r.constraints.stop_count == 3 and len(desired_slots(r.constraints)) == 3
+    r2 = merge([_p("민수", cravings=["고기"])], PlanConstraints(duration_min=180))
+    assert len(desired_slots(r2.constraints)) == 2  # 시간을 말했으면 그 값을 따른다

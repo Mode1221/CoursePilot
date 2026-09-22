@@ -208,7 +208,14 @@ def merge(
     c.slot_queries = [list(q) for q in dict.fromkeys((slot, kw) for _, _, slot, kw in wants)]
 
     # 5) 칸 수 — 취향 칸은 모두 들어가야 한다. 피곤하면 한 곳 줄이되 취향 칸 아래로는 안 내린다.
-    n_base = c.stop_count or max(2, min(6, (c.duration_min or 180) // 90))
+    # 시간·개수를 말하지 않은 데이트는 3곳(예: 카페 → 할거리 → 저녁). 예전엔 기본 3시간 → 2곳이라
+    # 평가에서 평균 2.17곳이었다. 시간이나 개수를 말했으면 그 값을 따른다.
+    if c.stop_count:
+        n_base = c.stop_count
+    elif c.duration_min:
+        n_base = max(2, min(6, c.duration_min // 90))
+    else:
+        n_base = 3
     n = max(n_base, len(required))
     tired = [p for p in inputs if p.condition == "tired"]
     if tired:
@@ -217,7 +224,7 @@ def merge(
         effect = f"이동 {TIRED_MAX_TRAVEL_MIN}분 이내" + (", 한 곳 덜" if fewer < n else "")
         n = fewer
         attributions.append(Attribution(who=tired[0].name, what="피곤해", effect=effect))
-    if n != n_base or base.stop_count:
+    if n != n_base or base.stop_count or not c.duration_min:
         c.stop_count = n
 
     # 5) 자유 한마디는 키워드로 덧붙인다(자연어 파서를 여기서 돌리지 않는다 — 호출부가 text 에 합친다)
