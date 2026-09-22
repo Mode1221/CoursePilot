@@ -366,6 +366,8 @@ MAX_CANDIDATES = 40  # 6칸 코스(칸당 6후보)까지 채울 수 있는 상�
 
 # 칸마다 따로 찾을 때, 취향 검색어가 없는 칸에 쓰는 일반 검색어
 SLOT_GENERIC_QUERY = {"meal": "맛집", "cafe": "카페", "activity": "가볼만한곳", "bar": "술집"}
+FREE_ACTIVITY_BUDGET = 30_000  # 1인 예산이 이 이하면 무료 할거리를 후보에 더한다
+FREE_ACTIVITY_QUERIES = ("공원", "산책로")
 
 
 async def _slot_search(constraints: PlanConstraints, map_service: MapService, region: str) -> list[Place]:
@@ -381,6 +383,12 @@ async def _slot_search(constraints: PlanConstraints, map_service: MapService, re
         generic = SLOT_GENERIC_QUERY.get(slot, "")
         if (slot, generic) not in queries:
             queries.append((slot, generic))
+    # 예산이 빠듯하면 돈 안 드는 할거리(공원·산책로)도 찾는다 — 식사·카페로 예산이 차면 세 번째 칸이
+    # 통째로 빠졌다(평가 하네스: 1인 2만원 조합 8개 전부 2곳). 공원은 추정가 0원이라 예산을 넘지 않는다.
+    if constraints.budget_max and constraints.budget_max <= FREE_ACTIVITY_BUDGET:
+        for kw in FREE_ACTIVITY_QUERIES:
+            if ("activity", kw) not in queries:
+                queries.append(("activity", kw))
     found: dict[str, Place] = {}
     for _slot, kw in queries:
         try:

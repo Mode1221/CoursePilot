@@ -127,7 +127,11 @@ def score(scn: Scenario, timeline, summary: list[dict], constraints, center: tup
     s.chains = [it.place.name for it in timeline if franchise_level(it.place) == 2]
     legs = [it.travel_to_next.duration_min for it in timeline if it.travel_to_next]
     s.max_leg = max(legs) if legs else 0
-    limit = getattr(constraints, "max_travel_min", None)
+    # 원래 바람 기준으로 잰다 — 플래너가 조건을 완화하면 결과 constraints 의 제한도 늘어나 위반이 숨는다
+    wished = [10 for p in (scn.a, scn.b) if p.condition == "tired"] + [
+        12 for p in (scn.a, scn.b) if "많이 걷기" in p.dislikes
+    ]
+    limit = min(wished) if wished else getattr(constraints, "max_travel_min", None)
     s.travel_ok = not (limit and legs and max(legs) > limit)
     return s
 

@@ -272,3 +272,28 @@ def test_시간_개수를_말하지_않은_데이트는_3곳():
     assert r.constraints.stop_count == 3 and len(desired_slots(r.constraints)) == 3
     r2 = merge([_p("민수", cravings=["고기"])], PlanConstraints(duration_min=180))
     assert len(desired_slots(r2.constraints)) == 2  # 시간을 말했으면 그 값을 따른다
+
+
+def test_호텔_파인다이닝은_비싸게_추정해_예산을_통과하지_못한다():
+    from app.pipeline.price_estimate import estimate_price
+
+    assert estimate_price(Place(id="1", name="더그랜드롯데 서울 무궁화", category="음식점 > 한식", lat=0, lng=0)) >= 60_000
+    assert estimate_price(Place(id="2", name="미진식당", category="음식점 > 한식", lat=0, lng=0)) == 15_000
+    assert estimate_price(Place(id="3", name="여의도한강공원", category="여행 > 공원", lat=0, lng=0)) == 0
+
+
+async def test_예산이_빠듯하면_무료_할거리도_찾는다():
+    from app.pipeline.agent import _slot_search
+
+    calls = []
+
+    class _Svc:
+        async def search_places(self, region, keywords, limit=10):
+            calls.append(tuple(keywords))
+            return []
+
+    await _slot_search(PlanConstraints(region="성수", budget_max=20000, stop_count=3), _Svc(), "성수")
+    assert ("공원",) in calls and ("산책로",) in calls
+    calls.clear()
+    await _slot_search(PlanConstraints(region="성수", budget_max=50000, stop_count=3), _Svc(), "성수")
+    assert ("공원",) not in calls
