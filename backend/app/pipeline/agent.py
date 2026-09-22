@@ -375,11 +375,12 @@ async def _slot_search(constraints: PlanConstraints, map_service: MapService, re
     (실배포에서 박물관·대학 캠퍼스만 나왔다). 취향 칸은 그 취향으로, 나머지 칸은 일반어로 찾는다.
     """
     queries: list[tuple[str, str]] = [(q[0], q[1]) for q in constraints.slot_queries if len(q) == 2]
-    covered = {s for s, _ in queries}
-    for slot in desired_slots(constraints):
-        if slot not in covered:
-            queries.append((slot, SLOT_GENERIC_QUERY.get(slot, "")))
-            covered.add(slot)
+    # 모든 칸에 일반어 검색도 곁들인다 — 취향 검색("홍대 전시")이 비거나 한쪽으로 쏠려도 그 칸 후보가
+    # 남는다. 칸 주인의 취향에 맞는 후보가 있으면 planner._focus_slots 가 그쪽으로 좁힌다.
+    for slot in dict.fromkeys(desired_slots(constraints)):
+        generic = SLOT_GENERIC_QUERY.get(slot, "")
+        if (slot, generic) not in queries:
+            queries.append((slot, generic))
     found: dict[str, Place] = {}
     for _slot, kw in queries:
         try:
