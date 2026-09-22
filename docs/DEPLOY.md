@@ -380,3 +380,11 @@ node -e "const c=require('@sparticuz/chromium'); (c.default||c).executablePath()
 cd <repo>/frontend && PW_CHROME_PATH=/tmp/chromium CI=1 RATE_LIMIT_PER_MIN=1000 pnpm exec playwright test
 ```
 PR 을 올리기 전에 이걸로 E2E 를 한 번 돌리면 CI 에서만 빨간불이 나는 일을 막을 수 있다(#408·#410 이 그렇게 실패했다).
+
+
+## 합의 코스 정확도 평가(실데이터)
+```bash
+docker compose -f docker-compose.prod.yml exec backend python scripts/eval_consensus.py --out /data/localdata/eval.json
+# 상권을 좁히려면: --regions 성수,홍대
+```
+카카오 로컬·네이버 경로만 쓴다(Google·LLM 폴백은 스크립트가 끈다). 48개 시나리오 기준 몇 분. 출력의 "요약"과 "실패 상세"를 보고 고친다.
