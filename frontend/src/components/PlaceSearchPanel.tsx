@@ -1,11 +1,15 @@
 "use client";
 
+import dynamic from "next/dynamic";
 import { useState } from "react";
 
 import { Button, EmptyState, Input, Skeleton } from "@/components/ui";
 import { api } from "@/services/api";
 import { useCourseStore } from "@/store/courseStore";
 import type { Place } from "@/types";
+
+// 상세 모달은 이름을 눌렀을 때만 필요하다 — 코드 스플릿
+const PlaceDetailModal = dynamic(() => import("@/components/PlaceDetailModal"), { ssr: false });
 
 // 장소 직접 검색 → 코스에 추가. AI 질문을 소모하지 않는 무료 수동 편집 경로.
 export default function PlaceSearchPanel({
@@ -22,6 +26,7 @@ export default function PlaceSearchPanel({
   const addPlace = useCourseStore((s) => s.addPlace);
   const replacePlace = useCourseStore((s) => s.replacePlace);
   const replacing = replaceIndex != null;
+  const [preview, setPreview] = useState<Place | null>(null);
   const [open, setOpen] = useState(replacing);
   const [q, setQ] = useState("");
   const [region, setRegion] = useState("");
@@ -121,12 +126,30 @@ export default function PlaceSearchPanel({
                 borderBottom: "1px solid var(--border)",
               }}
             >
-              <div style={{ minWidth: 0 }}>
-                <div style={{ fontWeight: 600 }}>{p.name}</div>
-                <div style={{ color: "var(--text-muted)", fontSize: "var(--fs-sm)" }}>
+              {/* 이름을 누르면 추가하기 전에 영업시간·리뷰 요약·지도 링크를 본다 */}
+              <button
+                type="button"
+                onClick={() => setPreview(p)}
+                aria-label={`${p.name} 정보 보기`}
+                style={{
+                  minWidth: 0,
+                  flex: 1,
+                  textAlign: "left",
+                  background: "none",
+                  border: 0,
+                  padding: 0,
+                  font: "inherit",
+                  color: "inherit",
+                  cursor: "pointer",
+                }}
+              >
+                <div style={{ fontWeight: 600, textDecoration: "underline", textDecorationColor: "var(--line)", textUnderlineOffset: 3 }}>
+                  {p.name}
+                </div>
+                <div style={{ color: "var(--text-muted)", fontSize: "var(--fs-sm)", overflowWrap: "anywhere" }}>
                   {p.category ?? ""} {p.address ?? ""}
                 </div>
-              </div>
+              </button>
               <Button
                 size="sm"
                 variant="primary"
@@ -142,6 +165,7 @@ export default function PlaceSearchPanel({
             </li>
           ))}
       </ul>
+      {preview && <PlaceDetailModal place={preview} onClose={() => setPreview(null)} />}
     </div>
   );
 }

@@ -8,6 +8,14 @@ import { useCourseStore } from "@/store/courseStore";
 vi.mock("@/services/api", () => ({
   api: { searchPlaces: vi.fn(), addPlace: vi.fn(), setItems: vi.fn() },
 }));
+// 상세 모달은 별도 테스트가 있다 — 여기선 열리는지만 본다
+vi.mock("@/components/PlaceDetailModal", () => ({
+  default: ({ place, onClose }: { place: { name: string }; onClose: () => void }) => (
+    <div role="dialog" aria-label={`${place.name} 상세`}>
+      <button onClick={onClose}>닫기</button>
+    </div>
+  ),
+}));
 
 describe("PlaceSearchPanel", () => {
   beforeEach(() => {
@@ -61,5 +69,20 @@ describe("PlaceSearchPanel", () => {
     await waitFor(() =>
       expect((screen.getByText("추가됨") as HTMLButtonElement).disabled).toBe(true),
     );
+  });
+
+  it("검색된 가게 이름을 누르면 추가하기 전에 정보 팝업을 연다", async () => {
+    vi.mocked(api.searchPlaces).mockResolvedValue([{ id: "p2", name: "새 카페", lat: 37.5, lng: 127 }]);
+    render(<PlaceSearchPanel />);
+    fireEvent.click(screen.getByText("+ 장소 직접 추가"));
+    fireEvent.change(screen.getByLabelText("장소 검색어"), { target: { value: "카페" } });
+    fireEvent.click(screen.getByRole("button", { name: "검색" }));
+    await waitFor(() => expect(screen.queryByText("새 카페")).not.toBeNull());
+
+    fireEvent.click(screen.getByRole("button", { name: "새 카페 정보 보기" }));
+    expect(await screen.findByRole("dialog", { name: "새 카페 상세" })).toBeTruthy();
+    expect(api.addPlace).not.toHaveBeenCalled(); // 이름을 눌렀다고 추가되진 않는다
+    fireEvent.click(screen.getByText("닫기"));
+    await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
   });
 });

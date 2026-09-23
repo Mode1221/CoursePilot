@@ -1131,6 +1131,11 @@ async def search_places(region: str, q: str = "", limit: int = 8) -> list[Place]
     limit = max(1, min(limit, 20))
     keywords = [w for w in q.split() if w]
     places = await get_map_service().search_places(region, keywords, limit)
+    # 학원·학교·병원 같은 데이트 부적합 업태는 직접 검색에서도 뺀다("홍대 카페"에 미술학원이 섞였다).
+    # 단, 사용자가 이름을 정확히 쳐서 찾은 곳은 남긴다.
+    from app.pipeline.planner import is_unfit_for_date
+
+    places = [p for p in places if not is_unfit_for_date(p) or (q and q.strip() in p.name)]
 
     from app.places import place_repo
 
