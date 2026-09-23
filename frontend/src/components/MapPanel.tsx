@@ -23,6 +23,17 @@ const PlaceDetailModal = dynamic(() => import("@/components/PlaceDetailModal"));
 const PlaceSearchPanel = dynamic(() => import("@/components/PlaceSearchPanel"));
 
 // 시각화 패널: 지도(SVG 렌더) + 타임라인. 실제 지도 SDK 는 mapService 어댑터로 교체 예정.
+/**
+ * 지도·타임라인을 각각 흰 카드에 담는다 — 네이버 지도 자체가 베이지 톤이라 종이 배경과 섞여 보였다.
+ * 안쪽 여백은 위의 "같이 정하기" 카드와 같게(16px) 해서 "둘의 조건"과 카드 내용의 왼쪽 선을 맞춘다.
+ */
+const CARD = {
+  background: "var(--surface)",
+  borderRadius: "var(--r-lg)",
+  boxShadow: "var(--shadow-1)",
+  padding: "var(--sp-4)",
+} as const;
+
 export default function MapPanel({
   readOnly = false,
   split = false,
@@ -97,21 +108,22 @@ export default function MapPanel({
       style={
         split
           ? {
-              padding: "var(--sp-4)",
+              padding: "var(--sp-2) var(--sp-4) 0",
               display: "grid",
-              gridTemplateColumns: "minmax(0, 3fr) minmax(320px, 2fr)",
+              // 지도는 조금 작게, 타임라인은 넉넉하게
+              gridTemplateColumns: "minmax(0, 1.2fr) minmax(360px, 1fr)",
               gap: "var(--sp-4)",
               height: "100%",
               minHeight: 0,
             }
-          : { padding: "var(--sp-4)" }
+          : { padding: "var(--sp-4)", display: "grid", gap: "var(--sp-4)" }
       }
     >
       <div
         style={
           split
-            ? { display: "flex", flexDirection: "column", minHeight: 0, overflowY: "auto" }
-            : { marginBottom: "var(--sp-4)" }
+            ? { ...CARD, display: "flex", flexDirection: "column", minHeight: 0, overflowY: "auto" }
+            : CARD
         }
       >
         {split && conditions}
@@ -123,7 +135,7 @@ export default function MapPanel({
         {!split && conditions}
       </div>
 
-      <div style={split ? { overflowY: "auto", minHeight: 0, paddingRight: 4 } : undefined}>
+      <div style={split ? { ...CARD, overflowY: "auto", minHeight: 0 } : CARD}>
       <div style={{ display: "flex", alignItems: "center", gap: "var(--sp-2)", marginBottom: "var(--sp-3)", flexWrap: "wrap" }}>
         <h3 style={{ margin: 0 }}>타임라인</h3>
         {course.items.length > 0 && <CourseSummary course={course} />}
