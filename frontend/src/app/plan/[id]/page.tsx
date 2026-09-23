@@ -16,6 +16,8 @@ import { getSocket } from "@/services/socket";
 import { useCourseStore } from "@/store/courseStore";
 import type { Course } from "@/types";
 
+const FAB_GUTTER = 76; // 떠 있는 버튼 높이 + 위아래 여백
+
 export default function PlanPage({ params }: { params: { id: string } }) {
   const { id } = params;
   const setCourse = useCourseStore((s) => s.setCourse);
@@ -125,7 +127,9 @@ export default function PlanPage({ params }: { params: { id: string } }) {
             <TogetherPanel courseId={id} />
             <PartnerBar courseId={id} />
           </div>
-          <div style={{ flex: 1, minHeight: 0 }}>
+          {/* 아래 여백(FAB_GUTTER)은 떠 있는 "AI에게 말하기" 버튼 자리 — 카드가 버튼 위에서 끝나고
+              아래 고정 줄과도 떨어져 보이게 */}
+          <div style={{ flex: 1, minHeight: 0, paddingBottom: FAB_GUTTER }}>
             <MapPanel split />
           </div>
         </>

@@ -11,9 +11,8 @@ import { useCourseStore } from "@/store/courseStore";
  */
 export default function AiChatFab({ courseId, narrow }: { courseId: string; narrow: boolean }) {
   const [open, setOpen] = useState(false);
-  // 넓은 화면은 지도 쪽(왼쪽)에 띄운다 — 오른쪽은 타임라인이라 패널이 교체·삭제 버튼을 가렸다(E2E 로 발견)
-  const side = narrow ? { right: 20 } : { left: 20 };
-  // 휴대폰: AI 가 코스를 바꾸면 시트를 내려 결과가 바로 보이게
+  // 오른쪽 아래 — 카드들은 버튼 위에서 끝나게 페이지가 여백을 둔다.
+  // 패널을 열면 타임라인을 덮으므로, AI 가 코스를 바꾸면 패널을 내려 결과(와 교체·삭제 버튼)가 바로 보이게 한다.
   const itemsKey = useCourseStore((s) => (s.course?.items ?? []).map((it) => it.place.id).join(","));
   const [openedAt, setOpenedAt] = useState<string | null>(null);
   useEffect(() => {
@@ -22,8 +21,8 @@ export default function AiChatFab({ courseId, narrow }: { courseId: string; narr
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open]);
   useEffect(() => {
-    if (narrow && open && openedAt !== null && itemsKey !== openedAt && itemsKey !== "") setOpen(false);
-  }, [narrow, open, openedAt, itemsKey]);
+    if (open && openedAt !== null && itemsKey !== openedAt && itemsKey !== "") setOpen(false);
+  }, [open, openedAt, itemsKey]);
 
   useEffect(() => {
     if (!open) return;
@@ -41,9 +40,9 @@ export default function AiChatFab({ courseId, narrow }: { courseId: string; narr
           aria-label="AI에게 말하기"
           style={{
             position: "fixed",
-            ...side,
-            // 넓은 화면: 지도 아래 AI 고지 문구를 가리지 않게 조금 더 위
-            bottom: narrow ? `calc(76px + env(safe-area-inset-bottom, 0px))` : 104,
+            right: 20,
+            // 아래 고정 줄(약 56px) 바로 위, 카드 아래 여백 안
+            bottom: `calc(68px + env(safe-area-inset-bottom, 0px))`,
             zIndex: 1500,
             display: "flex",
             alignItems: "center",
@@ -85,7 +84,7 @@ export default function AiChatFab({ courseId, narrow }: { courseId: string; narr
               overflow: "hidden",
               ...(narrow
                 ? { left: 0, right: 0, bottom: 0, height: "82dvh", borderRadius: "16px 16px 0 0" }
-                : { left: 20, bottom: 76, width: 420, height: "min(600px, calc(100dvh - 160px))", borderRadius: 16 }),
+                : { right: 20, bottom: 68, width: 400, height: "min(600px, calc(100dvh - 150px))", borderRadius: 16 }),
             }}
           >
             <button

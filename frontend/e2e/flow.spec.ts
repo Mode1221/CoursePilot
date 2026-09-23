@@ -42,8 +42,8 @@ async function createCourse(page: import("@playwright/test").Page, text: string)
   await page.getByLabel("조건 입력").fill(text);
   await page.getByText("전송").click();
   await expect(page.getByText(/1\. 성수동 장소/)).toBeVisible({ timeout: 15_000 });
-  // 처리 중에는 입력이 잠긴다 — 다음 요청을 보내려면 풀릴 때까지 기다려야 한다
-  await expect(page.getByLabel("조건 입력")).toBeEnabled({ timeout: 15_000 });
+  // 코스가 바뀌면 채팅 패널은 스스로 내려간다(결과와 교체·삭제 버튼이 보이게)
+  await expect(page.getByRole("dialog", { name: "AI 챗봇" })).toHaveCount(0, { timeout: 10_000 });
 }
 
 test("참여자(비로그인)는 AI 챗봇을 쓸 수 없다", async ({ page }) => {
@@ -58,7 +58,9 @@ test("생성자는 코스를 생성하고 타임라인을 본다", async ({ page
   await createCourse(page, "성수동 오전 10시 5시간 코스 도보");
 
   // AI 응답 + 타임라인 렌더 확인 (특정 장소명 대신 순번 프리픽스로 일반화)
+  await openChat(page);
   await expect(page.getByText(/곳으로 코스를 구성했어요/)).toBeVisible({ timeout: 15_000 });
+  await page.getByRole("button", { name: "채팅 닫기" }).click();
   await expect(page.getByText(/1\. 성수동 장소/)).toBeVisible();
   // 검증 기간 무료(FREE_MODE 기본 true): 잔여 횟수·포인트 구매는 보이지 않고, AI 사용 고지가 보인다
   await expect(page.getByText(/질문 \d+회 남음/)).toHaveCount(0);
@@ -111,8 +113,9 @@ test("자리를 집어 다른 성격으로 바꾼다", async ({ page }) => {
   await page.getByLabel("조건 입력").fill("첫번째를 카페로 바꿔줘");
   await page.getByText("전송").click();
 
-  await expect(page.getByText(/바꿨어요/)).toBeVisible({ timeout: 15_000 });
-  await expect(page.getByText(first, { exact: true })).toHaveCount(0);
+  await expect(page.getByText(first, { exact: true })).toHaveCount(0, { timeout: 15_000 });
+  await openChat(page); // 코스가 바뀌면 패널이 내려가므로 다시 열어 답을 확인
+  await expect(page.getByText(/바꿨어요/)).toBeVisible();
 });
 
 test("공유 링크는 편집 없이 코스를 보여준다", async ({ page, context }) => {
