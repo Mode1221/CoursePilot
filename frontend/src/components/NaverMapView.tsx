@@ -28,6 +28,8 @@ interface NaverMaps {
   maps: {
     LatLng: new (lat: number, lng: number) => LatLng;
     LatLngBounds: new (sw: LatLng, ne: LatLng) => object;
+    Size: new (w: number, h: number) => object;
+    Point: new (x: number, y: number) => object;
     Map: new (el: HTMLElement, opts: Record<string, unknown>) => NaverMap;
     Marker: new (opts: Record<string, unknown>) => Overlay;
     Polyline: new (opts: Record<string, unknown>) => Overlay;
@@ -105,7 +107,11 @@ export default function NaverMapView({
             map,
             title: it.place.name,
             icon: {
-              content: `<div style="background:#1c1917;color:#fff;border-radius:50%;width:28px;height:28px;line-height:28px;text-align:center;font-weight:700;font-size:13px;border:2px solid #fff;box-shadow:0 1px 4px rgba(0,0,0,.35)">${i + 1}</div>`,
+              // box-sizing 을 고정하고 기준점을 정중앙으로 — 기준점이 없으면 네이버가 왼쪽 위 모서리를 좌표에 맞춰
+              // 동선 끝이 핀 밖(왼쪽 위)으로 삐져나와 보였다
+              content: `<div style="box-sizing:border-box;background:#1c1917;color:#fff;border-radius:50%;width:28px;height:28px;line-height:24px;text-align:center;font-weight:700;font-size:13px;border:2px solid #fff;box-shadow:0 1px 4px rgba(0,0,0,.35)">${i + 1}</div>`,
+              size: new naver.maps.Size(28, 28),
+              anchor: new naver.maps.Point(14, 14),
             },
           });
           if (onSelect) naver.maps.Event.addListener(marker, "click", () => onSelect(i));

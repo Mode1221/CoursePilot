@@ -13,6 +13,8 @@ import type { Place } from "@/types";
 
 
 // 장소 상세 모달 (4-2). 리뷰 요약은 RAG(협찬 필터 후) 결과.
+const RELATED_LIMIT = 3; // 함께 가요는 3곳만 — 팝업이 길어져 대안·닫기 버튼이 밀렸다
+
 export default function PlaceDetailModal({
   place,
   onClose,
@@ -59,9 +61,9 @@ export default function PlaceDetailModal({
         if (!cancelled) setSummary("리뷰를 불러오지 못했습니다.");
       });
     api
-      .relatedPlaces(place.id)
+      .relatedPlaces(place.id, RELATED_LIMIT)
       .then((places) => {
-        if (!cancelled) setRelated(places);
+        if (!cancelled) setRelated(places.slice(0, RELATED_LIMIT));
       })
       .catch(() => {
         if (!cancelled) setRelated([]);

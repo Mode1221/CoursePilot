@@ -286,8 +286,8 @@ export const api = {
       userId,
     }),
 
-  relatedPlaces: (placeId: string) =>
-    request<import("@/types").Place[]>(`/places/${placeId}/related`),
+  relatedPlaces: (placeId: string, limit = 5) =>
+    request<import("@/types").Place[]>(`/places/${placeId}/related?limit=${limit}`),
 
   // 재방문 의사는 사람·장소당 한 번만 신호로 세므로 사용자 id 를 함께 보낸다
   revisit: (placeId: string, userId?: string) =>

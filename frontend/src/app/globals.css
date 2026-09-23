@@ -179,7 +179,11 @@ button:not(:disabled):active, [role="button"]:not([aria-disabled="true"]):active
 .cp-btn--primary, .cp-btn--soft { --btn-bg: var(--brand); --btn-fg: var(--brand-contrast); --btn-bd: var(--brand); }
 .cp-btn--secondary { --btn-bg: var(--surface); --btn-fg: var(--text); --btn-bd: var(--line); }
 .cp-btn--ghost { --btn-bg: transparent; --btn-fg: var(--text-muted); }
-.cp-btn--danger { --btn-bg: transparent; --btn-fg: var(--danger); }
+.cp-btn--danger { --btn-bg: transparent; --btn-fg: var(--danger); } /* 교체와 같은 모양(테두리 없음), 글자만 빨강 */
+.cp-btn--plain { --btn-bg: transparent; --btn-fg: var(--text); } /* 테두리 없는 글자 버튼(교체) */
+@media (hover: hover) and (pointer: fine) {
+  .cp-btn--plain:not(:disabled):hover { --btn-bg: var(--surface-2); }
+}
 @media (hover: hover) and (pointer: fine) {
   .cp-btn--primary:not(:disabled):hover, .cp-btn--soft:not(:disabled):hover { --btn-bg: #2b2724; --btn-bd: #2b2724; }
   .cp-btn--secondary:not(:disabled):hover { --btn-bg: var(--surface-2); }
@@ -222,10 +226,9 @@ button:not(:disabled):active, [role="button"]:not([aria-disabled="true"]):active
 .cp-sheet { border-top: 1px solid var(--border); background: var(--surface); box-shadow: 0 -8px 24px rgba(0,0,0,.06);
   padding-bottom: env(safe-area-inset-bottom, 0px); }
 
-/* 지도: 네이버는 번화가·상업지역을 분홍빛으로 칠한다(홍대·성수에서 지도가 붉게 보였다). 타일(img·canvas)만
-   채도를 낮추고 밝게 해서 중립적인 흰 바탕으로 — 핀(HTML)·동선(SVG)은 그대로 선명하다. */
+/* 지도: 네이버 원래 색 그대로. (예전 채도 낮춤은 분홍 번화가는 줄였지만 공원 초록·노선 파랑까지 흐리게 했다.
+   지금은 지도를 흰 카드에 담고 사람 색을 지도에 없는 보라·시안으로 바꿔 구분한다.) */
 .cp-map { isolation: isolate; background: #fff; }
-.cp-map img, .cp-map canvas { filter: saturate(.25) brightness(1.06) contrast(.98); }
 
 /* 링크: 브라우저 기본 파랑(#00e) 대신 행동 색 — "지도" 링크가 따로 놀았다 */
 a { color: var(--text); text-underline-offset: 3px; text-decoration-thickness: 1px; }
