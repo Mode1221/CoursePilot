@@ -42,6 +42,17 @@ def _require_admin(token: str | None) -> None:
         raise HTTPException(status_code=401, detail="관리자 토큰이 필요합니다")
 
 
+@admin_router.get("/together")
+async def admin_together(days: int = 90, x_admin_token: str | None = Header(default=None)) -> dict:
+    """합의 코스 퍼널·합의 시간·역할 역전·30일 재사용(실험 지표). 개인정보 없음."""
+    _require_admin(x_admin_token)
+    from datetime import datetime, timedelta
+
+    from app.funnel import funnel_store, summarize
+
+    return summarize(funnel_store.events(since=datetime.now() - timedelta(days=days)))
+
+
 @admin_router.get("/metrics")
 async def admin_metrics(x_admin_token: str | None = Header(default=None)) -> dict:
     """엔드포인트별 요청 수·에러·지연(p50/p95). 인메모리, 인스턴스 단위."""

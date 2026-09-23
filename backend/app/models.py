@@ -133,6 +133,23 @@ class StrategyModel(Base):
     count: Mapped[int] = mapped_column(Integer, default=0)
 
 
+class FunnelEventModel(Base):
+    """합의 코스 퍼널 이벤트(시작 → 링크 열람 → 카드 → 합치기 → 수락 → 확정 → 다녀옴).
+
+    개인정보 없음: 코스 id, 역할(owner/partner), 기기 무작위 id(역할 역전 판정용)만.
+    """
+
+    __tablename__ = "funnel_events"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    name: Mapped[str] = mapped_column(String, index=True)
+    course_id: Mapped[str] = mapped_column(String, index=True)
+    actor: Mapped[str | None] = mapped_column(String, nullable=True)  # owner | partner
+    device_id: Mapped[str | None] = mapped_column(String, nullable=True, index=True)
+    user_id: Mapped[str | None] = mapped_column(String, nullable=True)
+    at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
+
+
 class OutcomeModel(Base):
     """코스 예측 점수 vs 실제 만족도 (data #17)."""
 

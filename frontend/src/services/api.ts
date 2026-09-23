@@ -86,11 +86,32 @@ function onSessionExpired() {
   }
 }
 
+/**
+ * 기기 무작위 id — 합의 코스 측정(역할 역전: 상대로 참여했던 기기가 나중에 먼저 시작)에만 쓴다.
+ * 개인정보가 아니고, 서버는 이 값으로 사람을 식별하지 않는다.
+ */
+function deviceId(): string | null {
+  if (typeof window === "undefined") return null;
+  try {
+    const KEY = "coursepilot_device";
+    let id = window.localStorage.getItem(KEY);
+    if (!id) {
+      id = (crypto.randomUUID?.() ?? `${Date.now()}-${Math.random().toString(36).slice(2)}`).slice(0, 64);
+      window.localStorage.setItem(KEY, id);
+    }
+    return id;
+  } catch {
+    return null;
+  }
+}
+
 // 실제 호출 1회: BASE, JSON 헤더, X-User-Id, 에러→ApiError, 파싱.
 async function requestOnce<T>(path: string, opts: RequestOptions = {}): Promise<T> {
   const headers: Record<string, string> = {};
   if (opts.body !== undefined) headers["Content-Type"] = "application/json";
   if (opts.togetherToken) headers["X-Together-Token"] = opts.togetherToken;
+  const device = deviceId();
+  if (device) headers["X-Device-Id"] = device;
   if (opts.userId) {
     headers["X-User-Id"] = opts.userId;
     // 서명 토큰이 있으면 함께 보낸다(서버가 비밀키를 쓰는 환경에서는 필수)
