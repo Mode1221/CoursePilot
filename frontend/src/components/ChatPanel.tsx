@@ -168,7 +168,7 @@ export default function ChatPanel({ courseId, compact = false }: { courseId: str
     <div style={{ display: "flex", flexDirection: "column", height: "100%", background: "var(--surface)" }}>
       {compact ? (
         <header style={{ padding: "var(--sp-3) var(--sp-4)", borderBottom: "1px solid var(--border)", fontWeight: 700 }}>
-          AI에게 말하기
+          AI로 코스 고치기
           <p style={{ margin: "2px 0 0", fontSize: "var(--fs-xs)", color: "var(--text-muted)", fontWeight: 400 }}>
             &ldquo;2번 다른 곳으로&rdquo;, &ldquo;매운 거 빼줘&rdquo;, &ldquo;7시에 끝나게&rdquo;
           </p>
@@ -354,7 +354,7 @@ export default function ChatPanel({ courseId, compact = false }: { courseId: str
               <Button size="sm" variant="ghost" onClick={buyPoints}>포인트 구매</Button>
             </span>
           )}
-          {userId == null && partnerToken != null && <span>같이 정하는 중 · AI에게 바로 말해 보세요</span>}
+          {userId == null && partnerToken != null && <span>같이 정하는 중 · AI로 바로 코스를 고쳐 보세요</span>}
           {!canUseAi && (
             <span style={{ display: "flex", alignItems: "center", gap: "var(--sp-2)" }}>
               참여자는 수동 편집만 가능합니다

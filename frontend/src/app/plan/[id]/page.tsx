@@ -127,7 +127,7 @@ export default function PlanPage({ params }: { params: { id: string } }) {
             <TogetherPanel courseId={id} />
             <PartnerBar courseId={id} />
           </div>
-          {/* 아래 여백(FAB_GUTTER)은 떠 있는 "AI에게 말하기" 버튼 자리 — 카드가 버튼 위에서 끝나고
+          {/* 아래 여백(FAB_GUTTER)은 떠 있는 "AI로 코스 고치기" 버튼 자리 — 카드가 버튼 위에서 끝나고
               아래 고정 줄과도 떨어져 보이게 */}
           <div style={{ flex: 1, minHeight: 0, paddingBottom: FAB_GUTTER }}>
             <MapPanel split />

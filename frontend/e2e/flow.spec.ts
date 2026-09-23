@@ -30,7 +30,7 @@ async function asMember(page: import("@playwright/test").Page) {
 async function openChat(page: import("@playwright/test").Page) {
   const dialog = page.getByRole("dialog", { name: "AI 챗봇" });
   if (await dialog.isVisible().catch(() => false)) return;
-  await page.getByRole("button", { name: "AI에게 말하기" }).click({ timeout: 15_000 });
+  await page.getByRole("button", { name: "AI로 코스 고치기" }).click({ timeout: 15_000 });
   await expect(dialog).toBeVisible();
 }
 
@@ -191,7 +191,7 @@ test("먼저 상대에게 묻기: 링크 → 상대 카드 → 합친 코스에 
   // 상대도 편집 버튼과 챗봇을 쓴다(가입 없이, 링크 토큰으로)
   await expect(partner.getByRole("button", { name: "교체" }).first()).toBeVisible();
   await openChat(partner);
-  await expect(partner.getByText(/같이 정하는 중 · AI에게 바로 말해 보세요/)).toBeVisible();
+  await expect(partner.getByText(/같이 정하는 중 · AI로 바로 코스를 고쳐 보세요/)).toBeVisible();
   await partner.getByRole("button", { name: "채팅 닫기" }).click();
   // 칸별 대안: 교체를 누르면 검색 없이 대안이 뜨고, 고르면 그 장소로 바뀐다
   const firstName = (await page.getByText(/^1\. /).first().textContent())?.trim();
