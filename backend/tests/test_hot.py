@@ -100,3 +100,63 @@ def test_키가_없으면_혼잡도는_null():
     from app.main import api
 
     assert TestClient(api).get("/areas/status", params={"region": "성수"}).json() is None
+
+
+def test_문화행사는_데이트에_맞는_것만():
+    from app.adapters.seoul_openapi import is_date_worthy, parse_cultural_events
+
+    assert is_date_worthy("전시/미술", "현대공예 기증특별전", "서울공예박물관")
+    assert is_date_worthy("콘서트", "재즈 나이트", "노들섬")
+    assert not is_date_worthy("교육/체험", "우리나비 북토크", "서울아트책보고")
+    assert not is_date_worthy("교육/체험", "책 읽어주는 사서", "구립증산도서관")
+    assert not is_date_worthy("국악", "어린이 국악 교실", "구민회관")
+    body = {"culturalEventInfo": {"row": [
+        {"CODENAME": "전시/미술", "TITLE": "공예전", "PLACE": "서울공예박물관", "STRTDATE": "2026-09-01", "END_DATE": "2027-03-07",
+         "LAT": "37.576", "LOT": "126.985"},
+        {"CODENAME": "교육/체험", "TITLE": "특별강연", "PLACE": "홍익대학교 인문사회관", "STRTDATE": "2026-09-22", "END_DATE": "2026-09-23",
+         "LAT": "37.551", "LOT": "126.924"},
+    ]}}
+    names = [e["name"] for e in parse_cultural_events(body, date(2026, 9, 22))]
+    assert names == ["공예전"]
+
+
+async def test_도시데이터_장소명_후보를_차례로_시도한다(monkeypatch):
+    from app.adapters import seoul_openapi as so
+    from app.config import settings
+
+    monkeypatch.setattr(settings, "seoul_openapi_key", "k")
+    so._RESOLVED.clear()
+    tried = []
+
+    class _Resp:
+        def __init__(self, ok):
+            self.ok = ok
+
+        def raise_for_status(self):
+            if not self.ok:
+                raise RuntimeError("404")
+
+        def json(self):
+            return {"CITYDATA": {"LIVE_PPLTN_STTS": [{"AREA_CONGEST_LVL": "보통"}]}}
+
+    class _Client:
+        async def get(self, url):
+            tried.append(url.rsplit("/", 1)[-1])
+            return _Resp(url.endswith("을지로입구역"))
+
+    st = await so.area_status(_Client(), "을지로")
+    assert st.area == "을지로입구역" and tried[:2] == ["을지로3가역", "을지로입구역"]
+    tried.clear()
+    await so.area_status(_Client(), "을지로")
+    assert tried == ["을지로입구역"]  # 한 번 맞힌 이름은 기억한다
+
+
+def test_데이터랩_API_HUB_주소는_공식_경로(monkeypatch):
+    from app.adapters import naver_datalab
+    from app.config import settings
+
+    monkeypatch.setattr(settings, "naver_apihub_key_id", "id")
+    monkeypatch.setattr(settings, "naver_apihub_key", "key")
+    url, headers = naver_datalab.endpoint()
+    assert url == "https://naverapihub.apigw.ntruss.com/search-trend/v1/search"
+    assert headers["X-NCP-APIGW-API-KEY-ID"] == "id"

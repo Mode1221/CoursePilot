@@ -21,7 +21,7 @@ async def main() -> int:
         for region, area in so.CITYDATA_AREA.items():
             st = await so.area_status(c, region)
             if st and st.level:
-                print(f"PASS {region:<6} → {area:<14} {st.level:<6} 한산:{st.calmer_hour or '-'}  행사 {len(st.events)}")
+                print(f"PASS {region:<6} → {st.area:<14} {st.level:<6} 한산:{st.calmer_hour or '-'}  행사 {len(st.events)}")
             else:
                 bad += 1
                 print(f"FAIL {region:<6} → {area} (장소명이 공식 목록과 다를 수 있음)")

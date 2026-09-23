@@ -2,7 +2,7 @@
 
 API HUB 우선, 개발자센터 레거시 폴백(검색 API 와 같은 규칙). 한 요청에 최대 5개 그룹.
 비율은 요청 안 최댓값 100 기준 상대값이라, 시계열 모양(상승·스파이크)만 쓴다.
-경로는 스모크(scripts/smoke_datalab.py)로 확인한다.
+경로는 NCP 공식 예제로 확인, 스모크(scripts/smoke_datalab.py)로 실측.
 """
 from __future__ import annotations
 
@@ -15,7 +15,8 @@ from app.config import settings
 
 logger = logging.getLogger(__name__)
 
-APIHUB_URL = "https://naverapihub.apigw.ntruss.com/datalab/v1/search"
+# 공식 문서(api.ncloud-docs.com naver-api-hub-search-trend-examples) 기준. /datalab/v1/search 는 404(실측).
+APIHUB_URL = "https://naverapihub.apigw.ntruss.com/search-trend/v1/search"
 LEGACY_URL = "https://openapi.naver.com/v1/datalab/search"
 MAX_GROUPS = 5
 WEEKS = 16
