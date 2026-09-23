@@ -39,6 +39,13 @@
 - ✅ 손으로 넣은 자리가 영업시간 밖(브레이크·마감 후·개점 전)이면 지우지 않고 표시
 - ✅ 요청 실패 시 입력을 남긴 채 "다시 시도" 버튼, 조회는 일시 오류에 1회 자동 재시도
 
+## 1-000. 측정 장치 (2026-09-23)
+- ✅ 합의 코스 퍼널 이벤트(`app/funnel.py`, 테이블 `funnel_events`): started → link_opened(코스당 1회) → owner_card/partner_card
+  → card_edited → built/built_both → accepted → confirmed(둘 다) → completed(다녀왔어요). 개인정보 없음(코스 id·역할·기기 무작위 id).
+- ✅ `GET /admin/together?days=90` — 상대 입력 완료율(partner_card/link_opened), 합의 시간 중앙값(상대 카드 → 확정),
+  확정률·다녀옴률, **역할 역전**(상대로 카드 냈던 기기가 나중에 시작), 30일 재사용 시작자.
+- ✅ 프론트는 `X-Device-Id`(localStorage 무작위 id)를 모든 요청에 실음 — 역할 역전 판정용.
+
 ## 1-00. 요즘 뜨는 곳 · 팝업 · 동네 혼잡도 (2026-09-22)
 - ✅ **핫플 신호**(`app/hot/signals.py`) — 창업자 지적("블로그만 보면 체험단 광고를 핫플로 뽑는다")을 설계 원칙으로:
   주 신호는 **검색어 트렌드**(데이터랩, `adapters/naver_datalab.py`)와 **리뷰 수 증가**(Google 리뷰 수 스냅샷 비교).

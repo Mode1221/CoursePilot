@@ -15,6 +15,7 @@ from fastapi import APIRouter, Header, HTTPException
 from pydantic import BaseModel, Field
 
 from app.adapters.map_service import get_map_service
+from app.funnel import funnel_store
 from app.pipeline.agent import generate_course
 from app.pipeline.consensus import (
     BUDGET_BANDS,
@@ -121,10 +122,12 @@ async def start_together(
     req: StartRequest,
     x_user_id: str | None = Header(default=None),
     x_user_token: str | None = Header(default=None),
+    x_device_id: str | None = Header(default=None),
 ) -> TogetherStatus:
     """생성자가 "상대에게 물어보기"를 시작한다. 링크 토큰을 만들고 요청 문장을 저장."""
     course = _owned(course_id, x_user_id, x_user_token)
     if course.together is None:
+        funnel_store.record("started", course_id, "owner", x_device_id, x_user_id, once=True)
         course.together = TogetherState(
             token=secrets.token_urlsafe(12),
             request_text=req.text,
@@ -153,18 +156,25 @@ async def together_link(
 
 
 @together_router.get("/together/{token}", response_model=TogetherStatus)
-async def together_status(token: str) -> TogetherStatus:
+async def together_status(token: str, x_device_id: str | None = Header(default=None)) -> TogetherStatus:
     """상대가 링크를 열었을 때. 카드 선택지와 진행 상태만 준다(상대의 답은 안 보인다)."""
-    return _status(_by_token(token))
+    course = _by_token(token)
+    funnel_store.record("link_opened", course.id, "partner", x_device_id, once=True)
+    return _status(course)
 
 
 @together_router.post("/together/{token}/input", response_model=TogetherStatus)
-async def partner_input(token: str, card: CardRequest) -> TogetherStatus:
+async def partner_input(
+    token: str, card: CardRequest, x_device_id: str | None = Header(default=None)
+) -> TogetherStatus:
     """상대의 30초 카드. 가입 없음. 비공개 저장."""
     _validate(card)
     course = _by_token(token)
     t = course.together
     assert t is not None
+    if course.items:
+        funnel_store.record("card_edited", course.id, "partner", x_device_id)
+    funnel_store.record("partner_card", course.id, "partner", x_device_id, once=True)
     name = card.name or t.partner_name
     if name == t.owner_name:
         raise HTTPException(status_code=400, detail="이름이 시작한 사람과 같아요")
@@ -193,6 +203,9 @@ async def owner_input(
     t = course.together
     if t is None:
         raise HTTPException(status_code=404, detail="아직 시작하지 않았어요")
+    if course.items:
+        funnel_store.record("card_edited", course_id, "owner", None, x_user_id)
+    funnel_store.record("owner_card", course_id, "owner", None, x_user_id, once=True)
     name = card.name or t.owner_name
     data = card.model_dump(exclude={"name"})
     if x_user_id and not data["budget_band"]:
@@ -265,6 +278,9 @@ async def build_together(
                 t.summary = result.consensus.summary
             t.accepted_by = []  # 새 코스면 수락도 새로
             t.stale = False
+            funnel_store.record("built", course_id, "owner", None, x_user_id, once=True)
+            if t.partner_name in t.inputs and t.owner_name in t.inputs:
+                funnel_store.record("built_both", course_id, "owner", None, x_user_id, once=True)
         finally:
             course.locked = False
         store.save(course)
@@ -286,6 +302,7 @@ async def partner_accept(token: str) -> TogetherStatus:
         raise HTTPException(status_code=400, detail="아직 코스가 없어요")
     if t.partner_name not in t.accepted_by:
         t.accepted_by.append(t.partner_name)
+    _record_accept(course, "partner")
     store.save(course)
     await broadcast_state(course.id, course.model_dump(mode="json"))
     return _status(course)
@@ -305,9 +322,17 @@ async def owner_accept(
         raise HTTPException(status_code=400, detail="아직 코스가 없어요")
     if t.owner_name not in t.accepted_by:
         t.accepted_by.append(t.owner_name)
+    _record_accept(course, "owner")
     store.save(course)
     await broadcast_state(course_id, course.model_dump(mode="json"))
     return _status(course)
+
+
+def _record_accept(course: Course, actor: str) -> None:
+    funnel_store.record("accepted", course.id, actor, once=True)
+    t = course.together
+    if t and t.owner_name in t.accepted_by and t.partner_name in t.accepted_by:
+        funnel_store.record("confirmed", course.id, once=True)
 
 
 def _mark_changed(course: Course) -> None:
