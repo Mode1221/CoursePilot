@@ -172,9 +172,16 @@ def test_데이터랩은_끝난_주만_요청한다():
     assert e2 == date(2026, 9, 13)
 
 
-def test_이번_주가_덜_찬_값이_섞이면_스파이크로_오판했다():
-    # 실측 모양: 꾸준한 값 뒤 마지막(덜 찬) 주가 1/5 로 떨어짐 → 예전엔 스파이크로 걸렸다
+def test_이번_주가_덜_찬_값이_섞이면_성장률이_깎였다():
+    # 실측 모양: 꾸준한 값 뒤 마지막(덜 찬) 주가 1/5 로 떨어짐 → 제자리 가게가 '하락 중'으로 보였다
     partial = [60.0] * 12 + [64.0, 61.7, 60.5, 12.9]
-    assert trend_from_series(partial).spike  # 덜 찬 주를 넣으면 오판
     full = [60.0] * 12 + [64.0, 61.7, 60.5, 62.0]
-    assert not trend_from_series(full).spike  # 끝난 주만이면 정상
+    assert trend_from_series(partial).growth < 0.9  # 덜 찬 주를 넣으면 하락으로 오판
+    assert trend_from_series(full).growth > 1.0  # 끝난 주만이면 제자리~소폭 상승
+    # 진짜로 뜨는 가게도 덜 찬 주 하나에 성장률 1.75 → 1.36, 핫플 점수는 절반 가까이로 깎였다
+    rising_partial = trend_from_series([20.0] * 12 + [30.0, 34.0, 38.0, 8.0])
+    rising_full = trend_from_series([20.0] * 12 + [30.0, 34.0, 38.0, 41.0])
+    assert rising_partial.growth < rising_full.growth * 0.8
+    s_partial = combine(rising_partial, None, None, None, TODAY).score
+    s_full = combine(rising_full, None, None, None, TODAY).score
+    assert s_partial < s_full * 0.75
