@@ -149,3 +149,14 @@ async def test_도시데이터_장소명_후보를_차례로_시도한다(monkey
     tried.clear()
     await so.area_status(_Client(), "을지로")
     assert tried == ["을지로입구역"]  # 한 번 맞힌 이름은 기억한다
+
+
+def test_데이터랩_API_HUB_주소는_공식_경로(monkeypatch):
+    from app.adapters import naver_datalab
+    from app.config import settings
+
+    monkeypatch.setattr(settings, "naver_apihub_key_id", "id")
+    monkeypatch.setattr(settings, "naver_apihub_key", "key")
+    url, headers = naver_datalab.endpoint()
+    assert url == "https://naverapihub.apigw.ntruss.com/search-trend/v1/search"
+    assert headers["X-NCP-APIGW-API-KEY-ID"] == "id"
