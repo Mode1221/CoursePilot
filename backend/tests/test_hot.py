@@ -211,7 +211,8 @@ async def test_핫플_배치는_상권마다_진행을_알리고_중간_결과�
     monkeypatch.setattr(hot_refresh.naver_datalab, "weekly_trends", _trends)
     monkeypatch.setattr(hot_refresh, "_blog_items", _blog)
     d = DISTRICTS[0]
-    places = [Place(id=f"p{i}", name=f"가게{i}", lat=d.lat, lng=d.lng) for i in range(3)]
+    places = [Place(id=f"p{i}", name=f"가게{i}", category="음식점 > 카페", category_code="CE7", lat=d.lat, lng=d.lng)
+              for i in range(3)]
     seen = []
     out = await hot_refresh.refresh_hotness(places, TODAY, on_district=lambda n, i, t, b: seen.append((n, len(b))))
     assert len(out) == 3 and seen and seen[0] == (d.name, 3) and len(seen) == len(DISTRICTS)
@@ -265,3 +266,40 @@ def test_같은_이름은_한_번만_조회한다():
           Place(id="b", name="어떤가게", category="음식점 > 카페", lat=d.lat, lng=d.lng)]
     got = pick_candidates(ps, datetime(2026, 9, 22))
     assert sum(len(v) for v in got.values()) == 1
+
+
+def test_핫플_대상은_개인_가게만():
+    from app.batch.hot_refresh import is_hot_target
+
+    shop = Place(id="1", name="크래프트온더힐", category="음식점 > 술집 > 호프", category_code="FD6", lat=0, lng=0)
+    hall = Place(id="2", name="명화라이브홀", category="문화,예술 > 공연장", category_code="CT1", lat=0, lng=0)
+    chain = Place(id="3", name="파스쿠찌 잠실역점", category="음식점 > 카페 > 커피전문점 > 파스쿠찌", category_code="CE7", lat=0, lng=0)
+    palace = Place(id="4", name="경복궁", category="여행 > 관광,명소 > 고궁", category_code="AT4", lat=0, lng=0)
+    assert is_hot_target(shop)
+    assert not is_hot_target(hall) and not is_hot_target(chain) and not is_hot_target(palace)
+
+
+async def test_전국에_같은_상호가_많으면_동네를_붙여_조회한다(monkeypatch):
+    from app.batch import hot_refresh
+    from app.batch.districts import DISTRICTS
+
+    asked = []
+
+    async def _trends(client, names, today=None):
+        asked.extend(names)
+        return {}
+
+    async def _count(client, name):
+        return 57 if name == "로뎀나무아래서" else 1
+
+    async def _blog(client, q, display=100):
+        return []
+
+    monkeypatch.setattr(hot_refresh.naver_datalab, "weekly_trends", _trends)
+    monkeypatch.setattr(hot_refresh, "same_name_count", _count)
+    monkeypatch.setattr(hot_refresh, "_blog_items", _blog)
+    d = DISTRICTS[0]
+    ps = [Place(id="a", name="로뎀나무아래서", category="음식점 > 카페", category_code="CE7", lat=d.lat, lng=d.lng),
+          Place(id="b", name="파운드리서울", category="음식점 > 카페", category_code="CE7", lat=d.lat, lng=d.lng)]
+    await hot_refresh.refresh_hotness(ps, TODAY)
+    assert f"{d.name} 로뎀나무아래서" in asked and "파운드리서울" in asked
