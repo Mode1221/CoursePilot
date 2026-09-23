@@ -5,20 +5,21 @@
    되는 것"이다. 그래서 색은 브랜드(행동) 하나 + 사람 둘(시작한 사람·상대)만 쓰고, 사람 색은 오직
    이름을 부르는 칩·배지에만 쓴다. 표면은 흰 카드 뭉치 대신 한 장의 종이 위에 선(레일)으로 구조를 만든다. */
 :root {
-  /* 행동(브랜드) — 인디고. 두 사람 색(시작한 사람=주황갈색, 상대=청록)과 겹치지 않는 제3의 색이라
-     "누구 칩"과 "누를 버튼"이 헷갈리지 않는다. hallmark: 강조색은 하나, 화면의 3% 안팎 — 칠한 버튼은 영역당 하나. */
-  --brand: #4f46e5;
-  --brand-strong: #4338ca;
-  --brand-weak: #eef0ff;
-  --brand-weak-2: #e0e3ff;
+  /* 행동(브랜드) — 잉크(검정). 버튼은 검정 알약(창업자 선호). 색은 사람 둘에게만 쓴다. */
+  --brand: #171412;
+  --brand-strong: #000000;
+  --brand-weak: #efeeea;
+  --brand-weak-2: #e5e3dd;
   --brand-contrast: #ffffff;
-  --focus-ring: #6366f1;
+  --focus-ring: #171412;
 
   /* 사람 — 시작한 사람(owner)과 상대(partner). 칩·배지·레일 마커에만 쓴다 */
-  --owner: #9a3412;
-  --owner-weak: #fde7d3;
-  --partner: #0b5f58;
-  --partner-weak: #d5ece8;
+  /* 사람 색 — 지도에 없는 색(네이버 지도: 분홍 번화가·베이지 땅·초록 공원·연파랑 물·노랑 도로).
+     예전 주황갈색은 지도 분홍과 같은 계열이라 섞여 보였다. */
+  --owner: #6d28d9;
+  --owner-weak: #f1ecfe;
+  --partner: #0e7490;
+  --partner-weak: #e3f6fa;
 
   /* 의미색 */
   --danger: #b91c1c;
@@ -60,17 +61,17 @@
 
 @media (prefers-color-scheme: dark) {
   :root {
-    --brand: #818cf8;
-    --brand-strong: #a5b4fc;
-    --brand-weak: #1e1b4b;
-    --brand-weak-2: #28255e;
-    --brand-contrast: #0b0a1f;
-    --focus-ring: #a5b4fc;
+    --brand: #f2f0eb;
+    --brand-strong: #ffffff;
+    --brand-weak: #2a2724;
+    --brand-weak-2: #35322d;
+    --brand-contrast: #141311;
+    --focus-ring: #f2f0eb;
 
-    --owner: #fbbf24;
-    --owner-weak: #3a2a0a;
-    --partner: #2dd4bf;
-    --partner-weak: #0f2f2b;
+    --owner: #c4b5fd;
+    --owner-weak: #2a1f4a;
+    --partner: #67e8f9;
+    --partner-weak: #0c2e36;
 
     --danger: #f87171;
     --warn: #fbbf24;
@@ -175,16 +176,13 @@ button:not(:disabled):active, [role="button"]:not([aria-disabled="true"]):active
    secondary— 보조 동작: 옅은 회색 면, 테두리 없음
    ghost    — 가장 약한 동작(접기·직접 찾기), danger — 삭제(빨간 글자, 누를 때만 붉은 면) */
 .cp-btn { background: var(--btn-bg); color: var(--btn-fg); border: 1px solid var(--btn-bd, transparent); }
-.cp-btn--primary { --btn-bg: var(--brand); --btn-fg: var(--brand-contrast); --btn-bd: var(--brand);
-  box-shadow: 0 1px 2px rgba(49, 46, 129, .25); }
-.cp-btn--soft { --btn-bg: var(--brand-weak); --btn-fg: var(--brand-strong); }
-.cp-btn--secondary { --btn-bg: var(--surface-2); --btn-fg: var(--text); }
+.cp-btn--primary, .cp-btn--soft { --btn-bg: var(--brand); --btn-fg: var(--brand-contrast); --btn-bd: var(--brand); }
+.cp-btn--secondary { --btn-bg: var(--surface); --btn-fg: var(--text); --btn-bd: var(--line); }
 .cp-btn--ghost { --btn-bg: transparent; --btn-fg: var(--text-muted); }
 .cp-btn--danger { --btn-bg: transparent; --btn-fg: var(--danger); }
 @media (hover: hover) and (pointer: fine) {
-  .cp-btn--primary:not(:disabled):hover { --btn-bg: var(--brand-strong); --btn-bd: var(--brand-strong); }
-  .cp-btn--soft:not(:disabled):hover { --btn-bg: var(--brand-weak-2); }
-  .cp-btn--secondary:not(:disabled):hover { --btn-bg: var(--surface-3); }
+  .cp-btn--primary:not(:disabled):hover, .cp-btn--soft:not(:disabled):hover { --btn-bg: #2b2724; --btn-bd: #2b2724; }
+  .cp-btn--secondary:not(:disabled):hover { --btn-bg: var(--surface-2); }
   .cp-btn--ghost:not(:disabled):hover { --btn-bg: var(--surface-2); --btn-fg: var(--text); }
   .cp-btn--danger:not(:disabled):hover { --btn-bg: var(--danger-weak); }
 }
@@ -199,11 +197,17 @@ button:not(:disabled):active, [role="button"]:not([aria-disabled="true"]):active
 }
 
 /* 사람 칩 — 이 제품에서 색을 가장 세게 쓰는 유일한 자리 */
-.cp-person { display: inline-flex; align-items: center; gap: 6px; padding: 5px 11px 5px 7px; border-radius: var(--r-full);
-  font-size: var(--fs-sm); font-weight: 600; line-height: 1.3; }
-.cp-person--owner { background: var(--owner-weak); color: var(--owner); }
-.cp-person--partner { background: var(--partner-weak); color: var(--partner); }
-.cp-person__dot { width: 8px; height: 8px; border-radius: 50%; background: currentColor; flex: none; }
+/* 반영 칩 — 흰 바탕·얇은 테두리로 가볍게, 사람은 앞의 작은 이니셜 동그라미로만 구분한다
+   (예전엔 칩 전체가 한 색이라 무겁고 지도 분홍과 섞였다) */
+.cp-person { display: inline-flex; align-items: center; gap: 7px; padding: 4px 11px 4px 4px; border-radius: var(--r-full);
+  background: var(--surface); border: 1px solid var(--border); color: var(--text);
+  font-size: var(--fs-sm); font-weight: 500; line-height: 1.3; }
+.cp-person__avatar { width: 20px; height: 20px; border-radius: 50%; flex: none; display: grid; place-items: center;
+  font-size: 11px; font-weight: 700; color: #fff; }
+.cp-person--owner .cp-person__avatar { background: var(--owner); }
+.cp-person--partner .cp-person__avatar { background: var(--partner); }
+.cp-person__why { color: var(--text-faint); font-weight: 400; }
+.cp-person--unmet { border-style: dashed; color: var(--text-muted); background: transparent; }
 
 /* 타임라인 레일 — 코스는 정말로 순서가 있는 것이라 번호가 정보다 */
 .cp-rail { list-style: none; margin: 0; padding: 0; position: relative; }
@@ -224,5 +228,5 @@ button:not(:disabled):active, [role="button"]:not([aria-disabled="true"]):active
 .cp-map img, .cp-map canvas { filter: saturate(.25) brightness(1.06) contrast(.98); }
 
 /* 링크: 브라우저 기본 파랑(#00e) 대신 행동 색 — "지도" 링크가 따로 놀았다 */
-a { color: var(--brand-strong); text-underline-offset: 3px; text-decoration-thickness: 1px; }
-a:hover { color: var(--brand); }
+a { color: var(--text); text-underline-offset: 3px; text-decoration-thickness: 1px; }
+a:hover { color: var(--text-muted); }

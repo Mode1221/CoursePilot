@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 
 import SiteFooter from "@/components/SiteFooter";
+import AttributionChips from "@/components/AttributionChips";
 import { Button } from "@/components/ui";
 import { api } from "@/services/api";
 import { toast } from "@/store/toastStore";
@@ -51,14 +52,17 @@ export default function Home() {
         링크 하나 보내면 상대는 30초. 둘 다 괜찮은 코스가 누구 의견이 어디 들어갔는지까지 보여주며 나와요.
       </p>
 
-      <ul
-        aria-label="예시"
-        style={{ listStyle: "none", padding: 0, margin: "var(--sp-5) 0 var(--sp-6)", display: "flex", flexWrap: "wrap", gap: 6 }}
-      >
-        <li className="cp-person cp-person--owner"><span className="cp-person__dot" aria-hidden="true" /><b>민수</b> 고기 → 저녁 칸</li>
-        <li className="cp-person cp-person--partner"><span className="cp-person__dot" aria-hidden="true" /><b>지은</b> 피곤해 → 이동 10분 이내</li>
-        <li className="cp-person cp-person--partner"><span className="cp-person__dot" aria-hidden="true" /><b>지은</b> 매운 거 → 빼기</li>
-      </ul>
+      <div style={{ margin: "var(--sp-5) 0 var(--sp-6)" }}>
+        <AttributionChips
+          label="예시"
+          ownerName="민수"
+          items={[
+            { who: "민수", what: "고기", effect: "저녁 칸" },
+            { who: "지은", what: "피곤해", effect: "이동 10분 이내" },
+            { who: "지은", what: "매운 거", effect: "매운 거 빼기" },
+          ]}
+        />
+      </div>
 
       <Button variant="primary" onClick={() => start()} disabled={loading} style={{ minWidth: 200 }}>
         {loading ? "만드는 중…" : "코스 만들고 링크 보내기"}

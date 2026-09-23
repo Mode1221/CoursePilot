@@ -43,8 +43,8 @@ export default function StopRating({ courseId, placeId }: { courseId: string; pl
         minHeight: 36,
         borderRadius: "var(--r-full)",
         border: `1.5px solid ${mine === v ? "var(--brand)" : "var(--line)"}`,
-        background: mine === v ? "var(--brand-weak)" : "var(--surface)",
-        color: mine === v ? "var(--brand-strong)" : "var(--text)",
+        background: mine === v ? "var(--brand)" : "var(--surface)",
+        color: mine === v ? "var(--brand-contrast)" : "var(--text)",
         cursor: "pointer",
         font: "inherit",
       }}

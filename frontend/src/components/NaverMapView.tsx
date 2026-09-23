@@ -113,7 +113,7 @@ export default function NaverMapView({
         });
         if (path.length > 1) {
           overlaysRef.current.push(
-            new naver.maps.Polyline({ map, path, strokeColor: "#4f46e5", strokeWeight: 4, strokeStyle: "shortdash" }),
+            new naver.maps.Polyline({ map, path, strokeColor: "#171412", strokeWeight: 4, strokeStyle: "shortdash" }),
           );
           const lats = items.map((it) => it.place.lat);
           const lngs = items.map((it) => it.place.lng);
