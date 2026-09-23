@@ -63,6 +63,12 @@ def _place_reasons(
     if context_pop >= 0.8:
         reasons.append("이 시간대에 자주 선택돼요")
 
+    # 요즘 뜨는 곳 — 광고로 만들기 어려운 근거만(검색량·리뷰 증가·신상)
+    reasons.extend(item.place.hot_reasons[:2])
+    if item.place.is_popup:
+        until = item.place.active_until
+        reasons.append(f"진행 중인 팝업·전시{f' (~{until.month}/{until.day})' if until else ''}")
+
     return reasons
 
 

@@ -28,7 +28,7 @@ def test_실행_권한이_있다(script):
 def test_크론_항목이_다섯_가지_작업을_덮는다():
     text = (OPS / "crontab.txt").read_text()
     jobs = [ln for ln in text.splitlines() if re.match(r"^[\d*]", ln)]
-    assert len(jobs) == 5
+    assert len(jobs) == 6  # + refresh_hot(핫플·팝업)
     joined = "\n".join(jobs)
     for expected in (
         "fetch_localdata.py", "build_places.py", "refresh_places.py",
@@ -90,7 +90,7 @@ def test_크론_로그가_쓸_수_있는_경로로_간다():
     >> 리다이렉트가 권한 거부로 죽고 5개 잡이 전부 조용히 실행되지 않는다."""
     text = (OPS / "crontab.txt").read_text()
     assert "/var/log" not in text
-    assert text.count("{{ROOT}}/logs/") == 5
+    assert text.count("{{ROOT}}/logs/") == 6
 
 
 def test_설치_스크립트가_로그_백업_디렉터리를_만들고_쓰기를_확인한다():
@@ -155,7 +155,7 @@ def test_배치_크론이_nice_로_돈다():
         ln for ln in (OPS / "crontab.txt").read_text().splitlines()
         if re.match(r"^[\d*]", ln) and "scripts/" in ln and "ops/" not in ln
     ]
-    assert len(lines) == 3  # localdata / build_places / refresh_places
+    assert len(lines) == 4  # localdata / build_places / refresh_places / refresh_hot
     assert all("nice -n 19" in ln for ln in lines)
 
 

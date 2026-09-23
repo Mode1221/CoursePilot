@@ -242,6 +242,10 @@ export const api = {
   togetherOwnerAccept: (courseId: string, userId: string) =>
     request<TogetherStatus>(`/courses/${courseId}/together/accept`, { method: "POST", userId }),
   publicConfig: () => request<{ naver_map_client_id: string }>(`/config/public`),
+  areaStatus: (region: string) =>
+    request<{ area: string; level: string | null; message: string | null; calmer_hour: string | null } | null>(
+      `/areas/status?region=${encodeURIComponent(region)}`,
+    ),
   credits: (userId: string) =>
     request<{ questions_left: number; free_mode?: boolean }>(`/users/${userId}/credits`, { userId }),
 

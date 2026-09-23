@@ -4,6 +4,7 @@ import dynamic from "next/dynamic";
 import { useEffect, useState } from "react";
 
 import AiNotice from "@/components/AiNotice";
+import AreaStatusLine from "@/components/AreaStatusLine";
 import AttributionChips from "@/components/AttributionChips";
 import MapCanvas from "@/components/MapCanvas";
 import { Badge, Button, EmptyState } from "@/components/ui";
@@ -109,6 +110,7 @@ export default function MapPanel({
           <MapCanvas items={course.items} onSelect={(i) => setSelected(course.items[i].place)} height={mapHeight} />
         </div>
         {course.items.length > 0 && <AiNotice />}
+        {course.items.length > 0 && <AreaStatusLine region={course.region} />}
         {!split && conditions}
       </div>
 
@@ -208,8 +210,16 @@ export default function MapPanel({
                 )}
               </span>
             </div>
-            <div style={{ margin: "6px 0" }}>
+            <div style={{ margin: "6px 0", display: "flex", flexWrap: "wrap", gap: 6 }}>
               <AttributionChips items={item.attributions} ownerName={course.together?.owner_name} />
+              {item.place.is_popup && (
+                <Badge tone="brand">
+                  진행 중{item.place.active_until ? ` ~${item.place.active_until.slice(5).replace("-", "/")}` : ""}
+                </Badge>
+              )}
+              {(item.place.hot_reasons ?? []).slice(0, 1).map((r) => (
+                <Badge key={r} tone="warn">🔥 {r}</Badge>
+              ))}
             </div>
             <div
               style={{

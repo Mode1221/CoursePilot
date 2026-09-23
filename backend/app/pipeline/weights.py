@@ -33,6 +33,8 @@ class ScoreWeights:
     closure_penalty: float = 0.15  # 인근 폐업률(상권이 죽어가면 감점)
     tour_listed: float = 0.1  # 관광·문화 공식 등재(TourAPI) 가점
     awareness: float = 0.1  # 블로그 검색 건수로 본 인지도
+    hot: float = 0.6  # 요즘 뜨는 곳(검색 트렌드·리뷰 증가 중심, 광고만으로는 0)
+    popup: float = 0.4  # 진행 중인 팝업·전시(할거리 칸)
 
     def replace(self, **kwargs: float) -> ScoreWeights:
         return replace(self, **kwargs)

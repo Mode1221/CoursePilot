@@ -6,7 +6,7 @@
 from __future__ import annotations
 
 import math
-from datetime import date, time
+from datetime import date, datetime, time
 
 from app.adapters.map_service import MapService
 from app.pipeline.validation import build_timeline
@@ -42,6 +42,8 @@ def classify(place: Place) -> str:
     # 카카오 category_group_code 가 있으면 그것이 가장 정확하다(이름 문자열 매칭보다 안정적).
     from app.adapters.kakao import slot_for
 
+    if place.is_popup or "팝업" in place.name:
+        return "activity"  # 팝업·전시는 기간 한정 할거리
     slot = slot_for(place.category_code, place.category)
     if slot == "meal" and _is_dessert(place):
         # 카카오는 제과·베이커리·떡집·아이스크림을 '음식점(FD6)' 그룹에 넣는다 → 식사 칸에 빵집이
@@ -63,6 +65,13 @@ DESSERT_SIGNS = ("제과", "베이커리", "디저트", "떡,한과", "아이스
 
 def _is_dessert(place: Place) -> bool:
     return any(w in (place.category or "") for w in DESSERT_SIGNS)
+
+
+HOT_WORDS = ("핫플", "요즘", "신상", "뜨는", "새로 생긴", "요새", "트렌디")
+
+
+def is_hot_request(constraints: PlanConstraints) -> bool:
+    return any(w in k for k in constraints.keywords for w in HOT_WORDS)
 
 
 # 데이트에 약한 저가·대형 프랜차이즈. 카카오는 프랜차이즈의 마지막 분류에 브랜드명을 넣는다
@@ -189,6 +198,15 @@ def score_place(
     if place.tour_listed:
         score += w.tour_listed
     score += w.awareness * awareness_signal(place)
+
+    # 요즘 뜨는 곳 — "핫플·요즘·신상" 요청이면 비중을 키우고 업력 가점을 끈다(업력은 오래된 가게 편).
+    hot_mode = is_hot_request(constraints)
+    if place.hot_score:
+        score += w.hot * place.hot_score * (2.0 if hot_mode else 1.0)
+    if hot_mode:
+        score -= w.longevity * longevity_signal(place)  # 위에서 더한 업력 가점을 되돌린다
+    if place.is_popup:
+        score += w.popup * (1.5 if hot_mode else 1.0)
 
     # 데이트 코스: 저가 프랜차이즈는 크게, 일반 프랜차이즈는 조금 감점(그 동네에 그것뿐이면 그래도 나온다).
     level = franchise_level(place)
@@ -719,6 +737,9 @@ async def plan_course(
     """스코어링·템플릿·동선·Best-of-N 을 적용해 최적 타임라인을 반환."""
     # 데이트 코스에 안 맞는 업태(회사·학교 식당, 푸드코트 등)는 애초에 후보에서 뺀다.
     candidates = [p for p in candidates if not is_unfit_for_date(p)]
+    # 끝난 팝업·전시는 추천하지 않는다(코스 날짜 기준)
+    on = constraints.plan_date or datetime.now().date()
+    candidates = [p for p in candidates if not (p.is_popup and p.active_until and p.active_until < on)]
     candidates = _focus_slots(candidates, constraints)
     if not candidates:
         return []

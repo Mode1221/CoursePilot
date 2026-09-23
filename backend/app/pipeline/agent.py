@@ -370,6 +370,25 @@ FREE_ACTIVITY_BUDGET = 30_000  # 1인 예산이 이 이하면 무료 할거리�
 FREE_ACTIVITY_QUERIES = ("공원", "산책로")
 
 
+def _with_active_popups(candidates: list[Place], constraints: PlanConstraints, region: str) -> list[Place]:
+    """배치가 모아둔 진행 중인 팝업·전시를 할거리 후보에 더한다(코스 날짜 기준, 상권 반경 2km)."""
+    from datetime import date as _date
+
+    from app.batch.hot_refresh import region_center
+    from app.hot.popups import active_near
+
+    center = region_center(region)
+    if center is None:
+        return candidates
+    on = constraints.plan_date or _date.today()
+    have = {p.id for p in candidates}
+    extra = [p for p in active_near(center[0], center[1], on) if p.id not in have]
+    return candidates + extra[:POPUPS_PER_COURSE]
+
+
+POPUPS_PER_COURSE = 6
+
+
 async def _slot_search(constraints: PlanConstraints, map_service: MapService, region: str) -> list[Place]:
     """합의 코스: 칸마다 따로 검색해 합친다.
 
@@ -383,6 +402,9 @@ async def _slot_search(constraints: PlanConstraints, map_service: MapService, re
         generic = SLOT_GENERIC_QUERY.get(slot, "")
         if (slot, generic) not in queries:
             queries.append((slot, generic))
+    # 할거리 칸엔 팝업도 적극적으로 찾는다(끝난 팝업은 planner 가 active_until 로 거른다)
+    if "activity" in desired_slots(constraints) and ("activity", "팝업스토어") not in queries:
+        queries.append(("activity", "팝업스토어"))
     # 예산이 빠듯하면 돈 안 드는 할거리(공원·산책로)도 찾는다 — 식사·카페로 예산이 차면 세 번째 칸이
     # 통째로 빠졌다(평가 하네스: 1인 2만원 조합 8개 전부 2곳). 공원은 추정가 0원이라 예산을 넘지 않는다.
     if constraints.budget_max and constraints.budget_max <= FREE_ACTIVITY_BUDGET:
@@ -415,6 +437,7 @@ async def _attempt(
         candidates = await _slot_search(constraints, map_service, region)
     else:
         candidates = await map_service.search_places(region, query_keywords, limit=limit)
+    candidates = _with_active_popups(candidates, constraints, region)
     if exclude_place_ids:
         # "전부 다른 곳으로" — 지금 코스에 있는 장소는 후보에서 뺀다
         filtered = [p for p in candidates if p.id not in exclude_place_ids]
