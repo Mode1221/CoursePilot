@@ -15,7 +15,7 @@ from app.adapters.naver_search import search_endpoint
 from app.batch.districts import DISTRICTS
 from app.config import settings
 from app.hot import popups as popup_store
-from app.hot.signals import blog_from_items, combine, trend_from_series
+from app.hot.signals import blog_from_items, combine, is_distinctive, is_landmark, trend_from_series
 from app.schemas import Place
 
 logger = logging.getLogger(__name__)
@@ -46,6 +46,16 @@ def pick_candidates(places: list[Place], now: datetime) -> dict[str, list[Place]
             groups[best[1]].append(p)
     out: dict[str, list[Place]] = {}
     for name, near in groups.items():
+        # 같은 이름이 여러 번 등록된 곳(실측: 인왕산둘레길 ×2)은 하나만 — 조회 낭비·중복 표시 방지
+        seen_names: set[str] = set()
+        uniq = []
+        for p in near:
+            key = p.name.replace(" ", "")
+            if key not in seen_names:
+                seen_names.add(key)
+                uniq.append(p)
+        # 명소(고궁·산책로·전망대)는 '뜨는 곳' 대상이 아니다
+        near = [p for p in uniq if not is_landmark(p.category, p.name, p.category_code)]
         due = [p for p in near if not p.hot_checked_at or (now - p.hot_checked_at).days >= RECHECK_DAYS]
         due.sort(key=lambda p: (p.hot_checked_at or datetime.min, -(p.blog_mentions or 0)))
         out[name] = due[:PER_DISTRICT]
@@ -88,10 +98,12 @@ async def refresh_hotness(
                         on_district(district, n, total, updated[before:])
                     return updated
                 chunk = cands[i : i + naver_datalab.MAX_GROUPS]
-                series = await naver_datalab.weekly_trends(client, [p.name for p in chunk], today)
+                # 흔한 이름은 동네를 붙여 조회("익선 옛날순대국밥") — 전국의 '순대국밥' 검색이 섞이지 않게
+                keywords = {p.id: (p.name if is_distinctive(p.name) else f"{district} {p.name}")[:50] for p in chunk}
+                series = await naver_datalab.weekly_trends(client, list(keywords.values()), today)
                 budget -= 1
                 for p in chunk:
-                    trend = trend_from_series(series.get(p.name[:50], []))
+                    trend = trend_from_series(series.get(keywords[p.id], []))
                     blog = blog_from_items(await _blog_items(client, f"{district} {p.name}"), today)
                     review_growth = None
                     if p.rating_count and p.review_count_prev:

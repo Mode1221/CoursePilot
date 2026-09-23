@@ -216,3 +216,52 @@ async def test_핫플_배치는_상권마다_진행을_알리고_중간_결과�
     out = await hot_refresh.refresh_hotness(places, TODAY, on_district=lambda n, i, t, b: seen.append((n, len(b))))
     assert len(out) == 3 and seen and seen[0] == (d.name, 3) and len(seen) == len(DISTRICTS)
     assert all(p.hot_checked_at for p in out)
+
+
+# ── 첫 수집 실측 반영 ─────────────────────────────────────────────
+def test_흔한_이름은_고유하지_않다():
+    from app.hot.signals import is_distinctive
+
+    assert not is_distinctive("커피커피커피")
+    assert not is_distinctive("옛날순대국밥")
+    assert not is_distinctive("원조 칼국수 성수점")
+    assert is_distinctive("풍년쌀농산")
+    assert is_distinctive("파운드리서울")
+    assert is_distinctive("하이웨스트 익선")
+
+
+def test_작년_이맘때도_올랐으면_계절이라_뜨는_곳이_아니다():
+    # 57주(오래된 → 최근). 최근 4주 = [-4:], 작년 같은 4주 = [-56:-52]
+    seasonal = [10.0] * 57
+    seasonal[-56:-52] = [30.0, 32.0, 34.0, 30.0]  # 작년 이맘때도 올랐다
+    seasonal[-4:] = [31.0, 33.0, 35.0, 32.0]
+    s = trend_from_series(seasonal)
+    assert s.growth > 1.3 and s.seasonal
+    assert combine(s, None, None, None, TODAY).score == 0  # 계절 상승은 핫플 아님
+
+    fresh = [10.0] * 57
+    fresh[-4:] = [20.0, 24.0, 28.0, 30.0]  # 작년엔 조용했는데 지금 오름
+    s2 = trend_from_series(fresh)
+    assert not s2.seasonal and combine(s2, None, None, None, TODAY).score > 0
+
+
+def test_고궁_산책로_전망대는_뜨는_곳_대상이_아니다():
+    from app.hot.signals import is_landmark
+
+    assert is_landmark("여행 > 관광,명소 > 고궁", "경복궁")
+    assert is_landmark(None, "인왕산둘레길")
+    assert is_landmark(None, "무무대전망대")
+    assert not is_landmark("음식점 > 카페", "파운드리서울")
+
+
+def test_같은_이름은_한_번만_조회한다():
+    from datetime import datetime
+
+    from app.batch.districts import DISTRICTS
+    from app.batch.hot_refresh import pick_candidates
+
+    d = DISTRICTS[0]
+    ps = [Place(id="a", name="어떤 가게", category="음식점 > 카페", lat=d.lat, lng=d.lng),
+          Place(id="b", name="어떤가게", category="음식점 > 카페", lat=d.lat, lng=d.lng)]
+    got = pick_candidates(ps, datetime(2026, 9, 22))
+    assert sum(len(v) for v in got.values()) == 1

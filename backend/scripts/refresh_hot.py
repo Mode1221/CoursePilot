@@ -45,7 +45,13 @@ async def main(only: str) -> None:
         updated = await refresh_hotness(places, on_district=progress)
         hot = [p for p in updated if p.hot_score]
         _log(f"핫플 신호: {len(updated)}곳 확인, 요즘 뜨는 곳 {len(hot)}곳")
-        for p in sorted(hot, key=lambda x: -(x.hot_score or 0))[:15]:
+        shown: set[str] = set()
+        top = []
+        for p in sorted(hot, key=lambda x: -(x.hot_score or 0)):
+            if p.name not in shown:
+                shown.add(p.name)
+                top.append(p)
+        for p in top[:15]:
             print(f"  {p.hot_score:.2f} {p.name}  {', '.join(p.hot_reasons)}  (협찬 {p.sponsored_ratio})")
     if only in ("all", "popups"):
         _log("팝업·행사 시작")
