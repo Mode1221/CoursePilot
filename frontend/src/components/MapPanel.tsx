@@ -318,7 +318,7 @@ export default function MapPanel({
                 >
                   ↓
                 </Button>
-                <Button
+                <Button variant="plain"
                   size="sm"
                   disabled={editDisabled}
                   onClick={() => {

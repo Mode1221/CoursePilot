@@ -5,7 +5,7 @@ import type { ButtonHTMLAttributes, CSSProperties, InputHTMLAttributes, ReactNod
 
 /** 공통 UI 프리미티브. 색·간격은 globals.css 토큰(var(--*))만 사용한다. */
 
-type Variant = "primary" | "soft" | "secondary" | "ghost" | "danger";
+type Variant = "primary" | "soft" | "secondary" | "ghost" | "plain" | "danger";
 type Size = "sm" | "md";
 // 색·상태(hover/focus/active/disabled)는 globals.css 의 .cp-btn--* 가 담당한다(인라인 색은 hover 를 막는다).
 

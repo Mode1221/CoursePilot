@@ -179,7 +179,11 @@ button:not(:disabled):active, [role="button"]:not([aria-disabled="true"]):active
 .cp-btn--primary, .cp-btn--soft { --btn-bg: var(--brand); --btn-fg: var(--brand-contrast); --btn-bd: var(--brand); }
 .cp-btn--secondary { --btn-bg: var(--surface); --btn-fg: var(--text); --btn-bd: var(--line); }
 .cp-btn--ghost { --btn-bg: transparent; --btn-fg: var(--text-muted); }
-.cp-btn--danger { --btn-bg: var(--surface); --btn-fg: var(--danger); --btn-bd: var(--line); } /* 교체와 같은 모양, 글자만 빨강 */
+.cp-btn--danger { --btn-bg: transparent; --btn-fg: var(--danger); } /* 교체와 같은 모양(테두리 없음), 글자만 빨강 */
+.cp-btn--plain { --btn-bg: transparent; --btn-fg: var(--text); } /* 테두리 없는 글자 버튼(교체) */
+@media (hover: hover) and (pointer: fine) {
+  .cp-btn--plain:not(:disabled):hover { --btn-bg: var(--surface-2); }
+}
 @media (hover: hover) and (pointer: fine) {
   .cp-btn--primary:not(:disabled):hover, .cp-btn--soft:not(:disabled):hover { --btn-bg: #2b2724; --btn-bd: #2b2724; }
   .cp-btn--secondary:not(:disabled):hover { --btn-bg: var(--surface-2); }
