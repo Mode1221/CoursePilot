@@ -196,3 +196,23 @@ def test_도시데이터_행사는_제목으로_거르고_기간에서_종료일
     assert period_end("2026-09-01~2026-10-01") == "2026-10-01"
     assert period_end("2026.09.10 ~ 2026.11.3") == "2026-11-03"
     assert period_end("상시") is None
+
+
+async def test_핫플_배치는_상권마다_진행을_알리고_중간_결과를_넘긴다(monkeypatch):
+    from app.batch import hot_refresh
+    from app.batch.districts import DISTRICTS
+
+    async def _trends(client, names, today=None):
+        return {}
+
+    async def _blog(client, q, display=100):
+        return []
+
+    monkeypatch.setattr(hot_refresh.naver_datalab, "weekly_trends", _trends)
+    monkeypatch.setattr(hot_refresh, "_blog_items", _blog)
+    d = DISTRICTS[0]
+    places = [Place(id=f"p{i}", name=f"가게{i}", lat=d.lat, lng=d.lng) for i in range(3)]
+    seen = []
+    out = await hot_refresh.refresh_hotness(places, TODAY, on_district=lambda n, i, t, b: seen.append((n, len(b))))
+    assert len(out) == 3 and seen and seen[0] == (d.name, 3) and len(seen) == len(DISTRICTS)
+    assert all(p.hot_checked_at for p in out)

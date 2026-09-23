@@ -31,13 +31,24 @@ def _km(a: float, b: float, c: float, d: float) -> float:
 
 
 def pick_candidates(places: list[Place], now: datetime) -> dict[str, list[Place]]:
-    """상권 중심 반경 안 장소 중, 확인이 오래된 순 → 인지도 높은 순으로 PER_DISTRICT 곳."""
+    """가게마다 **가장 가까운 상권 하나**에만 배정 → 확인이 오래된 순·인지도 순으로 상권당 PER_DISTRICT 곳.
+
+    예전엔 상권 반경이 겹치면(성수·서울숲 등) 같은 가게를 두 번 조회해 API 호출이 늘고 시간이 두 배로 걸렸다.
+    """
+    groups: dict[str, list[Place]] = {d.name: [] for d in DISTRICTS}
+    for p in places:
+        best: tuple[float, str] | None = None
+        for d in DISTRICTS:
+            km = _km(d.lat, d.lng, p.lat, p.lng)
+            if km <= max(1.2, d.radius_m / 1000 * 1.5) and (best is None or km < best[0]):
+                best = (km, d.name)
+        if best:
+            groups[best[1]].append(p)
     out: dict[str, list[Place]] = {}
-    for d in DISTRICTS:
-        near = [p for p in places if _km(d.lat, d.lng, p.lat, p.lng) <= max(1.2, d.radius_m / 1000 * 1.5)]
+    for name, near in groups.items():
         due = [p for p in near if not p.hot_checked_at or (now - p.hot_checked_at).days >= RECHECK_DAYS]
         due.sort(key=lambda p: (p.hot_checked_at or datetime.min, -(p.blog_mentions or 0)))
-        out[d.name] = due[:PER_DISTRICT]
+        out[name] = due[:PER_DISTRICT]
     return out
 
 
@@ -54,17 +65,27 @@ async def _blog_items(client: httpx.AsyncClient, query: str, display: int = 100)
         return []
 
 
-async def refresh_hotness(places: list[Place], today: date | None = None) -> list[Place]:
+async def refresh_hotness(
+    places: list[Place], today: date | None = None, on_district=None
+) -> list[Place]:
+    """on_district(name, done, total, updated_in_district) — 상권마다 진행 표시·중간 저장용.
+
+    예전엔 끝에서 한 번에 저장해, 20분 넘게 돌다 중간에 끄면 전부 날아갔다(실측).
+    """
     today = today or date.today()
     now = datetime.now()
     by_district = pick_candidates(places, now)
     budget = settings.hot_datalab_daily
     updated: list[Place] = []
+    total = len(by_district)
     async with httpx.AsyncClient(timeout=10) as client:
-        for district, cands in by_district.items():
+        for n, (district, cands) in enumerate(by_district.items(), 1):
+            before = len(updated)
             for i in range(0, len(cands), naver_datalab.MAX_GROUPS):
                 if budget <= 0:
                     logger.info("데이터랩 예산 소진 — 나머지는 내일")
+                    if on_district:
+                        on_district(district, n, total, updated[before:])
                     return updated
                 chunk = cands[i : i + naver_datalab.MAX_GROUPS]
                 series = await naver_datalab.weekly_trends(client, [p.name for p in chunk], today)
@@ -83,15 +104,19 @@ async def refresh_hotness(places: list[Place], today: date | None = None) -> lis
                         p.review_count_prev = p.rating_count
                     p.hot_checked_at = now
                     updated.append(p)
+            if on_district:
+                on_district(district, n, total, updated[before:])
     return updated
 
 
-async def refresh_popups(map_service, today: date | None = None) -> list[Place]:
+async def refresh_popups(map_service, today: date | None = None, on_district=None) -> list[Place]:
     """상권마다 진행 중인 팝업(카카오 + 최근 언급) + 서울 문화행사·실시간 도시데이터 행사."""
     today = today or date.today()
     found: dict[str, Place] = {}
     async with httpx.AsyncClient(timeout=10) as client:
-        for d in DISTRICTS:
+        for n, d in enumerate(DISTRICTS, 1):
+            if on_district:
+                on_district(d.name, n, len(DISTRICTS), len(found))
             try:
                 cands = await map_service.search_places(d.name, ["팝업스토어"], limit=15)
             except Exception:
