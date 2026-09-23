@@ -186,6 +186,7 @@ button:not(:disabled):active, [role="button"]:not([aria-disabled="true"]):active
 .cp-sheet { border-top: 1px solid var(--border); background: var(--surface); box-shadow: 0 -8px 24px rgba(0,0,0,.06);
   padding-bottom: env(safe-area-inset-bottom, 0px); }
 
-/* 지도: 이 안에서는 우리 종이색·필터가 새어 들어가면 안 된다(타일은 흰 배경 위에 그대로) */
-.cp-map { isolation: isolate; background: #fff; filter: none; }
-.cp-map * { filter: none; }
+/* 지도: 네이버는 번화가·상업지역을 분홍빛으로 칠한다(홍대·성수에서 지도가 붉게 보였다). 타일(img·canvas)만
+   채도를 낮추고 밝게 해서 중립적인 흰 바탕으로 — 핀(HTML)·동선(SVG)은 그대로 선명하다. */
+.cp-map { isolation: isolate; background: #fff; }
+.cp-map img, .cp-map canvas { filter: saturate(.25) brightness(1.06) contrast(.98); }

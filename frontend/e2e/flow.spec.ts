@@ -26,10 +26,19 @@ async function asMember(page: import("@playwright/test").Page) {
   return userId;
 }
 
+/** AI 채팅은 떠 있는 버튼 뒤에 있다 — 닫혀 있으면 연다. */
+async function openChat(page: import("@playwright/test").Page) {
+  const dialog = page.getByRole("dialog", { name: "AI 챗봇" });
+  if (await dialog.isVisible().catch(() => false)) return;
+  await page.getByRole("button", { name: "AI에게 말하기" }).click({ timeout: 15_000 });
+  await expect(dialog).toBeVisible();
+}
+
 /** 코스를 하나 만들고 타임라인이 뜰 때까지 기다린다. */
 async function createCourse(page: import("@playwright/test").Page, text: string) {
   await page.goto("/");
   await page.getByRole("button", { name: "코스 만들고 링크 보내기" }).click();
+  await openChat(page);
   await page.getByLabel("조건 입력").fill(text);
   await page.getByText("전송").click();
   await expect(page.getByText(/1\. 성수동 장소/)).toBeVisible({ timeout: 15_000 });
@@ -40,6 +49,7 @@ async function createCourse(page: import("@playwright/test").Page, text: string)
 test("참여자(비로그인)는 AI 챗봇을 쓸 수 없다", async ({ page }) => {
   await page.goto("/");
   await page.getByRole("button", { name: "코스 만들고 링크 보내기" }).click();
+  await openChat(page);
   await expect(page.getByText(/참여자는 수동 편집만 가능/)).toBeVisible();
 });
 
@@ -83,6 +93,7 @@ test("질문에는 코스를 바꾸지 않고 답한다", async ({ page }) => {
   await createCourse(page, "성수동 오전 10시 5시간 도보");
   const before = await page.getByText(/1\. 성수동 장소/).innerText();
 
+  await openChat(page);
   await page.getByLabel("조건 입력").fill("주차 되나요?");
   await page.getByText("전송").click();
 
@@ -96,6 +107,7 @@ test("자리를 집어 다른 성격으로 바꾼다", async ({ page }) => {
   await createCourse(page, "성수동 오전 10시 5시간 도보");
   const first = await page.getByText(/1\. 성수동 장소/).innerText();
 
+  await openChat(page);
   await page.getByLabel("조건 입력").fill("첫번째를 카페로 바꿔줘");
   await page.getByText("전송").click();
 
@@ -113,6 +125,7 @@ test("공유 링크는 편집 없이 코스를 보여준다", async ({ page, con
   await guest.addInitScript(() => localStorage.clear());
   await guest.goto(url);
   await expect(guest.getByText(/1\. 성수동 장소/)).toBeVisible({ timeout: 15_000 });
+  await openChat(guest);
   await expect(guest.getByText(/참여자는 수동 편집만 가능/)).toBeVisible();
 });
 
@@ -174,7 +187,9 @@ test("먼저 상대에게 묻기: 링크 → 상대 카드 → 합친 코스에 
   await expect(partner.getByText(/민수님과 같이 정하는 중/)).toBeVisible({ timeout: 10_000 });
   // 상대도 편집 버튼과 챗봇을 쓴다(가입 없이, 링크 토큰으로)
   await expect(partner.getByRole("button", { name: "교체" }).first()).toBeVisible();
+  await openChat(partner);
   await expect(partner.getByText(/같이 정하는 중 · AI에게 바로 말해 보세요/)).toBeVisible();
+  await partner.getByRole("button", { name: "채팅 닫기" }).click();
   // 칸별 대안: 교체를 누르면 검색 없이 대안이 뜨고, 고르면 그 장소로 바뀐다
   const firstName = (await page.getByText(/^1\. /).first().textContent())?.trim();
   await page.getByRole("button", { name: "교체" }).first().click();

@@ -40,7 +40,7 @@ function errorMessage(e: unknown, fallback: string): string {
   return e.requestId ? `${e.message} (오류 코드: ${e.requestId})` : e.message;
 }
 
-export default function ChatPanel({ courseId }: { courseId: string }) {
+export default function ChatPanel({ courseId, compact = false }: { courseId: string; compact?: boolean }) {
   const [text, setText] = useState("");
   const [sending, setSending] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -166,6 +166,14 @@ export default function ChatPanel({ courseId }: { courseId: string }) {
 
   return (
     <div style={{ display: "flex", flexDirection: "column", height: "100%", background: "var(--surface)" }}>
+      {compact ? (
+        <header style={{ padding: "var(--sp-3) var(--sp-4)", borderBottom: "1px solid var(--border)", fontWeight: 700 }}>
+          AI에게 말하기
+          <p style={{ margin: "2px 0 0", fontSize: "var(--fs-xs)", color: "var(--text-muted)", fontWeight: 400 }}>
+            &ldquo;2번 다른 곳으로&rdquo;, &ldquo;매운 거 빼줘&rdquo;, &ldquo;7시에 끝나게&rdquo;
+          </p>
+        </header>
+      ) : (
       <header
         style={{
           padding: "var(--sp-3) var(--sp-4)",
@@ -195,6 +203,7 @@ export default function ChatPanel({ courseId }: { courseId: string }) {
           </Button>
         </span>
       </header>
+      )}
 
       <div
         style={{
