@@ -42,9 +42,10 @@ def test_키워드_평점_예산_근거를_모은다():
     assert any("예산 안" in r for r in reasons["a"])
 
 
-def test_이어지는_장소는_이동시간을_근거로_쓴다():
+def test_이동시간은_근거에_다시_쓰지_않는다():
+    # 앞 칸에 "도보 7분 뒤 다음 장소"가 이미 있어, "앞 장소에서 7분"은 같은 말 두 번이었다
     reasons = course_reasons(_course(), "성수동 저녁")
-    assert any("7분" in r for r in reasons["b"])
+    assert not any("앞 장소에서" in r for r in reasons["b"])
 
 
 def test_근거가_없으면_빈_목록():

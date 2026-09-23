@@ -233,3 +233,13 @@ button:not(:disabled):active, [role="button"]:not([aria-disabled="true"]):active
 /* 링크: 브라우저 기본 파랑(#00e) 대신 행동 색 — "지도" 링크가 따로 놀았다 */
 a { color: var(--text); text-underline-offset: 3px; text-decoration-thickness: 1px; }
 a:hover { color: var(--text-muted); }
+
+/* 타임라인 편집 도구(상호명 옆): 화살표는 작은 테두리 버튼, 교체·삭제는 글자 버튼 */
+/* 넓으면 한 줄, 좁으면(휴대폰) 도구가 다음 줄 오른쪽으로 — 상호명이 "성수동 장 / 소"처럼 중간에서 끊기지 않게 */
+.cp-stop__head { display: flex; flex-wrap: wrap; align-items: center; column-gap: var(--sp-2); row-gap: 4px; }
+.cp-stop__tools { display: flex; align-items: center; gap: 4px; flex: none; margin-left: auto; }
+.cp-arrow { width: 32px; height: 32px; border-radius: var(--r-sm); border: 1px solid var(--line); background: var(--surface);
+  color: var(--text); font: inherit; font-size: 14px; line-height: 1; cursor: pointer; display: grid; place-items: center; }
+.cp-arrow:disabled { opacity: .35; cursor: not-allowed; }
+@media (hover: hover) and (pointer: fine) { .cp-arrow:not(:disabled):hover { background: var(--surface-2); } }
+.cp-stop { padding-top: var(--sp-3); padding-bottom: var(--sp-3); }
