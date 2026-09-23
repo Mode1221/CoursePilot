@@ -1118,6 +1118,13 @@ async def set_items(course_id: str, req: SetItemsRequest) -> Course:
         from app.places import place_repo
 
         current = {it.place.id: it.place for it in course.items}
+        # 대안 시트에서 고른 곳은 저장소에 없을 수 있다(실시간 검색 결과) → 현재 칸들의 대안에서 찾는다
+        alt_of: dict[str, tuple[Place, list[Place]]] = {}  # 대안 id → (원래 장소, 그 칸의 대안들)
+        for it in course.items:
+            for a in it.alternatives:
+                alt_of.setdefault(a.id, (it.place, it.alternatives))
+                current.setdefault(a.id, a)
+        old_alts = {it.place.id: it.alternatives for it in course.items}
         missing = [pid for pid in req.place_ids if pid not in current]
         restored = place_repo.get_many(missing) if missing else {}
         places = [current.get(pid) or restored.get(pid) for pid in req.place_ids]
@@ -1130,7 +1137,8 @@ async def set_items(course_id: str, req: SetItemsRequest) -> Course:
 
         arrivals = [it.arrive for it in course.items if it.arrive]
         start = min(arrivals) if arrivals else DEFAULT_START_TIME
-        dropped = [pid for pid in current if pid not in set(req.place_ids)]
+        # 빠진 장소 = 원래 코스에 있던 칸 중 이번에 없는 것(대안은 코스에 있던 게 아니므로 제외)
+        dropped = [pid for pid in old_alts if pid not in set(req.place_ids)]
         course.items = (
             await recompute(
                 [p for p in places if p is not None], start, _infer_mode(course.items), get_map_service()
@@ -1138,6 +1146,14 @@ async def set_items(course_id: str, req: SetItemsRequest) -> Course:
             if places
             else []
         )
+        # 대안 유지: 그대로 남은 칸은 원래 대안, 대안으로 바꾼 칸은 "원래 장소 + 나머지 대안"
+        for it in course.items:
+            pid = it.place.id
+            if pid in old_alts:
+                it.alternatives = old_alts[pid]
+            elif pid in alt_of:
+                orig, alts = alt_of[pid]
+                it.alternatives = [orig, *[a for a in alts if a.id != pid]][:4]
         store.save(course)
         popularity_store.bump_many(dropped, weight=-1)  # 생존율(#3): 빠진 장소 상쇄
         await broadcast_state(course_id, course.model_dump(mode="json"))

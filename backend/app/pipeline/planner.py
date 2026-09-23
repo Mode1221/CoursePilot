@@ -721,6 +721,61 @@ def _focus_slots(candidates: list[Place], constraints: PlanConstraints) -> list[
     return out
 
 
+ALT_PER_SLOT = 3
+ALT_RADIUS_KM = 1.5
+
+
+def attach_alternatives(
+    timeline: list[TimelineItem],
+    pool: list[Place],
+    constraints: PlanConstraints,
+    prefs: dict | None = None,
+    k: int = ALT_PER_SLOT,
+) -> None:
+    """칸마다 같은 성격의 대안 k곳 — 점수 높고 원래 자리에서 가까운 순(동선이 크게 안 바뀌게).
+
+    합의 코스면 그 칸 주인의 취향에 맞는 곳을 앞에(칸 주인이 고르는 느낌), 이름이 같은 곳은 하나만.
+    """
+    from app.pipeline.consensus import place_matches
+
+    chosen = {it.place.id for it in timeline}
+    names = {it.place.name for it in timeline}
+    focus = {pair[0]: pair[1] for pair in constraints.slot_focus if len(pair) == 2}
+    on = constraints.plan_date or datetime.now().date()
+    pool = [
+        p for p in pool
+        if p.id not in chosen and not is_unfit_for_date(p)
+        and not (p.is_popup and p.active_until and p.active_until < on)
+    ]
+    for item in timeline:
+        slot = classify(item.place)
+        same = [p for p in pool if classify(p) == slot and p.name not in names]
+        near = [p for p in same if _km(item.place, p) <= ALT_RADIUS_KM] or same
+
+        def rank(p: Place, here: Place = item.place, slot: str = slot) -> float:
+            s = score_place(p, constraints, prefs) - 0.4 * _km(here, p)
+            if slot in focus and place_matches(p, {"what": focus[slot], "slot": slot}):
+                s += 1.0
+            return s
+
+        picked: list[Place] = []
+        seen: set[str] = set()
+        for p in sorted(near, key=rank, reverse=True):
+            if p.name in seen:
+                continue
+            seen.add(p.name)
+            picked.append(p)
+            if len(picked) >= k:
+                break
+        item.alternatives = picked
+
+
+def _km(a: Place, b: Place) -> float:
+    dlat = (a.lat - b.lat) * 111.0
+    dlng = (a.lng - b.lng) * 88.0  # 서울 위도 근처
+    return math.hypot(dlat, dlng)
+
+
 def is_unfit_for_date(place: Place) -> bool:
     """회사·학교 식당, 학교·병원·관공서 등 — 데이트 코스 후보로 부적절."""
     cat = place.category or ""

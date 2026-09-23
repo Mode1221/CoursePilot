@@ -15,6 +15,7 @@ from fastapi import APIRouter, Header, HTTPException
 from pydantic import BaseModel, Field
 
 from app.adapters.map_service import get_map_service
+from app.couples import couple_key, couple_store
 from app.funnel import funnel_store
 from app.pipeline.agent import generate_course
 from app.pipeline.consensus import (
@@ -256,6 +257,11 @@ async def build_together(
         extra = notes_text(inputs)
         if extra:
             text = f"{text} {extra}"
+        # 우리 기록: 다녀온 곳(둘 다 👍 제외)·누구라도 👎 한 곳은 빼고, 지난 코스에서 양보한 사람이 먼저
+        key = couple_key(course.owner_id, t.partner_name)
+        memory = couple_store.get(key) if key else None
+        exclude = memory.exclude_ids() if memory else set()
+        prefer = _prefer(t, memory)
         try:
             result = await generate_course(
                 text,
@@ -263,7 +269,8 @@ async def build_together(
                 prefs,
                 on_progress,
                 consensus_inputs=inputs,
-                consensus_prefer=_prefer(t),
+                consensus_prefer=prefer,
+                exclude_place_ids=exclude or None,
             )
             course.items = result.timeline
             if result.constraints.region:
@@ -278,6 +285,8 @@ async def build_together(
                 t.summary = result.consensus.summary
             t.accepted_by = []  # 새 코스면 수락도 새로
             t.stale = False
+            skipped = len(exclude & set(memory.visited)) if memory else 0
+            t.memory_note = f"지난번 다녀온 {skipped}곳은 빼고 골랐어요" if skipped else None
             funnel_store.record("built", course_id, "owner", None, x_user_id, once=True)
             if t.partner_name in t.inputs and t.owner_name in t.inputs:
                 funnel_store.record("built_both", course_id, "owner", None, x_user_id, once=True)
@@ -343,10 +352,48 @@ def _mark_changed(course: Course) -> None:
         t.accepted_by = []
 
 
-def _prefer(t: TogetherState) -> str | None:
-    """공평 장부: 지난번 양보한 사람이 이번엔 우선. 처음이면 **물어본 상대가 우선** —
-    계획한 사람이 먼저 상대를 배려하는 게 이 제품의 약속이다(예전엔 이름순이라 사실상 무작위)."""
-    return t.yielded or t.partner_name
+def _prefer(t: TogetherState, memory=None) -> str | None:
+    """공평 장부: 지난번 양보한 사람이 이번엔 우선(이 코스 안 → 지난 코스들 순).
+    처음이면 **물어본 상대가 우선** — 계획한 사람이 먼저 상대를 배려하는 게 이 제품의 약속이다."""
+    if t.yielded:
+        return t.yielded
+    if memory is not None and memory.last_yielded in (t.owner_name, t.partner_name):
+        return memory.last_yielded
+    return t.partner_name
+
+
+class RateRequest(BaseModel):
+    ratings: dict[str, int]  # 장소 id → 1(👍) / -1(👎) / 0(취소)
+
+
+@together_router.post("/courses/{course_id}/together/rate")
+async def owner_rate(
+    course_id: str,
+    req: RateRequest,
+    x_user_id: str | None = Header(default=None),
+    x_user_token: str | None = Header(default=None),
+) -> dict:
+    """다녀온 뒤 시작한 사람의 👍/👎. 상대 평가는 보이지 않는다(각자 몰래)."""
+    course = _owned(course_id, x_user_id, x_user_token)
+    return _rate(course, "owner", req.ratings)
+
+
+@together_router.post("/together/{token}/rate")
+async def partner_rate(token: str, req: RateRequest) -> dict:
+    return _rate(_by_token(token), "partner", req.ratings)
+
+
+def _rate(course: Course, role: str, ratings: dict[str, int]) -> dict:
+    t = course.together
+    key = couple_key(course.owner_id, t.partner_name) if t else None
+    if key is None:
+        raise HTTPException(status_code=400, detail="같이 정한 코스에서만 평가할 수 있어요")
+    ids = {it.place.id for it in course.items}
+    clean = {pid: v for pid, v in ratings.items() if pid in ids and v in (-1, 0, 1)}
+    who = t.owner_name if role == "owner" else t.partner_name
+    st = couple_store.rate(key, who, clean)
+    mine = st.ratings.get(who, {})
+    return {"mine": {pid: v for pid, v in mine.items() if pid in ids}}
 
 
 def _public(course: Course) -> dict:

@@ -4,6 +4,8 @@ import dynamic from "next/dynamic";
 import { useEffect, useState } from "react";
 
 import AiNotice from "@/components/AiNotice";
+import AlternativesList from "@/components/AlternativesList";
+import StopRating from "@/components/StopRating";
 import AreaStatusLine from "@/components/AreaStatusLine";
 import AttributionChips from "@/components/AttributionChips";
 import MapCanvas from "@/components/MapCanvas";
@@ -33,11 +35,13 @@ export default function MapPanel({
   const locked = useCourseStore((s) => s.locked);
   const reorder = useCourseStore((s) => s.reorder);
   const remove = useCourseStore((s) => s.remove);
+  const replacePlace = useCourseStore((s) => s.replacePlace);
   const undo = useCourseStore((s) => s.undo);
   const historyLen = useCourseStore((s) => s.history.length);
   const [selected, setSelected] = useState<Place | null>(null);
   const [dragIndex, setDragIndex] = useState<number | null>(null);
   const [replaceIndex, setReplaceIndex] = useState<number | null>(null);
+  const [altIndex, setAltIndex] = useState<number | null>(null);
   const [reasons, setReasons] = useState<Record<string, string[]>>({});
   const editDisabled = readOnly || locked;
   const courseId = course?.id;
@@ -81,6 +85,11 @@ export default function MapPanel({
         ownerName={course.together.owner_name}
         size="md"
       />
+      {course.together.memory_note && (
+        <p style={{ margin: "var(--sp-2) 0 0", fontSize: "var(--fs-sm)", color: "var(--text-muted)" }}>
+          📒 {course.together.memory_note}
+        </p>
+      )}
     </section>
   );
   return (
@@ -260,6 +269,20 @@ export default function MapPanel({
                 {MODE_LABEL[item.travel_to_next.mode]} {item.travel_to_next.duration_min}분 뒤 다음 장소
               </div>
             )}
+            {!readOnly && altIndex === i && (item.alternatives?.length ?? 0) > 0 && (
+              <AlternativesList
+                items={item.alternatives!}
+                disabled={editDisabled}
+                onPick={(p) => {
+                  replacePlace(i, p.id);
+                  setAltIndex(null);
+                }}
+                onSearch={() => {
+                  setAltIndex(null);
+                  setReplaceIndex(i);
+                }}
+              />
+            )}
             {!readOnly && replaceIndex === i && (
               <div style={{ marginTop: "var(--sp-2)" }}>
                 <PlaceSearchPanel
@@ -269,6 +292,7 @@ export default function MapPanel({
                 />
               </div>
             )}
+            {course.completed && course.together && <StopRating courseId={course.id} placeId={item.place.id} />}
             {!readOnly && (
               <div style={{ marginTop: "var(--sp-2)", display: "flex", gap: "var(--sp-2)" }}>
                 <Button size="sm" aria-label="위로" disabled={editDisabled || i === 0} onClick={() => reorder(i, i - 1)}>
@@ -285,7 +309,15 @@ export default function MapPanel({
                 <Button
                   size="sm"
                   disabled={editDisabled}
-                  onClick={() => setReplaceIndex(replaceIndex === i ? null : i)}
+                  onClick={() => {
+                    // 대안이 있으면 대안부터(검색 없이 바로 고른다), 없으면 직접 찾기
+                    if ((item.alternatives?.length ?? 0) > 0) {
+                      setReplaceIndex(null);
+                      setAltIndex(altIndex === i ? null : i);
+                    } else {
+                      setReplaceIndex(replaceIndex === i ? null : i);
+                    }
+                  }}
                 >
                   교체
                 </Button>

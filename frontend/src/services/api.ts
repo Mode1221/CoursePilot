@@ -258,6 +258,14 @@ export const api = {
       method: "POST",
       userId,
     }),
+  togetherOwnerRate: (courseId: string, userId: string, ratings: Record<string, number>) =>
+    request<{ mine: Record<string, number> }>(`/courses/${courseId}/together/rate`, {
+      method: "POST",
+      body: { ratings },
+      userId,
+    }),
+  togetherPartnerRate: (token: string, ratings: Record<string, number>) =>
+    request<{ mine: Record<string, number> }>(`/together/${token}/rate`, { method: "POST", body: { ratings } }),
   togetherPartnerAccept: (token: string) =>
     request<TogetherStatus>(`/together/${token}/accept`, { method: "POST" }),
   togetherOwnerAccept: (courseId: string, userId: string) =>

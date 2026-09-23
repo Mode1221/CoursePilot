@@ -52,6 +52,8 @@ export interface TimelineItem {
   hours_conflict?: boolean;
   /** 합의 코스: 이 칸에 누구의 무엇이 반영됐는지(반영 이유 칩). */
   attributions?: Attribution[];
+  /** 칸별 대안(같은 성격, 가까운 순). 교체하면 원래 장소가 대안으로 돌아온다. */
+  alternatives?: Place[];
 }
 
 /** 반영 이유 한 조각 — "👤지은 피곤해 → 이동 10분 이내". */
@@ -75,6 +77,8 @@ export interface TogetherPublic {
   summary?: Attribution[];
   /** 코스를 만든 뒤 카드가 바뀌어 다시 합쳐야 함 */
   stale?: boolean;
+  /** 우리 기록: "지난번 다녀온 3곳은 빼고 골랐어요" */
+  memory_note?: string | null;
 }
 
 export interface Course {
