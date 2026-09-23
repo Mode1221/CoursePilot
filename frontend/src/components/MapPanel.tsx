@@ -188,7 +188,7 @@ export default function MapPanel({
             }}
           >
             <span className="cp-stop__n" aria-hidden="true">{i + 1}</span>
-            <div style={{ display: "flex", justifyContent: "space-between", gap: "var(--sp-2)", alignItems: "baseline" }}>
+            <div className="cp-stop__head">
               <button
                 type="button"
                 onClick={() => setSelected(item.place)}
@@ -204,13 +204,66 @@ export default function MapPanel({
                   textAlign: "left",
                   font: "inherit",
                   minWidth: 0,
+                  flex: "1 1 180px",
+                  wordBreak: "keep-all",
                   overflowWrap: "anywhere",
                 }}
                 aria-label={`${item.place.name} 상세 보기`}
               >
                 <span style={{ fontWeight: 700, fontSize: "var(--fs-lg)", letterSpacing: "-.01em" }}>{i + 1}. {item.place.name}</span>
               </button>
-              <span style={{ color: "var(--text-muted)", fontSize: "var(--fs-sm)", whiteSpace: "nowrap" }}>
+              {/* 편집 도구는 상호명 옆 한 줄에 — 카드 아래 따로 두던 줄을 없애 카드 높이를 줄였다 */}
+              {!readOnly && (
+                <div className="cp-stop__tools">
+                  <button
+                    type="button"
+                    className="cp-arrow"
+                    aria-label="위로"
+                    disabled={editDisabled || i === 0}
+                    onClick={() => reorder(i, i - 1)}
+                  >
+                    ↑
+                  </button>
+                  <button
+                    type="button"
+                    className="cp-arrow"
+                    aria-label="아래로"
+                    disabled={editDisabled || i === course.items.length - 1}
+                    onClick={() => reorder(i, i + 1)}
+                  >
+                    ↓
+                  </button>
+                  <Button
+                    variant="plain"
+                    size="sm"
+                    disabled={editDisabled}
+                    style={{ minHeight: 32, padding: "4px 8px" }}
+                    onClick={() => {
+                      // 대안이 있으면 대안부터(검색 없이 바로 고른다), 없으면 직접 찾기
+                      if ((item.alternatives?.length ?? 0) > 0) {
+                        setReplaceIndex(null);
+                        setAltIndex(altIndex === i ? null : i);
+                      } else {
+                        setReplaceIndex(replaceIndex === i ? null : i);
+                      }
+                    }}
+                  >
+                    교체
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="danger"
+                    disabled={editDisabled}
+                    style={{ minHeight: 32, padding: "4px 8px" }}
+                    onClick={() => remove(i)}
+                  >
+                    삭제
+                  </Button>
+                </div>
+              )}
+            </div>
+            <div style={{ marginTop: 2 }}>
+              <span style={{ color: "var(--text-muted)", fontSize: "var(--fs-sm)", whiteSpace: "normal" }}>
                 {item.arrive?.slice(0, 5)}~{item.depart?.slice(0, 5)}
                 {/* 상세를 열지 않아도 영업시간이 미확인이라는 걸 알 수 있어야 한다 */}
                 {item.place.hours_unverified && (
@@ -231,6 +284,7 @@ export default function MapPanel({
                 )}
               </span>
             </div>
+            {((item.attributions?.length ?? 0) > 0 || item.place.is_popup || (item.place.hot_reasons?.length ?? 0) > 0) && (
             <div style={{ margin: "6px 0", display: "flex", flexWrap: "wrap", gap: 6 }}>
               <AttributionChips items={item.attributions} ownerName={course.together?.owner_name} />
               {item.place.is_popup && (
@@ -242,6 +296,7 @@ export default function MapPanel({
                 <Badge key={r} tone="warn">🔥 {r}</Badge>
               ))}
             </div>
+            )}
             <div
               style={{
                 color: "var(--text-muted)",
@@ -305,39 +360,6 @@ export default function MapPanel({
               </div>
             )}
             {course.completed && course.together && <StopRating courseId={course.id} placeId={item.place.id} />}
-            {!readOnly && (
-              <div style={{ marginTop: "var(--sp-2)", display: "flex", gap: "var(--sp-2)" }}>
-                <Button variant="ghost" size="sm" aria-label="위로" disabled={editDisabled || i === 0} onClick={() => reorder(i, i - 1)}>
-                  ↑
-                </Button>
-                <Button variant="ghost"
-                  size="sm"
-                  aria-label="아래로"
-                  disabled={editDisabled || i === course.items.length - 1}
-                  onClick={() => reorder(i, i + 1)}
-                >
-                  ↓
-                </Button>
-                <Button variant="plain"
-                  size="sm"
-                  disabled={editDisabled}
-                  onClick={() => {
-                    // 대안이 있으면 대안부터(검색 없이 바로 고른다), 없으면 직접 찾기
-                    if ((item.alternatives?.length ?? 0) > 0) {
-                      setReplaceIndex(null);
-                      setAltIndex(altIndex === i ? null : i);
-                    } else {
-                      setReplaceIndex(replaceIndex === i ? null : i);
-                    }
-                  }}
-                >
-                  교체
-                </Button>
-                <Button size="sm" variant="danger" disabled={editDisabled} onClick={() => remove(i)}>
-                  삭제
-                </Button>
-              </div>
-            )}
           </li>
         ))}
       </ol>

@@ -55,10 +55,7 @@ def _place_reasons(
         if item.place.price <= constraints.budget_max:
             reasons.append(f"1인 {item.place.price // 1000}천원대로 예산 안")
 
-    if prev is not None and prev.travel_to_next is not None:
-        mins = prev.travel_to_next.duration_min
-        if mins <= NEAR_MIN:
-            reasons.append(f"앞 장소에서 {mins}분")
+    # (예전 "앞 장소에서 N분"은 앞 칸의 "도보 N분 뒤 다음 장소"와 같은 말이라 뺐다)
 
     if context_pop >= 0.8:
         reasons.append("이 시간대에 자주 선택돼요")
