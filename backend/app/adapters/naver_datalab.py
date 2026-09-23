@@ -38,6 +38,17 @@ def endpoint() -> tuple[str, dict[str, str]] | None:
     return None
 
 
+def full_weeks(today: date) -> tuple[date, date]:
+    """끝난 주만: 지난 일요일까지, WEEKS 주 전 월요일부터.
+
+    이번 주를 포함하면 며칠치만 잡혀 마지막 값이 뚝 떨어진다(실측: 성수 카페 60 → 13). 그러면 모든 가게가
+    '최근 급락'으로 보이고 스파이크 감지(마지막 주가 최고점의 절반 이하)에 전부 걸린다.
+    """
+    last_sunday = today - timedelta(days=today.weekday() + 1)
+    first_monday = last_sunday - timedelta(weeks=WEEKS) + timedelta(days=1)
+    return first_monday, last_sunday
+
+
 async def weekly_trends(
     client: httpx.AsyncClient, names: list[str], today: date | None = None
 ) -> dict[str, list[float]]:
@@ -46,10 +57,10 @@ async def weekly_trends(
     if ep is None or not names:
         return {}
     url, headers = ep
-    today = today or date.today()
+    start, end = full_weeks(today or date.today())
     body = {
-        "startDate": (today - timedelta(weeks=WEEKS)).isoformat(),
-        "endDate": today.isoformat(),
+        "startDate": start.isoformat(),
+        "endDate": end.isoformat(),
         "timeUnit": "week",
         "keywordGroups": [{"groupName": n[:50], "keywords": [n[:50]]} for n in names[:MAX_GROUPS]],
     }

@@ -160,3 +160,21 @@ def test_데이터랩_API_HUB_주소는_공식_경로(monkeypatch):
     url, headers = naver_datalab.endpoint()
     assert url == "https://naverapihub.apigw.ntruss.com/search-trend/v1/search"
     assert headers["X-NCP-APIGW-API-KEY-ID"] == "id"
+
+
+def test_데이터랩은_끝난_주만_요청한다():
+    from app.adapters.naver_datalab import WEEKS, full_weeks
+
+    start, end = full_weeks(date(2026, 9, 22))  # 화요일
+    assert end == date(2026, 9, 20) and end.weekday() == 6  # 지난 일요일
+    assert start.weekday() == 0 and (end - start).days + 1 == WEEKS * 7
+    s2, e2 = full_weeks(date(2026, 9, 20))  # 일요일 당일이면 그 전 주 일요일까지(오늘은 아직 안 끝남)
+    assert e2 == date(2026, 9, 13)
+
+
+def test_이번_주가_덜_찬_값이_섞이면_스파이크로_오판했다():
+    # 실측 모양: 꾸준한 값 뒤 마지막(덜 찬) 주가 1/5 로 떨어짐 → 예전엔 스파이크로 걸렸다
+    partial = [60.0] * 12 + [64.0, 61.7, 60.5, 12.9]
+    assert trend_from_series(partial).spike  # 덜 찬 주를 넣으면 오판
+    full = [60.0] * 12 + [64.0, 61.7, 60.5, 62.0]
+    assert not trend_from_series(full).spike  # 끝난 주만이면 정상
