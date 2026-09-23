@@ -16,7 +16,11 @@ from app.batch.districts import DISTRICTS
 from app.config import settings
 from app.hot import popups as popup_store
 from app.hot.signals import blog_from_items, combine, is_distinctive, is_landmark, trend_from_series
+from app.pipeline.planner import classify, franchise_level
 from app.schemas import Place
+
+HOT_SLOTS = ("meal", "cafe", "bar")  # 핫플은 '가게'에만 — 공연장·전시장은 행사가 뜨는 것(팝업·행사 수집이 담당)
+SAME_NAME_LIMIT = 3  # 전국에 같은 상호가 이보다 많으면 동네 이름을 붙여 조회
 
 logger = logging.getLogger(__name__)
 
@@ -54,12 +58,42 @@ def pick_candidates(places: list[Place], now: datetime, force: bool = False) -> 
             if key not in seen_names:
                 seen_names.add(key)
                 uniq.append(p)
-        # 명소(고궁·산책로·전망대)는 '뜨는 곳' 대상이 아니다
-        near = [p for p in uniq if not is_landmark(p.category, p.name, p.category_code)]
+        near = [p for p in uniq if is_hot_target(p)]
         due = [p for p in near if force or not p.hot_checked_at or (now - p.hot_checked_at).days >= RECHECK_DAYS]
         due.sort(key=lambda p: (p.hot_checked_at or datetime.min, -(p.blog_mentions or 0)))
         out[name] = due[:PER_DISTRICT]
     return out
+
+
+def is_hot_target(p: Place) -> bool:
+    """'요즘 뜨는 곳' 딱지를 붙일 대상인가 — 개인 가게(식당·카페·술집)만.
+
+    제외(실측): 고궁·산책로·전망대(계절), 공연장·전시장(그때 하는 행사가 뜨는 것), 프랜차이즈 지점
+    (브랜드 광고·신메뉴 검색을 지점이 받아감: "파스쿠찌 잠실역점"), 팝업(기간 한정, 따로 수집).
+    """
+    if p.is_popup or is_landmark(p.category, p.name, p.category_code):
+        return False
+    if franchise_level(p) >= 1:
+        return False
+    return classify(p) in HOT_SLOTS
+
+
+async def same_name_count(client: httpx.AsyncClient, name: str) -> int | None:
+    """전국에 같은 상호가 몇 곳인지(카카오 키워드 검색 total_count). 실패하면 None."""
+    from app.config import settings as _s
+
+    if not _s.kakao_rest_api_key:
+        return None
+    try:
+        r = await client.get(
+            "https://dapi.kakao.com/v2/local/search/keyword.json",
+            params={"query": name, "size": 1},
+            headers={"Authorization": f"KakaoAK {_s.kakao_rest_api_key}"},
+        )
+        r.raise_for_status()
+        return int(((r.json().get("meta") or {}).get("total_count")) or 0)
+    except Exception:
+        return None
 
 
 async def _blog_items(client: httpx.AsyncClient, query: str, display: int = 100) -> list[dict]:
@@ -99,7 +133,14 @@ async def refresh_hotness(
                     return updated
                 chunk = cands[i : i + naver_datalab.MAX_GROUPS]
                 # 흔한 이름은 동네를 붙여 조회("익선 옛날순대국밥") — 전국의 '순대국밥' 검색이 섞이지 않게
-                keywords = {p.id: (p.name if is_distinctive(p.name) else f"{district} {p.name}")[:50] for p in chunk}
+                # 전국에 같은 상호가 여러 곳이면("로뎀나무아래서") 단어가 고유해 보여도 동네를 붙인다
+                keywords: dict[str, str] = {}
+                for p in chunk:
+                    unique = is_distinctive(p.name)
+                    if unique:
+                        n_same = await same_name_count(client, p.name)
+                        unique = n_same is None or n_same <= SAME_NAME_LIMIT
+                    keywords[p.id] = (p.name if unique else f"{district} {p.name}")[:50]
                 series = await naver_datalab.weekly_trends(client, list(keywords.values()), today)
                 budget -= 1
                 for p in chunk:
