@@ -25,7 +25,16 @@ export default function AreaStatusLine({ region }: { region?: string | null }) {
     };
   }, [region]);
   if (!st?.level) return null;
-  const busy = st.level === "붐빔" || st.level === "약간 붐빔";
+  // "지금 홍대 관광특구는 보통"은 무슨 뜻인지 알기 어려웠다 → 우리 동네 이름 + 사람이 얼마나 많은지 + 할 수 있는 것
+  const place = region ?? st.area;
+  const WORDS: Record<string, { text: string; tone: "calm" | "busy" }> = {
+    여유: { text: "한산한 편이에요", tone: "calm" },
+    보통: { text: "평소만큼 사람이 있어요", tone: "calm" },
+    "약간 붐빔": { text: "조금 붐벼요", tone: "busy" },
+    붐빔: { text: "사람이 많아요", tone: "busy" },
+  };
+  const w = WORDS[st.level] ?? { text: st.level, tone: "calm" as const };
+  const busy = w.tone === "busy";
   return (
     <p
       role="status"
@@ -35,9 +44,11 @@ export default function AreaStatusLine({ region }: { region?: string | null }) {
         color: busy ? "var(--warn)" : "var(--text-muted)",
         fontWeight: busy ? 600 : 400,
       }}
+      title={`서울시 실시간 도시데이터 · ${st.area}`}
     >
-      지금 {st.area}는 {st.level}
+      👥 지금 {place} 일대는 {w.text}
       {busy && st.calmer_hour ? ` · ${st.calmer_hour}쯤 한산해져요` : ""}
+      <span style={{ color: "var(--text-faint)", fontWeight: 400 }}> · 서울시 실시간 인구</span>
     </p>
   );
 }
