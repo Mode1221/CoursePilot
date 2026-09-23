@@ -213,6 +213,33 @@ api.include_router(signals_router)
 api.include_router(together_router)
 
 
+_AREA_CACHE: dict[str, tuple[float, dict | None]] = {}
+AREA_TTL_SEC = 600
+
+
+@api.get("/areas/status")
+async def area_status(region: str) -> dict | None:
+    """동네 혼잡도(서울 실시간 도시데이터). 키가 없거나 매핑이 없으면 null. 10분 캐시."""
+    import time as _time
+
+    import httpx
+
+    from app.adapters.seoul_openapi import area_status as fetch
+
+    hit = _AREA_CACHE.get(region)
+    if hit and _time.monotonic() - hit[0] < AREA_TTL_SEC:
+        return hit[1]
+    async with httpx.AsyncClient(timeout=6) as client:
+        st = await fetch(client, region)
+    data = (
+        {"area": st.area, "level": st.level, "message": st.message, "calmer_hour": st.calmer_hour}
+        if st and st.level
+        else None
+    )
+    _AREA_CACHE[region] = (_time.monotonic(), data)
+    return data
+
+
 @api.get("/config/public")
 def public_config() -> dict:
     """프론트가 런타임에 읽는 공개 설정. 비밀값은 절대 넣지 않는다(키 ID 는 원래 공개값)."""

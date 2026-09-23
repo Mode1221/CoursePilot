@@ -17,6 +17,9 @@ PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
 # 저장된 장소 갱신 — 매일 04:30 (폐업 전체 / 영업시간 30일 / 평점 90일 TTL)
 30 4 * * * cd {{ROOT}} && nice -n 19 docker compose -f docker-compose.prod.yml exec -T backend python scripts/refresh_places.py >> {{ROOT}}/logs/refresh_places.log 2>&1
 
+# 요즘 뜨는 곳(검색 트렌드·리뷰 증가·비협찬 블로그) + 진행 중인 팝업·전시 — 매일 05:30
+30 5 * * * cd {{ROOT}} && nice -n 19 docker compose -f docker-compose.prod.yml exec -T backend python scripts/refresh_hot.py >> {{ROOT}}/logs/refresh_hot.log 2>&1
+
 # DB 백업 — 매일 05:00 (7일 보관, 실패 시 웹훅 알림)
 0 5 * * * {{ROOT}}/scripts/ops/backup.sh >> {{ROOT}}/logs/backup.log 2>&1
 

@@ -28,6 +28,11 @@ export interface Place {
   caution_tags?: string[] | null; // '주의' 사실 태그
   rating_count?: number | null; // 집계 평점의 표본 수
   opened_on?: string | null; // 인허가일자(업력 표시용)
+  hot_score?: number | null; // 요즘 뜨는 정도(0~1, 광고만으로는 0)
+  hot_reasons?: string[] | null; // "최근 검색량 증가" 등 — 광고로 만들기 어려운 근거
+  is_popup?: boolean | null; // 기간 한정 팝업·전시
+  active_until?: string | null; // 진행 종료(추정 포함)
+  event_url?: string | null;
 }
 
 export interface Route {

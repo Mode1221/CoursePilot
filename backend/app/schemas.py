@@ -53,6 +53,16 @@ class Place(BaseModel):
     # 시드로 만든 가짜 장소. 실데이터가 들어오면 이 표시로 한 번에 지운다
     # (scripts/seed_mock_places.py --clear).
     is_mock: bool = False
+    # 요즘 뜨는 곳(광고로 만들기 어려운 신호 중심, app/hot/signals.py)
+    hot_score: float | None = None
+    hot_reasons: list[str] = Field(default_factory=list)
+    hot_checked_at: datetime | None = None
+    sponsored_ratio: float | None = None  # 최근 60일 블로그 글 중 협찬 비율
+    review_count_prev: int | None = None  # 지난 확인 때 리뷰 수(증가 속도용)
+    # 기간이 있는 할거리(팝업·전시) — 끝난 곳을 추천하지 않도록
+    is_popup: bool = False
+    active_until: date | None = None
+    event_url: str | None = None
 
 
 class Route(BaseModel):

@@ -30,6 +30,10 @@ class Settings(BaseSettings):
     # 경로(네이버 클라우드 플랫폼 Maps). 개발자센터 키와 별개이므로 분리해서 받는다.
     # 미설정이면 개발자센터 키로 폴백하지만, 운영에서는 반드시 NCP 키를 넣어야 한다.
     ncp_api_key_id: str = ""
+    # 서울 열린데이터광장(실시간 도시데이터·문화행사). 없으면 혼잡도·행사 신호를 건너뛴다
+    seoul_openapi_key: str = ""
+    # 핫플 신호 배치 하루 예산(데이터랩 요청 수 — 한 요청에 가게 5곳)
+    hot_datalab_daily: int = 200
     # 프론트 지도(Web Dynamic Map) 키 ID. 공개값(스크립트 URL 에 실린다). 비우면 NCP_API_KEY_ID 를 쓴다 —
     # 같은 NCP Maps 애플리케이션에서 Dynamic Map 을 켜면 키 ID 가 같다. 런타임에 내려주므로 이미지를 다시 굽지 않는다.
     naver_map_client_id: str = ""
