@@ -5,15 +5,9 @@ import type { ButtonHTMLAttributes, CSSProperties, InputHTMLAttributes, ReactNod
 
 /** 공통 UI 프리미티브. 색·간격은 globals.css 토큰(var(--*))만 사용한다. */
 
-type Variant = "primary" | "secondary" | "ghost" | "danger";
+type Variant = "primary" | "soft" | "secondary" | "ghost" | "danger";
 type Size = "sm" | "md";
-
-const VARIANT: Record<Variant, CSSProperties> = {
-  primary: { background: "var(--text)", color: "var(--bg)", border: "1px solid var(--text)" },
-  secondary: { background: "var(--surface)", color: "var(--text)", border: "1px solid var(--line)" },
-  ghost: { background: "transparent", color: "var(--text-muted)", border: "1px solid transparent" },
-  danger: { background: "transparent", color: "var(--danger)", border: "1px solid var(--border)" },
-};
+// 색·상태(hover/focus/active/disabled)는 globals.css 의 .cp-btn--* 가 담당한다(인라인 색은 hover 를 막는다).
 
 // 최소 터치 타깃 44px(sm 은 36px — 촘촘한 도구 줄에서만 쓴다)
 const SIZE: Record<Size, CSSProperties> = {
@@ -24,20 +18,19 @@ const SIZE: Record<Size, CSSProperties> = {
 export const Button = forwardRef<
   HTMLButtonElement,
   ButtonHTMLAttributes<HTMLButtonElement> & { variant?: Variant; size?: Size; full?: boolean }
->(function Button({ variant = "secondary", size = "md", full, style, ...rest }, ref) {
+>(function Button({ variant = "secondary", size = "md", full, style, className, ...rest }, ref) {
   return (
     <button
       ref={ref}
       {...rest}
+      className={`cp-btn cp-btn--${variant}${className ? ` ${className}` : ""}`}
       style={{
-        ...VARIANT[variant],
         ...SIZE[size],
         width: full ? "100%" : undefined,
         borderRadius: "var(--r-full)",
         fontWeight: 600,
         letterSpacing: "-.01em",
         cursor: rest.disabled ? "not-allowed" : "pointer",
-        opacity: rest.disabled ? 0.45 : 1,
         whiteSpace: "nowrap",
         ...style,
       }}

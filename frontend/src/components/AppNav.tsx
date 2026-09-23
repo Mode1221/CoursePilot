@@ -46,7 +46,7 @@ export default function AppNav() {
       <Link href="/mypage" style={{ color: "var(--text-muted)", textDecoration: "none", fontSize: "var(--fs-sm)" }}>
         내 코스
       </Link>
-      <Button size="sm" variant="primary" onClick={newCourse} disabled={busy} style={{ marginLeft: "auto" }}>
+      <Button size="sm" variant="secondary" onClick={newCourse} disabled={busy} style={{ marginLeft: "auto" }}>
         {userId ? "+ 새 코스" : "나도 만들어보기"}
       </Button>
     </nav>

@@ -89,7 +89,7 @@ export default function PlaceSearchPanel({
           onKeyDown={(e) => e.key === "Enter" && search()}
           style={{ flex: 1, minWidth: 0 }}
         />
-        <Button size="sm" variant="primary" onClick={search} disabled={loading}>
+        <Button size="sm" variant="secondary" onClick={search} disabled={loading}>
           검색
         </Button>
         <Button
@@ -152,7 +152,7 @@ export default function PlaceSearchPanel({
               </button>
               <Button
                 size="sm"
-                variant="primary"
+                variant="soft"
                 disabled={disabled || inCourse.has(p.id)}
                 onClick={() => {
                   if (replacing) replacePlace(replaceIndex, p.id);

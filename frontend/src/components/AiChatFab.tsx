@@ -50,11 +50,11 @@ export default function AiChatFab({ courseId, narrow }: { courseId: string; narr
             padding: "14px 18px",
             borderRadius: "var(--r-full)",
             border: 0,
-            background: "var(--text)",
-            color: "var(--bg)",
+            background: "var(--brand)",
+            color: "var(--brand-contrast)",
             fontWeight: 700,
             fontSize: "var(--fs-md)",
-            boxShadow: "var(--shadow-2)",
+            boxShadow: "0 8px 24px rgba(79, 70, 229, .35)",
             cursor: "pointer",
           }}
         >

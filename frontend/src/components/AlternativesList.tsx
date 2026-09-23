@@ -42,7 +42,7 @@ export default function AlternativesList({
               {p.is_popup ? " · 진행 중" : ""}
             </div>
           </div>
-          <Button size="sm" variant="primary" disabled={disabled} onClick={() => onPick(p)} aria-label={`${p.name}(으)로 바꾸기`}>
+          <Button size="sm" variant="soft" disabled={disabled} onClick={() => onPick(p)} aria-label={`${p.name}(으)로 바꾸기`}>
             이걸로
           </Button>
         </div>
