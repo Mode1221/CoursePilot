@@ -52,3 +52,13 @@ def test_생성된_코스엔_대안이_있고_교체하면_원래_장소가_대�
     new_first = swapped["items"][0]
     assert new_first["place"]["id"] == alt["id"]
     assert first["place"]["id"] in [a["id"] for a in new_first["alternatives"]]  # 되돌아갈 수 있다
+
+
+def test_함께_가요에서도_저가_프랜차이즈는_빠진다(client, monkeypatch):
+    from app import signals_api
+
+    chain = Place(id="x1", name="메가MGC커피 상수역점", category="음식점 > 카페 > 커피전문점 > 메가MGC커피", lat=37.5, lng=127.0)
+    gallery = Place(id="x2", name="와우갤러리", category="문화,예술 > 문화시설 > 미술관", lat=37.5, lng=127.0)
+    monkeypatch.setattr(signals_api, "_nearby_popular", lambda pid, limit: [chain, gallery])
+    names = [p["name"] for p in client.get("/places/nope/related").json()]
+    assert names == ["와우갤러리"]

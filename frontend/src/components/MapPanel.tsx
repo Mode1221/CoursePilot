@@ -338,7 +338,16 @@ export default function MapPanel({
       </div>
 
       {selected && (
-        <PlaceDetailModal place={selected} onClose={() => setSelected(null)} editable={!editDisabled} />
+        <PlaceDetailModal
+          place={selected}
+          onClose={() => setSelected(null)}
+          editable={!editDisabled}
+          alternatives={course.items.find((it) => it.place.id === selected.id)?.alternatives}
+          onReplace={(p) => {
+            const idx = course.items.findIndex((it) => it.place.id === selected.id);
+            if (idx >= 0) replacePlace(idx, p.id);
+          }}
+        />
       )}
     </div>
   );

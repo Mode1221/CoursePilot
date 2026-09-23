@@ -123,4 +123,26 @@ describe("PlaceDetailModal", () => {
     const { getByText } = render(<PlaceDetailModal place={withBreak} onClose={() => {}} />);
     await waitFor(() => getByText(/브레이크 15:00~17:00/));
   });
+
+  it("태그가 하나도 없을 때 숫자 0을 찍지 않는다", async () => {
+    relatedPlaces.mockResolvedValue([]);
+    const { container } = render(
+      <PlaceDetailModal place={{ ...place, fact_tags: [], caution_tags: [] }} onClose={() => {}} />,
+    );
+    await waitFor(() => expect(container.textContent).toContain("장소1"));
+    expect(Array.from(container.querySelectorAll("*")).some((el) => el.childNodes.length === 1 && el.textContent === "0")).toBe(false);
+  });
+
+  it("코스의 한 칸에서 열리면 대안을 보여주고 고르면 바꾼 뒤 닫는다", async () => {
+    relatedPlaces.mockResolvedValue([]);
+    const onReplace = vi.fn();
+    const onClose = vi.fn();
+    const alt: Place = { id: "a1", name: "대안카페", category: "음식점 > 카페", lat: 37.5, lng: 127.0 };
+    const { getByRole } = render(
+      <PlaceDetailModal place={place} onClose={onClose} editable alternatives={[alt]} onReplace={onReplace} />,
+    );
+    fireEvent.click(getByRole("button", { name: "대안카페(으)로 바꾸기" }));
+    expect(onReplace).toHaveBeenCalledWith(alt);
+    expect(onClose).toHaveBeenCalled();
+  });
 });

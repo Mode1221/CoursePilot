@@ -109,16 +109,21 @@ async def related_places(place_id: str, limit: int = 5) -> list[Place]:
     데이터가 없으면 빈 목록(콜드스타트 안전). 인증 불필요.
     """
     from app.cooccurrence import cooccurrence_store
+    from app.pipeline.planner import franchise_level, is_unfit_for_date
     from app.places import place_repo
 
+    def fit(p: Place) -> bool:
+        # 데이트 코스와 같은 기준 — 저가 프랜차이즈·부적합 업태는 '함께 가요'에도 내지 않는다(실측: 메가MGC커피)
+        return not is_unfit_for_date(p) and franchise_level(p) < 2
+
     limit = max(1, min(limit, 20))
-    partners = cooccurrence_store.top_partners(place_id, limit)
+    partners = cooccurrence_store.top_partners(place_id, limit * 2)
     resolved = place_repo.get_many([pid for pid, _ in partners])
-    found = [resolved[pid] for pid, _ in partners if pid in resolved]
+    found = [resolved[pid] for pid, _ in partners if pid in resolved and fit(resolved[pid])][:limit]
     if found:
         return found
     # 콜드스타트: 공동채택 이력이 없으면 근처 인기 장소로 폴백
-    return _nearby_popular(place_id, limit)
+    return [p for p in _nearby_popular(place_id, limit * 2) if fit(p)][:limit]
 
 
 NEARBY_DEGREES = 0.02  # 위경도 약 2km 이내(정렬용 근사)
