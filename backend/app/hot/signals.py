@@ -29,6 +29,7 @@ class TrendSignal:
     growth: float | None = None  # 최근 4주 평균 / 그 전 8주 평균 (1.0 = 제자리)
     spike: bool = False
     steady_rise: bool = False  # 여러 주에 걸친 꾸준한 상승
+    seasonal: bool = False  # 작년 이맘때도 이만큼 올랐다 → '뜨는' 게 아니라 계절(가을 고궁·추석 등)
 
 
 @dataclass
@@ -72,6 +73,13 @@ def trend_from_series(ratios: list[float]) -> TrendSignal:
     s.spike = peak >= SPIKE_RATIO * max(overall_mean, 1) and recent[-1] < peak * 0.5
     # 꾸준함: 최근 4주 중 3주 이상이 기준 평균보다 높다
     s.steady_rise = sum(v > base_mean for v in recent) >= 3 and not s.spike
+    # 계절: 1년 치가 있으면 작년 같은 4주와 비교. 작년에도 지금의 70% 이상이었으면 매년 오르는 곳이다
+    # (실측: 추석·가을 직전 경복궁·인왕산둘레길·전망대가 '뜨는 곳' 상위를 차지했다)
+    if len(vals) >= 52 + TREND_RECENT_WEEKS:
+        last_year = vals[-52 - TREND_RECENT_WEEKS : -52]
+        ly_mean = sum(last_year) / len(last_year)
+        if s.growth > 1.0 and ly_mean >= 0.7 * recent_mean:
+            s.seasonal = True
     return s
 
 
@@ -100,6 +108,38 @@ def blog_from_items(items: list[dict], today: date) -> BlogSignal:
     return sig
 
 
+# 흔한 이름: 데이터랩은 '그 단어를 검색한 전국 사람'을 센다 → "옛날순대국밥"은 이 가게가 아니라
+# 순대국밥을 찾는 모두가 잡혔다(실측). 이런 이름은 동네 이름을 붙여 조회한다.
+GENERIC_NAME_WORDS = (
+    "커피", "카페", "식당", "국밥", "순대", "옛날", "원조", "맛집", "치킨", "피자", "분식", "김밥", "포차", "술집",
+    "호프", "빵집", "베이커리", "레스토랑", "고기", "갈비", "곱창", "막창", "횟집", "초밥", "라멘", "우동", "국수",
+    "냉면", "떡볶이", "칼국수", "해장국", "감자탕", "족발", "보쌈", "돈까스", "짜장", "짬뽕", "중국집", "한식", "양식",
+    "일식", "주점", "이자카야", "와인", "바", "펍", "디저트", "케이크", "브런치", "하우스", "키친", "집",
+)
+
+
+def is_distinctive(name: str) -> bool:
+    """가게 고유의 이름인가. 흔한 단어만으로 된 이름(커피커피커피·옛날순대국밥)이면 False."""
+    import re
+
+    base = re.sub(r"\s*\S*점$", "", name.strip())  # "○○ 성수점", "본점" 제거
+    rest = base.replace(" ", "")
+    for w in sorted(GENERIC_NAME_WORDS, key=len, reverse=True):
+        rest = rest.replace(w, "")
+    return len(rest) >= 2
+
+
+# 고궁·산책로·전망대 같은 명소는 할거리로는 계속 추천하되 '뜨는 곳' 딱지는 붙이지 않는다(계절형)
+LANDMARK_SIGNS = ("관광,명소", "고궁", "궁", "둘레길", "산책로", "전망대", "공원", "광장", "문화유산", "유적", "산성", "능")
+
+
+def is_landmark(category: str | None, name: str, category_code: str | None = None) -> bool:
+    if category_code == "AT4":
+        return True
+    hay = f"{category or ''} {name}"
+    return any(w in hay for w in LANDMARK_SIGNS if len(w) >= 2) or name.endswith(("궁", "산", "능"))
+
+
 def _parse_postdate(raw) -> date | None:
     if not raw or len(str(raw)) != 8:
         return None
@@ -124,7 +164,7 @@ def combine(
     """
     h = Hotness(sponsored_ratio=blog.sponsored_ratio if blog else None)
     primary = 0.0
-    if trend and trend.growth is not None and not trend.spike:
+    if trend and trend.growth is not None and not trend.spike and not trend.seasonal:
         if trend.growth >= 1.3:
             primary += min(0.5, (trend.growth - 1.0) * 0.5)
             h.reasons.append("최근 검색량 증가")

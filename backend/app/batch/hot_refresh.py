@@ -15,7 +15,7 @@ from app.adapters.naver_search import search_endpoint
 from app.batch.districts import DISTRICTS
 from app.config import settings
 from app.hot import popups as popup_store
-from app.hot.signals import blog_from_items, combine, trend_from_series
+from app.hot.signals import blog_from_items, combine, is_distinctive, is_landmark, trend_from_series
 from app.schemas import Place
 
 logger = logging.getLogger(__name__)
@@ -30,7 +30,7 @@ def _km(a: float, b: float, c: float, d: float) -> float:
     return popup_store._km(a, b, c, d)
 
 
-def pick_candidates(places: list[Place], now: datetime) -> dict[str, list[Place]]:
+def pick_candidates(places: list[Place], now: datetime, force: bool = False) -> dict[str, list[Place]]:
     """가게마다 **가장 가까운 상권 하나**에만 배정 → 확인이 오래된 순·인지도 순으로 상권당 PER_DISTRICT 곳.
 
     예전엔 상권 반경이 겹치면(성수·서울숲 등) 같은 가게를 두 번 조회해 API 호출이 늘고 시간이 두 배로 걸렸다.
@@ -46,7 +46,17 @@ def pick_candidates(places: list[Place], now: datetime) -> dict[str, list[Place]
             groups[best[1]].append(p)
     out: dict[str, list[Place]] = {}
     for name, near in groups.items():
-        due = [p for p in near if not p.hot_checked_at or (now - p.hot_checked_at).days >= RECHECK_DAYS]
+        # 같은 이름이 여러 번 등록된 곳(실측: 인왕산둘레길 ×2)은 하나만 — 조회 낭비·중복 표시 방지
+        seen_names: set[str] = set()
+        uniq = []
+        for p in near:
+            key = p.name.replace(" ", "")
+            if key not in seen_names:
+                seen_names.add(key)
+                uniq.append(p)
+        # 명소(고궁·산책로·전망대)는 '뜨는 곳' 대상이 아니다
+        near = [p for p in uniq if not is_landmark(p.category, p.name, p.category_code)]
+        due = [p for p in near if force or not p.hot_checked_at or (now - p.hot_checked_at).days >= RECHECK_DAYS]
         due.sort(key=lambda p: (p.hot_checked_at or datetime.min, -(p.blog_mentions or 0)))
         out[name] = due[:PER_DISTRICT]
     return out
@@ -66,7 +76,7 @@ async def _blog_items(client: httpx.AsyncClient, query: str, display: int = 100)
 
 
 async def refresh_hotness(
-    places: list[Place], today: date | None = None, on_district=None
+    places: list[Place], today: date | None = None, on_district=None, force: bool = False
 ) -> list[Place]:
     """on_district(name, done, total, updated_in_district) — 상권마다 진행 표시·중간 저장용.
 
@@ -74,7 +84,7 @@ async def refresh_hotness(
     """
     today = today or date.today()
     now = datetime.now()
-    by_district = pick_candidates(places, now)
+    by_district = pick_candidates(places, now, force=force)
     budget = settings.hot_datalab_daily
     updated: list[Place] = []
     total = len(by_district)
@@ -88,10 +98,12 @@ async def refresh_hotness(
                         on_district(district, n, total, updated[before:])
                     return updated
                 chunk = cands[i : i + naver_datalab.MAX_GROUPS]
-                series = await naver_datalab.weekly_trends(client, [p.name for p in chunk], today)
+                # 흔한 이름은 동네를 붙여 조회("익선 옛날순대국밥") — 전국의 '순대국밥' 검색이 섞이지 않게
+                keywords = {p.id: (p.name if is_distinctive(p.name) else f"{district} {p.name}")[:50] for p in chunk}
+                series = await naver_datalab.weekly_trends(client, list(keywords.values()), today)
                 budget -= 1
                 for p in chunk:
-                    trend = trend_from_series(series.get(p.name[:50], []))
+                    trend = trend_from_series(series.get(keywords[p.id], []))
                     blog = blog_from_items(await _blog_items(client, f"{district} {p.name}"), today)
                     review_growth = None
                     if p.rating_count and p.review_count_prev:

@@ -19,7 +19,7 @@ logger = logging.getLogger(__name__)
 APIHUB_URL = "https://naverapihub.apigw.ntruss.com/search-trend/v1/search"
 LEGACY_URL = "https://openapi.naver.com/v1/datalab/search"
 MAX_GROUPS = 5
-WEEKS = 16
+WEEKS = 57  # 작년 같은 시기(52주 전 4주)와 비교해 계절 효과를 거르려고 1년 넘게 받는다
 
 
 def endpoint() -> tuple[str, dict[str, str]] | None:
