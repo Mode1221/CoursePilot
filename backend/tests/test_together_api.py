@@ -136,3 +136,21 @@ def test_상대는_링크_토큰으로_무료_기간에_AI_를_쓸_수_있다(cl
     assert client.post(f"/courses/{cid}/generate", json={"text": "성수"}, headers={"X-Together-Token": "nope"}).status_code == 403
     monkeypatch.setattr(settings, "free_mode", False)
     assert client.post(f"/courses/{cid}/generate", json={"text": "성수"}, headers={"X-Together-Token": token}).status_code == 403
+
+
+def test_직접_검색에서_학원_같은_부적합_업태는_빠지되_이름을_정확히_치면_남긴다(client, monkeypatch):
+    from app import main
+    from app.schemas import Place
+
+    class _Svc:
+        async def search_places(self, region, keywords, limit=10):
+            return [
+                Place(id="a", name="제이엠파트너스", category="음식점 > 카페", lat=0, lng=0),
+                Place(id="b", name="좋은자리취미미술학원", category="교육,학문 > 학원 > 미술학원", lat=0, lng=0),
+            ]
+
+    monkeypatch.setattr(main, "get_map_service", lambda: _Svc())
+    names = [p["name"] for p in client.get("/places/search", params={"region": "홍대", "q": "카페"}).json()]
+    assert names == ["제이엠파트너스"]
+    names = [p["name"] for p in client.get("/places/search", params={"region": "홍대", "q": "좋은자리취미미술학원"}).json()]
+    assert "좋은자리취미미술학원" in names
