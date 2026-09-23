@@ -133,6 +133,16 @@ class StrategyModel(Base):
     count: Mapped[int] = mapped_column(Integer, default=0)
 
 
+class CoupleModel(Base):
+    """우리 기록 — 한 커플(시작한 사람 + 상대 이름)의 다녀온 곳·각자 평가·양보 장부."""
+
+    __tablename__ = "couples"
+
+    key: Mapped[str] = mapped_column(String, primary_key=True)
+    state: Mapped[dict] = mapped_column(JSON)
+    updated_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now(), onupdate=func.now())
+
+
 class FunnelEventModel(Base):
     """합의 코스 퍼널 이벤트(시작 → 링크 열람 → 카드 → 합치기 → 수락 → 확정 → 다녀옴).
 

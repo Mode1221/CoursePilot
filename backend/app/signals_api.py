@@ -158,9 +158,15 @@ async def complete_course(course_id: str) -> dict:
     if course is None:
         raise HTTPException(status_code=404, detail="코스를 찾을 수 없어요")
     if course.together is not None:
+        from app.couples import couple_key, couple_store
         from app.funnel import funnel_store
 
-        funnel_store.record("completed", course_id, once=True)
+        if funnel_store.record("completed", course_id, once=True):
+            key = couple_key(course.owner_id, course.together.partner_name)
+            if key:
+                couple_store.record_visit(
+                    key, [(it.place.id, it.place.name) for it in course.items], course.together.yielded
+                )
     place_ids = [it.place.id for it in course.items]
     if course.completed:
         # 버튼을 여러 번 눌러도 신호가 배로 쌓이지 않게 한 번만 반영한다

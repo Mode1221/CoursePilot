@@ -87,6 +87,8 @@ class TimelineItem(BaseModel):
     hours_conflict: bool = False
     # 합의 코스: 이 칸에 누구의 무엇이 반영됐는지(반영 이유 칩). 없으면 빈 목록.
     attributions: list[dict] = Field(default_factory=list)
+    # 칸별 대안(같은 성격, 가까운 순) — 핀/교체를 누르면 바로 고른다. 교체하면 원래 장소가 대안으로 돌아간다.
+    alternatives: list[Place] = Field(default_factory=list)
 
 
 class Course(BaseModel):
@@ -123,6 +125,7 @@ class TogetherState(BaseModel):
     # 합친 결과의 반영 이유 전부(편집 후 다시 붙이기 위해 보관) + 코스 전체 요약 줄
     attributions: list[dict] = Field(default_factory=list)
     summary: list[dict] = Field(default_factory=list)
+    memory_note: str | None = None  # "지난번 다녀온 3곳은 빼고 골랐어요"
     # 코스를 만든 뒤 누군가 카드를 고쳤다 → "다시 합치기" 안내(수락도 초기화)
     stale: bool = False
 
@@ -170,3 +173,4 @@ class PlanConstraints(BaseModel):
 
 
 Course.model_rebuild()
+TimelineItem.model_rebuild()

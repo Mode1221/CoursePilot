@@ -114,6 +114,7 @@ async def generate_course(
         # 폐업·휴무로 빠진 뒤의 개수로 판단해야 한다 — 빼기 전 개수로 재면
         # 2곳짜리 코스를 "충분하다"고 넘긴다.
         _attach(timeline, consensus)
+        await _attach_alternatives(timeline, constraints, map_service, preferences, exclude_place_ids)
         return PlanResult(
             constraints,
             timeline,
@@ -160,6 +161,9 @@ async def generate_course(
         timeline, before_ids, final_c, map_service, origin, exclude_place_ids
     )
     _attach(timeline, consensus)
+    await _attach_alternatives(
+        timeline, relaxed_c if relaxed else constraints, map_service, preferences, exclude_place_ids
+    )
     return PlanResult(
         relaxed_c if relaxed else constraints,
         timeline,
@@ -428,6 +432,14 @@ async def _attempt(
     origin: Place | None = None,
     exclude_place_ids: set[str] | None = None,
 ) -> list[TimelineItem]:
+    candidates = await _candidates(constraints, map_service, exclude_place_ids)
+    # 스코어링·카테고리 템플릿·동선·Best-of-N 으로 최적 코스 선택
+    return await plan_course(candidates, constraints, map_service, origin=origin)
+
+
+async def _candidates(
+    constraints: PlanConstraints, map_service: MapService, exclude_place_ids: set[str] | None = None
+) -> list[Place]:
     region = constraints.region or DEFAULT_REGION
     # 검색어가 길수록 결과가 급감하므로 상위 몇 개만 질의에 쓴다(나머지는 스코어링에서 반영).
     query_keywords = constraints.keywords[:MAX_QUERY_KEYWORDS]
@@ -443,8 +455,20 @@ async def _attempt(
         filtered = [p for p in candidates if p.id not in exclude_place_ids]
         if filtered:  # 전부 걸러지면 기존 후보라도 쓴다(빈 코스보다 낫다)
             candidates = filtered
-    # 스코어링·카테고리 템플릿·동선·Best-of-N 으로 최적 코스 선택
-    return await plan_course(candidates, constraints, map_service, origin=origin)
+    return candidates
+
+
+async def _attach_alternatives(timeline, constraints, map_service, prefs, exclude) -> None:
+    """최종 코스 칸마다 대안 — 후보 검색은 캐시를 타므로 추가 호출이 거의 없다."""
+    if not timeline:
+        return
+    try:
+        pool = await _candidates(constraints, map_service, exclude)
+    except Exception:  # 대안은 부가 기능 — 실패해도 코스는 돌려준다
+        return
+    from app.pipeline.planner import attach_alternatives
+
+    attach_alternatives(timeline, pool, constraints, prefs)
 
 
 async def _resolve_origin(

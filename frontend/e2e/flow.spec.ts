@@ -175,6 +175,13 @@ test("먼저 상대에게 묻기: 링크 → 상대 카드 → 합친 코스에 
   // 상대도 편집 버튼과 챗봇을 쓴다(가입 없이, 링크 토큰으로)
   await expect(partner.getByRole("button", { name: "교체" }).first()).toBeVisible();
   await expect(partner.getByText(/같이 정하는 중 · AI에게 바로 말해 보세요/)).toBeVisible();
+  // 칸별 대안: 교체를 누르면 검색 없이 대안이 뜨고, 고르면 그 장소로 바뀐다
+  const firstName = (await page.getByText(/^1\. /).first().textContent())?.trim();
+  await page.getByRole("button", { name: "교체" }).first().click();
+  await expect(page.getByRole("group", { name: "대안" })).toBeVisible();
+  await page.getByRole("group", { name: "대안" }).getByRole("button", { name: /바꾸기$/ }).first().click();
+  await expect(page.getByText(/^1\. /).first()).not.toHaveText(firstName ?? "", { timeout: 10_000 });
+
   // 실시간: 상대가 한 칸을 지우면 시작한 사람 화면에 새로고침 없이 반영된다
   await expect(page.getByText(/^1\. /)).toBeVisible();
   const before = await page.getByText(/^\d+\. /).count();
