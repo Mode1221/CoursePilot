@@ -142,13 +142,13 @@ async def test_도시데이터_장소명_후보를_차례로_시도한다(monkey
     class _Client:
         async def get(self, url):
             tried.append(url.rsplit("/", 1)[-1])
-            return _Resp(url.endswith("을지로입구역"))
+            return _Resp(url.endswith("종로·청계 관광특구"))
 
     st = await so.area_status(_Client(), "을지로")
-    assert st.area == "을지로입구역" and tried[:2] == ["을지로3가역", "을지로입구역"]
+    assert st.area == "종로·청계 관광특구" and tried[:2] == ["명동 관광특구", "종로·청계 관광특구"]
     tried.clear()
     await so.area_status(_Client(), "을지로")
-    assert tried == ["을지로입구역"]  # 한 번 맞힌 이름은 기억한다
+    assert tried == ["종로·청계 관광특구"]  # 한 번 맞힌 이름은 기억한다
 
 
 def test_데이터랩_API_HUB_주소는_공식_경로(monkeypatch):
