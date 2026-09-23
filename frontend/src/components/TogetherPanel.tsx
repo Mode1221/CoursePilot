@@ -187,7 +187,7 @@ export default function TogetherPanel({ courseId }: { courseId: string }) {
         <div style={{ display: "grid", gap: "var(--sp-4)", marginTop: "var(--sp-4)" }}>
           <div style={{ display: "flex", gap: "var(--sp-2)", alignItems: "center", flexWrap: "wrap" }}>
             <code style={{ fontSize: "var(--fs-xs)", color: "var(--text-muted)", wordBreak: "break-all" }}>{link}</code>
-            <Button size="sm" onClick={copy}>링크 복사</Button>
+            <Button size="sm" variant="soft" onClick={copy}>링크 복사</Button>
           </div>
           {(!mySent || editing) && (
             <TogetherCards

@@ -5,11 +5,14 @@
    되는 것"이다. 그래서 색은 브랜드(행동) 하나 + 사람 둘(시작한 사람·상대)만 쓰고, 사람 색은 오직
    이름을 부르는 칩·배지에만 쓴다. 표면은 흰 카드 뭉치 대신 한 장의 종이 위에 선(레일)으로 구조를 만든다. */
 :root {
-  /* 행동(브랜드) */
-  --brand: #0f766e;
-  --brand-strong: #115e59;
-  --brand-weak: #e6f2f0;
+  /* 행동(브랜드) — 인디고. 두 사람 색(시작한 사람=주황갈색, 상대=청록)과 겹치지 않는 제3의 색이라
+     "누구 칩"과 "누를 버튼"이 헷갈리지 않는다. hallmark: 강조색은 하나, 화면의 3% 안팎 — 칠한 버튼은 영역당 하나. */
+  --brand: #4f46e5;
+  --brand-strong: #4338ca;
+  --brand-weak: #eef0ff;
+  --brand-weak-2: #e0e3ff;
   --brand-contrast: #ffffff;
+  --focus-ring: #6366f1;
 
   /* 사람 — 시작한 사람(owner)과 상대(partner). 칩·배지·레일 마커에만 쓴다 */
   --owner: #9a3412;
@@ -27,6 +30,8 @@
   --bg-subtle: #f0efec;
   --surface: #ffffff;
   --surface-2: #f3f2ef;
+  --surface-3: #e8e6e0;
+  --danger-weak: #fdecec;
   --border: #e3e0da;
   --line: #cfcac1;
   --text: #171412;
@@ -55,10 +60,12 @@
 
 @media (prefers-color-scheme: dark) {
   :root {
-    --brand: #2dd4bf;
-    --brand-strong: #5eead4;
-    --brand-weak: #0f2f2b;
-    --brand-contrast: #052e2b;
+    --brand: #818cf8;
+    --brand-strong: #a5b4fc;
+    --brand-weak: #1e1b4b;
+    --brand-weak-2: #28255e;
+    --brand-contrast: #0b0a1f;
+    --focus-ring: #a5b4fc;
 
     --owner: #fbbf24;
     --owner-weak: #3a2a0a;
@@ -73,6 +80,8 @@
     --bg-subtle: #1a1917;
     --surface: #1f1d1a;
     --surface-2: #2a2724;
+    --surface-3: #35322d;
+    --danger-weak: #3a1515;
     --border: #35322d;
     --line: #403c36;
     --text: #f2f0eb;
@@ -159,9 +168,32 @@ input, select, textarea { font-size: max(16px, 1em); } /* iOS 가 입력칸을 �
 button, [role="button"] { transition: transform var(--dur-fast) var(--ease), background-color var(--dur) var(--ease),
   color var(--dur) var(--ease), border-color var(--dur) var(--ease), opacity var(--dur) var(--ease); }
 button:not(:disabled):active, [role="button"]:not([aria-disabled="true"]):active { transform: scale(.97); }
+
+/* ── 버튼 체계 (hallmark 8 states · web-design-guidelines · emil) ────────────────────────
+   primary  — 영역마다 하나: 인디고로 칠한다(그 화면에서 "다음에 할 일")
+   soft     — 반복되는 선택("이걸로"·"추가"): 옅은 인디고, 칠한 버튼이 여러 개 늘어서지 않게
+   secondary— 보조 동작: 옅은 회색 면, 테두리 없음
+   ghost    — 가장 약한 동작(접기·직접 찾기), danger — 삭제(빨간 글자, 누를 때만 붉은 면) */
+.cp-btn { background: var(--btn-bg); color: var(--btn-fg); border: 1px solid var(--btn-bd, transparent); }
+.cp-btn--primary { --btn-bg: var(--brand); --btn-fg: var(--brand-contrast); --btn-bd: var(--brand);
+  box-shadow: 0 1px 2px rgba(49, 46, 129, .25); }
+.cp-btn--soft { --btn-bg: var(--brand-weak); --btn-fg: var(--brand-strong); }
+.cp-btn--secondary { --btn-bg: var(--surface-2); --btn-fg: var(--text); }
+.cp-btn--ghost { --btn-bg: transparent; --btn-fg: var(--text-muted); }
+.cp-btn--danger { --btn-bg: transparent; --btn-fg: var(--danger); }
 @media (hover: hover) and (pointer: fine) {
-  button:not(:disabled):hover { filter: brightness(.97); }
+  .cp-btn--primary:not(:disabled):hover { --btn-bg: var(--brand-strong); --btn-bd: var(--brand-strong); }
+  .cp-btn--soft:not(:disabled):hover { --btn-bg: var(--brand-weak-2); }
+  .cp-btn--secondary:not(:disabled):hover { --btn-bg: var(--surface-3); }
+  .cp-btn--ghost:not(:disabled):hover { --btn-bg: var(--surface-2); --btn-fg: var(--text); }
+  .cp-btn--danger:not(:disabled):hover { --btn-bg: var(--danger-weak); }
 }
+.cp-btn--danger:not(:disabled):active { --btn-bg: var(--danger-weak); }
+.cp-btn:focus-visible, button:focus-visible, a:focus-visible, [role="button"]:focus-visible {
+  outline: 2px solid var(--focus-ring); outline-offset: 2px;
+}
+.cp-btn:disabled { opacity: .45; cursor: not-allowed; box-shadow: none; }
+.cp-btn[data-state="loading"] { cursor: progress; opacity: .8; }
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation-duration: .01ms !important; transition-duration: .01ms !important; }
 }
@@ -190,3 +222,7 @@ button:not(:disabled):active, [role="button"]:not([aria-disabled="true"]):active
    채도를 낮추고 밝게 해서 중립적인 흰 바탕으로 — 핀(HTML)·동선(SVG)은 그대로 선명하다. */
 .cp-map { isolation: isolate; background: #fff; }
 .cp-map img, .cp-map canvas { filter: saturate(.25) brightness(1.06) contrast(.98); }
+
+/* 링크: 브라우저 기본 파랑(#00e) 대신 행동 색 — "지도" 링크가 따로 놀았다 */
+a { color: var(--brand-strong); text-underline-offset: 3px; text-decoration-thickness: 1px; }
+a:hover { color: var(--brand); }

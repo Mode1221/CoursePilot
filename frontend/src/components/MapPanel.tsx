@@ -307,10 +307,10 @@ export default function MapPanel({
             {course.completed && course.together && <StopRating courseId={course.id} placeId={item.place.id} />}
             {!readOnly && (
               <div style={{ marginTop: "var(--sp-2)", display: "flex", gap: "var(--sp-2)" }}>
-                <Button size="sm" aria-label="위로" disabled={editDisabled || i === 0} onClick={() => reorder(i, i - 1)}>
+                <Button variant="ghost" size="sm" aria-label="위로" disabled={editDisabled || i === 0} onClick={() => reorder(i, i - 1)}>
                   ↑
                 </Button>
-                <Button
+                <Button variant="ghost"
                   size="sm"
                   aria-label="아래로"
                   disabled={editDisabled || i === course.items.length - 1}

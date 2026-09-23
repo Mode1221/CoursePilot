@@ -251,7 +251,7 @@ export default function PlaceDetailModal({
                   </div>
                   <Button
                     size="sm"
-                    variant="primary"
+                    variant="soft"
                     aria-label={`${a.name}(으)로 바꾸기`}
                     onClick={() => {
                       onReplace(a);
