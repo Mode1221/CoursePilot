@@ -134,6 +134,7 @@ DATE_KINDS = ("전시", "미술", "콘서트", "클래식", "뮤지컬", "오페
 NOT_FOR_DATES = (
     "도서관", "주민센터", "행정복지센터", "복지관", "구민회관", "평생학습", "강연", "강좌", "강의", "세미나",
     "북토크", "사서", "어린이", "유아", "키즈", "초등", "청소년", "학부모", "시니어", "어르신",
+    "인문학", "지혜학교", "아카데미", "교실", "수업", "공모", "모집",
 )
 
 
@@ -141,8 +142,29 @@ def is_date_worthy(kind: str | None, title: str | None, place: str | None) -> bo
     k = kind or ""
     if not any(w in k for w in DATE_KINDS):
         return False
+    return is_date_worthy_text(title, place)
+
+
+def is_date_worthy_text(title: str | None, place: str | None) -> bool:
+    """분야 정보가 없는 행사(도시데이터 주변 행사)용 — 제목·장소만으로 거른다."""
     hay = f"{title or ''} {place or ''}"
     return not any(w in hay for w in NOT_FOR_DATES)
+
+
+def period_end(raw: str | None) -> str | None:
+    """'2026-09-01~2026-10-01' 같은 기간 문자열 → 종료일 ISO. 못 읽으면 None."""
+    if not raw:
+        return None
+    import re
+
+    dates = re.findall(r"(\d{4})[-.](\d{1,2})[-.](\d{1,2})", str(raw))
+    if not dates:
+        return None
+    y, m, d = dates[-1]
+    try:
+        return date(int(y), int(m), int(d)).isoformat()
+    except ValueError:
+        return None
 
 
 def parse_cultural_events(body: dict, on: date) -> list[dict]:

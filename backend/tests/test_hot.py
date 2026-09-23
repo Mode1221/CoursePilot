@@ -185,3 +185,14 @@ def test_이번_주가_덜_찬_값이_섞이면_성장률이_깎였다():
     s_partial = combine(rising_partial, None, None, None, TODAY).score
     s_full = combine(rising_full, None, None, None, TODAY).score
     assert s_partial < s_full * 0.75
+
+
+def test_도시데이터_행사는_제목으로_거르고_기간에서_종료일을_읽는다():
+    from app.adapters.seoul_openapi import is_date_worthy_text, period_end
+
+    assert not is_date_worthy_text("2026년 집옥재(팔우정 포함) 작은 도서관 개방", "경복궁 집옥재")
+    assert not is_date_worthy_text("2026 길 위의 인문학·지혜학교", "대한민국전통예술전승원")
+    assert is_date_worthy_text("2026년 경복궁 [경회루·향원정] 특별관람", "경복궁 경회루")
+    assert period_end("2026-09-01~2026-10-01") == "2026-10-01"
+    assert period_end("2026.09.10 ~ 2026.11.3") == "2026-11-03"
+    assert period_end("상시") is None

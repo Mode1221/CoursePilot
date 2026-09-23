@@ -21,6 +21,7 @@ from app.schemas import Place
 logger = logging.getLogger(__name__)
 
 PER_DISTRICT = 30  # 상권마다 신호를 볼 후보 수
+POPUP_RADIUS_KM = 2.5  # 상권 중심에서 이 안의 팝업만
 RECHECK_DAYS = 7
 REVIEW_BASELINE_DAYS = 28
 
@@ -98,13 +99,22 @@ async def refresh_popups(map_service, today: date | None = None) -> list[Place]:
             for p in cands:
                 if not popup_store.looks_like_popup(p) or p.id in found:
                     continue
+                # 카카오 키워드 검색은 먼 곳도 섞어 준다(실측: 남양주 아울렛 팝업) → 상권 반경 안만
+                if _km(d.lat, d.lng, p.lat, p.lng) > POPUP_RADIUS_KM:
+                    continue
                 until = popup_store.active_window(popup_store.last_mention(await _blog_items(client, p.name, 30)), today)
-                if until is None:
-                    continue  # 최근 언급이 없으면 끝났거나 조용한 곳 — 추천하지 않는다
+                if until is None or until < today:
+                    continue  # 최근 언급이 없거나 추정 종료일이 지났으면 추천하지 않는다
                 p.is_popup, p.active_until = True, until
                 found[p.id] = p
             st = await seoul_openapi.area_status(client, d.name)
             for ev in (st.events if st else []):
+                # 도시데이터 주변 행사엔 분야가 없다 → 제목·장소로 데이트 적합성만 거르고, 기간 문자열에서 종료일을 읽는다
+                if not seoul_openapi.is_date_worthy_text(ev.get("name"), ev.get("place")):
+                    continue
+                ev = {**ev, "end": seoul_openapi.period_end(ev.get("period"))}
+                if ev["end"] and date.fromisoformat(ev["end"]) < today:
+                    continue
                 ep = popup_store.event_to_place(ev, d.name)
                 if ep:
                     found.setdefault(ep.id, ep)

@@ -15,11 +15,16 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from app.adapters.map_service import get_map_service  # noqa: E402
+from app.batch.db_setup import connect_db  # noqa: E402
 from app.batch.hot_refresh import refresh_hotness, refresh_popups  # noqa: E402
 from app.places import place_repo  # noqa: E402
 
 
 async def main(only: str) -> None:
+    # 다른 배치와 같이 DB 부터 연결한다 — 안 하면 인메모리(빈) 저장소를 읽어 "0곳 확인"이 된다(실측)
+    if not connect_db():
+        print("✗ DB 에 연결하지 못했어요 — 핫플 신호를 저장할 수 없어 중단합니다")
+        raise SystemExit(1)
     if only in ("all", "hot"):
         places = place_repo.all(limit=100_000)
         updated = await refresh_hotness(places)
