@@ -17,10 +17,15 @@ export default function PlaceDetailModal({
   place,
   onClose,
   editable = false,
+  alternatives,
+  onReplace,
 }: {
   place: Place;
   onClose: () => void;
   editable?: boolean;
+  /** 코스의 한 칸에서 열렸다면 그 칸의 대안 — 핀을 눌러 바로 바꾼다 */
+  alternatives?: Place[];
+  onReplace?: (p: Place) => void;
 }) {
   const addPlace = useCourseStore((s) => s.addPlace);
   const courseItems = useCourseStore((s) => s.course?.items);
@@ -162,7 +167,7 @@ export default function PlaceDetailModal({
             영업시간 확인 필요 — 방문 전 확인해 주세요
           </div>
         )}
-        {(place.fact_tags?.length || place.caution_tags?.length) && (
+        {((place.fact_tags?.length ?? 0) > 0 || (place.caution_tags?.length ?? 0) > 0) && (
           <div style={{ display: "flex", flexWrap: "wrap", gap: "var(--sp-1)", marginTop: "var(--sp-2)" }}>
             {place.fact_tags?.map((t) => (
               <Badge key={`f-${t}`} tone="brand">
@@ -229,6 +234,37 @@ export default function PlaceDetailModal({
           ))}
         </div>
         {myStars != null && <p style={{ color: "var(--brand-strong)", fontSize: "var(--fs-sm)" }}>평가 감사합니다!</p>}
+
+        {editable && onReplace && (alternatives?.length ?? 0) > 0 && (
+          <section style={{ marginTop: "var(--sp-4)" }}>
+            <h4>이 자리 대신</h4>
+            <ul style={{ listStyle: "none", padding: 0, margin: 0, display: "grid", gap: "var(--sp-2)" }}>
+              {alternatives!.map((a) => (
+                <li key={a.id} style={{ display: "flex", alignItems: "center", gap: "var(--sp-2)" }}>
+                  <div style={{ flex: 1, minWidth: 0, fontSize: "var(--fs-sm)" }}>
+                    <b>{a.name}</b>
+                    <span style={{ color: "var(--text-muted)" }}>
+                      {" · "}
+                      {(a.category ?? "").split(">").slice(-1)[0]?.trim()}
+                      {a.hot_reasons?.[0] ? ` · 🔥 ${a.hot_reasons[0]}` : ""}
+                    </span>
+                  </div>
+                  <Button
+                    size="sm"
+                    variant="primary"
+                    aria-label={`${a.name}(으)로 바꾸기`}
+                    onClick={() => {
+                      onReplace(a);
+                      onClose();
+                    }}
+                  >
+                    이걸로
+                  </Button>
+                </li>
+              ))}
+            </ul>
+          </section>
+        )}
 
         {related.length > 0 && (
           <>
