@@ -178,10 +178,10 @@ test("먼저 상대에게 묻기: 링크 → 상대 카드 → 합친 코스에 
   await expect(page.getByText(/지은 답함/)).toBeVisible({ timeout: 10_000 });
   await page.getByText("둘의 카드 합쳐서 코스 만들기").click();
   await expect(page.getByRole("list", { name: "코스 전체에 반영된 의견" })).toBeVisible({ timeout: 20_000 });
-  await expect(page.getByText(/지은 매운 거/).first()).toBeVisible();
+  await expect(page.getByLabel(/지은 매운 거/).first()).toBeVisible();
   // 양쪽 반영: 상대의 취향(디저트)도 칸이나 요약 어딘가에 이름으로 드러난다
-  await expect(page.getByText(/지은 디저트/).first()).toBeVisible();
-  await expect(page.getByText(/민수 고기/).first()).toBeVisible();
+  await expect(page.getByLabel(/지은 디저트/).first()).toBeVisible();
+  await expect(page.getByLabel(/민수 고기/).first()).toBeVisible();
 
   // 수락: 시작한 사람 → 상대는 링크에서 "코스 보러 가기"로 편집 가능한 코스 화면에 들어간다
   await page.getByText("이 코스 좋아요").click();

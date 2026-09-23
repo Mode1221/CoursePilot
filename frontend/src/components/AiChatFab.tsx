@@ -54,7 +54,7 @@ export default function AiChatFab({ courseId, narrow }: { courseId: string; narr
             color: "var(--brand-contrast)",
             fontWeight: 700,
             fontSize: "var(--fs-md)",
-            boxShadow: "0 8px 24px rgba(79, 70, 229, .35)",
+            boxShadow: "var(--shadow-2)",
             cursor: "pointer",
           }}
         >
