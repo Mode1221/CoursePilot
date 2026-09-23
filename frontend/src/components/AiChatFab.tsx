@@ -37,7 +37,7 @@ export default function AiChatFab({ courseId, narrow }: { courseId: string; narr
         <button
           type="button"
           onClick={() => setOpen(true)}
-          aria-label="AI에게 말하기"
+          aria-label="AI로 코스 고치기"
           style={{
             position: "fixed",
             right: 20,
@@ -58,7 +58,7 @@ export default function AiChatFab({ courseId, narrow }: { courseId: string; narr
             cursor: "pointer",
           }}
         >
-          <span aria-hidden="true">✦</span> AI에게 말하기
+          <span aria-hidden="true">✦</span> AI로 코스 고치기
         </button>
       )}
       {open && (
