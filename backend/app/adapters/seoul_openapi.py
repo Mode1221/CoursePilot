@@ -18,7 +18,7 @@ logger = logging.getLogger(__name__)
 BASE = "http://openapi.seoul.go.kr:8088"
 
 # 우리 상권 → 서울 실시간 도시데이터 장소명(공식 120곳 목록 기준, 스모크로 검증)
-CITYDATA_AREA: dict[str, str] = {
+CITYDATA_AREA: dict[str, str | tuple[str, ...]] = {
     "성수": "성수카페거리",
     "홍대": "홍대 관광특구",
     "연남": "연남동",
@@ -32,7 +32,7 @@ CITYDATA_AREA: dict[str, str] = {
     "잠실": "잠실 관광특구",
     "송리단길": "잠실 관광특구",
     "여의도": "여의도",
-    "을지로": "을지로",
+    "을지로": ("을지로3가역", "을지로입구역", "을지로4가역", "을지로"),  # 공식명이 불확실 — 차례로 시도
     "종로": "종로·청계 관광특구",
     "익선동": "익선동",
     "삼청동": "북촌한옥마을",
@@ -106,26 +106,52 @@ def _hour(raw: str) -> str | None:
         return None
 
 
+_RESOLVED: dict[str, str] = {}  # 상권 → 실제로 응답한 공식 장소명(후보가 여러 개일 때)
+
+
 async def area_status(client: httpx.AsyncClient, region: str) -> AreaStatus | None:
     key = _key()
-    area = CITYDATA_AREA.get(region)
-    if not key or not area:
+    names = CITYDATA_AREA.get(region)
+    if not key or not names:
         return None
-    url = f"{BASE}/{key}/json/citydata/1/5/{area}"
-    try:
-        resp = await client.get(url)
-        resp.raise_for_status()
-        return parse_citydata(resp.json(), area)
-    except Exception as exc:
-        logger.warning("citydata 실패(%s): %s", area, exc)
-        return None
+    candidates = [_RESOLVED[region]] if region in _RESOLVED else ([names] if isinstance(names, str) else list(names))
+    for area in candidates:
+        try:
+            resp = await client.get(f"{BASE}/{key}/json/citydata/1/5/{area}")
+            resp.raise_for_status()
+            st = parse_citydata(resp.json(), area)
+        except Exception as exc:
+            logger.warning("citydata 실패(%s): %s", area, exc)
+            continue
+        if st.level:
+            _RESOLVED[region] = area
+            return st
+    return None
+
+
+# 데이트 할거리로 쓸 분야(CODENAME 앞부분). 교육/체험은 도서관·주민센터 프로그램이 대부분이라 뺀다(실측).
+DATE_KINDS = ("전시", "미술", "콘서트", "클래식", "뮤지컬", "오페라", "연극", "국악", "무용", "축제", "독주", "독창", "영화")
+NOT_FOR_DATES = (
+    "도서관", "주민센터", "행정복지센터", "복지관", "구민회관", "평생학습", "강연", "강좌", "강의", "세미나",
+    "북토크", "사서", "어린이", "유아", "키즈", "초등", "청소년", "학부모", "시니어", "어르신",
+)
+
+
+def is_date_worthy(kind: str | None, title: str | None, place: str | None) -> bool:
+    k = kind or ""
+    if not any(w in k for w in DATE_KINDS):
+        return False
+    hay = f"{title or ''} {place or ''}"
+    return not any(w in hay for w in NOT_FOR_DATES)
 
 
 def parse_cultural_events(body: dict, on: date) -> list[dict]:
-    """문화행사 정보 → 그날 진행 중인 전시·체험·공연(좌표 있는 것만)."""
+    """문화행사 정보 → 그날 진행 중인 전시·공연·축제(좌표 있고 데이트에 맞는 것만)."""
     rows = (body.get("culturalEventInfo") or {}).get("row") or []
     out = []
     for r in rows:
+        if not is_date_worthy(r.get("CODENAME"), r.get("TITLE"), r.get("PLACE")):
+            continue
         try:
             start = _d(r.get("STRTDATE"))
             end = _d(r.get("END_DATE"))
