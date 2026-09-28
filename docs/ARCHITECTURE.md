@@ -15,6 +15,7 @@
 3. **AI Lock 브로드캐스트**: `realtime.py:broadcast_lock` → 참여자 편집 잠금.
 4. **파이프라인**: `pipeline/agent.py:generate_course`
    - `pipeline/llm.py:decompose` — 자연어→`PlanConstraints`. Anthropic Haiku(키) 또는 규칙 파서(`pipeline/decomposition.py`) 폴백.
+   - 채팅 수정: `pipeline/edit.parse_edit`(규칙) → 못 알아들으면 `pipeline/llm_edit.interpret_edit`(LLM 도구 호출, 코스 목록 입력) → `apply_edit`.
    - `adapters/map_service.py:get_map_service()` — 후보 장소 수집(네이버/Mock, Google 평점 enrich).
    - `pipeline/planner.py:plan_course` — 스코어링·템플릿·동선·Best-of-N.
    - `pipeline/validation.py:build_timeline` — 영업시간·이동시간 물리 검증.
