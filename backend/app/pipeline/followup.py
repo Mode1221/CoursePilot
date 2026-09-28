@@ -62,6 +62,19 @@ def _drop(previous: str, text: str, pattern: re.Pattern[str]) -> str:
     return pattern.sub(" ", previous) if pattern.search(text) else previous
 
 
+def _drop_region(previous: str, text: str) -> str:
+    """새 요청이 지역을 말했으면 옛 지역을 지운다("홍대로 바꿔줘" + "성수동 …" 에서 파서가 성수동을 잡았다)."""
+    from app.pipeline.decomposition import parse_constraints
+
+    new_region = parse_constraints(text).region
+    if not new_region:
+        return previous
+    old_region = parse_constraints(previous).region
+    if not old_region or old_region == new_region:
+        return previous
+    return previous.replace(old_region, " ")
+
+
 def followup_text(text: str, previous: str, start: time | None) -> str:
     """후속 요청 + 직전 조건 → 새 조건 문장."""
     parts: list[str] = []
@@ -86,6 +99,7 @@ def followup_text(text: str, previous: str, start: time | None) -> str:
     if shift is not None or _TIME_RE.search(rest):
         base = _TIME_RE.sub(" ", base)  # 시작 시각을 새로 정했다
     base = _drop(base, rest, _DATE_RE)
+    base = _drop_region(base, rest)
     # 끝나는 시각을 정했으면 옛 소요 시간은 버린다(둘 다 있으면 서로 어긋난다)
     base = _DURATION_RE.sub(" ", base) if end else _drop(base, rest, _DURATION_RE)
     return re.sub(r"\s+", " ", " ".join([*parts, rest.strip(), base])).strip()
