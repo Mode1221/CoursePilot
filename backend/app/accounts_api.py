@@ -5,10 +5,11 @@
 """
 from __future__ import annotations
 
-from fastapi import APIRouter, Header, HTTPException
+from fastapi import APIRouter, Header, HTTPException, Request
 from pydantic import BaseModel, Field, field_validator
 
 from app.config import settings
+from app.middleware import client_ip
 from app.session_token import issue
 from app.users import Preferences, user_store
 
@@ -45,7 +46,7 @@ class SmsVerifyBody(_PhoneBody):
 
 
 @accounts_router.post("/auth/sms/request")
-async def sms_request(req: SmsRequestBody) -> dict:
+async def sms_request(req: SmsRequestBody, request: Request) -> dict:
     """인증번호 발송. 개발(키 미설정)에서만 코드를 응답에 노출한다.
 
     운영에서 SMS 키가 없으면 코드를 그대로 돌려주게 되는데, 그건 누구나
@@ -60,7 +61,7 @@ async def sms_request(req: SmsRequestBody) -> dict:
         )
 
     try:
-        dev_code = await request_code(req.phone)
+        dev_code = await request_code(req.phone, client_ip(request))
     except TooManyRequests:
         raise HTTPException(
             status_code=429, detail="잠시 후 다시 요청해주세요."

@@ -79,6 +79,30 @@ class RequestLogMiddleware(BaseHTTPMiddleware):
         return response
 
 
+def client_ip(request: Request) -> str:
+    """rate limit 을 걸 기준 주소.
+
+    Caddy 뒤에서는 소켓 주소가 전부 프록시 IP 라, 그대로 쓰면 한 사람 제한이
+    모든 사용자 제한이 된다. 그렇다고 X-Forwarded-For 를 무조건 믿으면 아무나
+    헤더를 지어내 제한을 무한히 우회한다.
+
+    그래서 **신뢰하는 프록시에서 온 요청일 때만** 헤더를 본다. 프록시는 받은
+    헤더 뒤에 실제 접속자를 덧붙이므로, 믿을 수 있는 값은 **맨 오른쪽**이다
+    (왼쪽 항목들은 클라이언트가 지어낼 수 있다).
+    """
+    peer = request.client.host if request.client else ""
+    if not peer:
+        return "unknown"
+    if not is_trusted_proxy(peer):
+        return peer  # 프록시를 거치지 않은 직접 접속 — 헤더는 믿지 않는다
+    forwarded = request.headers.get("X-Forwarded-For")
+    if forwarded:
+        parts = [p.strip() for p in forwarded.split(",") if p.strip()]
+        if parts:
+            return parts[-1]
+    return peer
+
+
 class RateLimitMiddleware(BaseHTTPMiddleware):
     """클라이언트(IP)별 슬라이딩 윈도우 rate limit (인메모리, 단일 프로세스 기준).
 
@@ -94,27 +118,7 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
         _RATE_LIMITERS.append(self)
 
     def _client_key(self, request: Request) -> str:
-        """rate limit 을 걸 기준 주소.
-
-        Caddy 뒤에서는 소켓 주소가 전부 프록시 IP 라, 그대로 쓰면 한 사람 제한이
-        모든 사용자 제한이 된다. 그렇다고 X-Forwarded-For 를 무조건 믿으면 아무나
-        헤더를 지어내 제한을 무한히 우회한다.
-
-        그래서 **신뢰하는 프록시에서 온 요청일 때만** 헤더를 본다. 프록시는 받은
-        헤더 뒤에 실제 접속자를 덧붙이므로, 믿을 수 있는 값은 **맨 오른쪽**이다
-        (왼쪽 항목들은 클라이언트가 지어낼 수 있다).
-        """
-        peer = request.client.host if request.client else ""
-        if not peer:
-            return "unknown"
-        if not is_trusted_proxy(peer):
-            return peer  # 프록시를 거치지 않은 직접 접속 — 헤더는 믿지 않는다
-        forwarded = request.headers.get("X-Forwarded-For")
-        if forwarded:
-            parts = [p.strip() for p in forwarded.split(",") if p.strip()]
-            if parts:
-                return parts[-1]
-        return peer
+        return client_ip(request)
 
     def _sweep(self, now: float) -> None:
         """오래된 클라이언트 항목 제거(무한 증가 방지)."""

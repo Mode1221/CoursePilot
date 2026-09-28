@@ -16,6 +16,8 @@ _VERIFIED_TTL = 1800  # 인증 상태 유지 30분
 MAX_ATTEMPTS = 5     # 코드 시도 횟수 상한(6자리 무차별 대입 차단)
 RESEND_COOLDOWN = 60   # 같은 번호로 재발송 최소 간격(초)
 MAX_SENDS_PER_HOUR = 5  # 번호당 시간당 발송 상한(문자 폭탄·비용 방지)
+# 한 IP 가 번호를 바꿔 가며 보내면 번호당 상한을 비켜 간다(문자 비용 공격). IP 당 하루 상한.
+MAX_SENDS_PER_IP_DAY = 10
 
 
 def normalize_phone(phone: str) -> str:
@@ -44,6 +46,20 @@ class VerificationStore:
         self._verified: dict[str, float] = {}                # phone -> expiry
         self._attempts: dict[str, int] = {}                  # phone -> 남은 시도 수
         self._sends: dict[str, list[float]] = {}             # phone -> 최근 발송 시각들
+        self._ip_sends: dict[str, list[float]] = {}          # ip -> 최근 발송 시각들(하루)
+
+    def can_send_from(self, ip: str) -> bool:
+        """IP 당 하루 발송 상한. 통과하면 기록한다(빈 IP 는 검사하지 않는다 — 테스트·내부 호출)."""
+        if not ip:
+            return True
+        now = _time.time()
+        recent = [t for t in self._ip_sends.get(ip, []) if now - t < 86400]
+        if len(recent) >= MAX_SENDS_PER_IP_DAY:
+            self._ip_sends[ip] = recent
+            return False
+        recent.append(now)
+        self._ip_sends[ip] = recent
+        return True
 
     def can_send(self, phone: str) -> bool:
         """쿨다운·시간당 상한 확인. 통과하면 발송 이력을 기록한다."""
@@ -105,12 +121,12 @@ class VerificationStore:
 verification_store = VerificationStore()
 
 
-async def request_code(phone: str) -> str | None:
+async def request_code(phone: str, ip: str = "") -> str | None:
     """코드 발급 + 발송. 실서비스면 None(코드 비노출), 개발 폴백이면 코드 반환.
 
     같은 번호로 짧은 간격·과도한 횟수 요청은 거절한다(TooManyRequests).
     """
-    if not verification_store.can_send(phone):
+    if not verification_store.can_send(phone) or not verification_store.can_send_from(ip):
         raise TooManyRequests
     code = verification_store.issue(phone)
     from app.adapters.sms import get_sms_service
