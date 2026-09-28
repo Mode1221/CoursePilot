@@ -26,6 +26,8 @@ export default function TogetherPanel({ courseId }: { courseId: string }) {
   const [busy, setBusy] = useState(false);
   const [open, setOpen] = useState(false);
   const [editing, setEditing] = useState(false);
+  // 혼자 AI 로 코스를 만든 뒤에는 입력 박스가 첫 화면을 다 차지해 코스가 안 보였다 — 한 줄로 접어 둔다
+  const [expanded, setExpanded] = useState(false);
 
   const refresh = useCallback(async () => {
     if (!userId) return;
@@ -111,6 +113,34 @@ export default function TogetherPanel({ courseId }: { courseId: string }) {
   }
 
   // 아직 시작 전
+  if (!status && (course?.items.length ?? 0) > 0 && !expanded) {
+    return (
+      <div
+        style={{
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "space-between",
+          gap: "var(--sp-2)",
+          padding: "var(--sp-2) var(--sp-3)",
+          border: "1px solid var(--border)",
+          borderRadius: "var(--r-lg)",
+          background: "var(--surface)",
+          fontSize: "var(--fs-sm)",
+          color: "var(--text-muted)",
+        }}
+      >
+        <span>상대 의견도 넣고 싶다면</span>
+        <button
+          type="button"
+          className="cp-btn cp-btn--soft"
+          onClick={() => setExpanded(true)}
+          style={{ padding: "6px 12px", borderRadius: "var(--r-full)", fontSize: "var(--fs-sm)", fontWeight: 600, cursor: "pointer" }}
+        >
+          상대에게 물어보기
+        </button>
+      </div>
+    );
+  }
   if (!status) {
     return (
       <section style={box}>
