@@ -8,7 +8,9 @@
 		Strict-Transport-Security "max-age=31536000; includeSubDomains"
 		X-Content-Type-Options "nosniff"
 		X-Frame-Options "DENY"
-		Content-Security-Policy "frame-ancestors 'none'"
+		# 스크립트·연결 출처까지 막는 전체 CSP 는 지도 SDK 도메인을 실서버에서 확인한 뒤 넣는다.
+		# 지금은 기능을 깨지 않는 항목만: 플러그인(object) 금지, <base> 로 링크 가로채기 금지(form-action 은 결제 PG 로 폼을 보낼 수 있어 제외).
+		Content-Security-Policy "frame-ancestors 'none'; object-src 'none'; base-uri 'self'"
 		Referrer-Policy "strict-origin-when-cross-origin"
 		Permissions-Policy "camera=(), microphone=(), geolocation=(), payment=(self)"
 		-Server
