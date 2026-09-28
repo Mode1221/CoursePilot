@@ -35,3 +35,4 @@ frontend/.playwright/
 /backups/
 frontend/pnpm-workspace.yaml
 frontend/pnpm-workspace.yaml
+/.deploy/

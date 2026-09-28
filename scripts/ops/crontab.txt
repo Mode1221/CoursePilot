@@ -25,3 +25,7 @@ PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
 
 # 디스크 사용률 점검 — 6시간마다 (85% 초과 시 웹훅 알림)
 0 */6 * * * {{ROOT}}/scripts/ops/disk_check.sh >> {{ROOT}}/logs/disk.log 2>&1
+
+# 자동 배포 — 5분마다 main 을 확인해 새 커밋이면 그 sha 이미지로 배포, 실패하면 되돌린다.
+# 끄려면 .env 에 AUTO_DEPLOY=false.
+*/5 * * * * {{ROOT}}/scripts/ops/auto_deploy.sh >> {{ROOT}}/logs/deploy.log 2>&1

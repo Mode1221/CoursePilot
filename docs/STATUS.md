@@ -362,7 +362,7 @@
 - ✅ 영속(DB) 경로 회귀 테스트 — 백엔드 커버리지 90%, 결제·SMS 포함 벤더 계약 테스트 25개
 - ✅ Docker Compose(개발/프로덕션) + Caddy 자동 HTTPS + `deploy.sh`
 - ✅ 운영 스크립트(`scripts/ops/`) — DB 백업(7일 보관·실패 시 알림, `OFFSITE_S3_*` 있으면 S3 호환 저장소에 오프사이트 복사), 디스크 사용률 경보(85%),
-  크론 설치(배치 3종 + 백업 + 디스크 점검), 첫 기동 체크리스트
+  크론 설치(배치 3종 + 백업 + 디스크 점검 + 5분 자동 배포·실패 시 롤백), 첫 기동 체크리스트
 - ✅ 이미지는 CI 가 linux/arm64 로 구워 GHCR 에 올리고 VM 은 pull 만 한다
   — Release images run #16(커밋 35f5021)에서 **처음으로 성공**. 확인한 것:
   `ghcr.io/mode1221/coursepilot-{backend,frontend}` 에 `latest` 와 커밋 sha 태그,
