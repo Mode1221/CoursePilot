@@ -79,7 +79,7 @@ def test_다시_해줘는_다른_장소로(monkeypatch):
 
 
 def test_다시_짠_코스는_바뀐_정도를_말한다():
-    from app.main import _change_note
+    from app.chat_api import _change_note
 
     assert _change_note(["a", "b"], ["a", "b"]) == "장소는 그대로예요."
     assert _change_note(["a", "b"], ["b", "a"]) == "장소는 그대로 두고 순서·시간만 맞췄어요."

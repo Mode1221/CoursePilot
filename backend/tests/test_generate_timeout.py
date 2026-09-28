@@ -26,7 +26,7 @@ def test_생성이_상한을_넘기면_504_이고_크레딧은_환불된다(monk
     async def _hang(*_a, **_k):
         await asyncio.sleep(5)
 
-    import app.main as main_mod
+    import app.chat_api as main_mod
 
     # 코스 생성 파이프라인이 응답하지 않는 상황을 만든다
     monkeypatch.setattr(main_mod, "generate_course", _hang)

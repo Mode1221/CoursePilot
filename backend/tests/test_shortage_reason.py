@@ -3,7 +3,7 @@ from __future__ import annotations
 
 from datetime import time
 
-from app.main import _ai_reply
+from app.chat_api import _ai_reply
 from app.schemas import Course, PlanConstraints
 
 
