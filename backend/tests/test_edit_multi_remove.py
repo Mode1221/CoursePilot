@@ -26,11 +26,19 @@ async def test_한_자리만_지목하면_기존대로():
     assert [it.place.id for it in items] == ["p0", "p2", "p3"]
 
 
-async def test_남기고_표현은_전부_삭제하지_않는다():
+async def test_남기고_표현은_지목한_자리만_남긴다():
+    """예전엔 되물었다 — 무엇을 남길지 말했으니 그대로 한다(전부 비우지 않는다)."""
+    course = _course()
     cmd = parse_edit("첫번째만 남기고 다 지워")
-    assert cmd.action == "clarify"  # 되묻는다 — 통째로 비우면 복구가 번거롭다
-    items = await apply_edit(_course(), cmd, MockMapService())
-    assert len(items) == 4
+    assert cmd.action == "keep"
+    items = await apply_edit(course, cmd, MockMapService())
+    assert [it.place.id for it in items] == [course.items[0].place.id]
+    two = await apply_edit(course, parse_edit("1번이랑 3번만 남기고 다 빼"), MockMapService())
+    assert {it.place.id for it in two} == {course.items[0].place.id, course.items[2].place.id}
+
+
+def test_무엇을_남길지_없으면_되묻는다():
+    assert parse_edit("남기고 다 지워").action == "clarify"
 
 
 async def test_전체_삭제는_그대로_동작한다():

@@ -31,6 +31,9 @@ _QUALITY_WORDS: dict[str, str] = {
 _REMOVE_RE = re.compile(r"(빼|삭제|제거|없애|지워|지우|치워)")
 # "카페 하나 추가해줘", "술집 넣어줘" → 전체 재생성 대신 한 칸만 덧붙인다
 _ADD_RE = re.compile(r"(추가|넣어|붙여|더\s*가|하나\s*더)")
+_ONLY_DISLIKE_RE = re.compile(r"(?:빼고|말고|제외하고)\s*(?:다|나머지|전부|는)\s*(?:다\s*)?(?:좋|괜찮|마음에\s*들|맘에\s*들|ok|OK)")
+# "한 곳 더", "하나 더 추가" — 성격 없이 개수만 늘려 달라는 말
+_ONE_MORE_RE = re.compile(r"(?:한|하나|1)\s*(?:곳|군데|개|코스)?\s*더|더\s*(?:넣|추가)|추가")
 # "맨 앞에 카페 넣어줘", "3번째 앞에" → 삽입 위치 지정
 _ADD_FRONT_RE = re.compile(r"맨\s*앞|처음\s*에|제일\s*앞|시작\s*(?:에|으로)")
 _ADD_BEFORE_RE = re.compile(r"앞\s*에")
@@ -53,7 +56,7 @@ _OTHER_KIND_RE = re.compile(r"(?:다른|딴)\s*([가-힣]{2,6}?)(?:으로|로|\s
 
 @dataclass
 class EditCommand:
-    action: str  # "replace"|"remove"|"add"|"reorder"|"swap"|"clear"|"clarify"|"none"
+    action: str  # "replace"|"remove"|"add"|"reorder"|"swap"|"keep"|"clear"|"clarify"|"none"
     index: int = -1  # 0-based
     index2: int = -1  # swap 의 두 번째 대상(0-based)
     indexes: list[int] = field(default_factory=list)  # remove 가 여러 자리를 지목한 경우
@@ -107,9 +110,25 @@ def parse_edit(text: str) -> EditCommand:
     from app.pipeline.decomposition import normalize_typos
 
     text = normalize_typos(text)
+    # "1번이랑 3번만 남기고 다 빼", "마지막만 남기고 지워" — 지목한 자리만 남긴다
+    if re.search(r"만\s*남기", text):
+        picked = _find_indices(text) or ([_find_index(text)] if _find_index(text) != -1 else [])
+        if picked:
+            return EditCommand(action="keep", indexes=picked)
+    # "첫번째 빼고 다 좋아" — 그 자리만 마음에 안 든다는 말(삭제가 아니라 교체)
+    if _ONLY_DISLIKE_RE.search(text):
+        idx = _find_index(text)
+        if idx != -1:
+            return EditCommand(action="replace", index=idx)
+        _, match = _find_category(text)
+        if match:
+            return EditCommand(action="replace", index=MATCH_INDEX, match=match)
     if _CLEAR_RE.search(text):
         # "첫번째만 남기고 다 지워" — 남길 곳을 말했는데 전부 지우면 안 된다
         if _KEEP_RE.search(text):
+            picked = _find_indices(text) or ([_find_index(text)] if _find_index(text) != -1 else [])
+            if picked:
+                return EditCommand(action="keep", indexes=picked)
             return EditCommand(action="clarify")
         return EditCommand(action="clear")
     # 순서 재배치는 대상 지목이 필요 없다(코스 전체가 대상)
@@ -131,8 +150,9 @@ def parse_edit(text: str) -> EditCommand:
     # 추가는 순서 지목이 없어도 성립한다(맨 뒤에 덧붙임)
     if _ADD_RE.search(text) and not _REPLACE_RE.search(text) and not _REMOVE_RE.search(text):
         keyword, cat = _find_category(text)
-        if keyword:
-            # 위치를 말했으면 그 자리에 끼워 넣는다(기본은 맨 뒤)
+        if keyword or _ONE_MORE_RE.search(text):
+            # 위치를 말했으면 그 자리에 끼워 넣는다(기본은 맨 뒤).
+            # "한 곳 더"처럼 성격을 말하지 않았으면 keyword 없이 — 코스에 맞는 칸을 골라 붙인다.
             at = -1
             if _ADD_FRONT_RE.search(text):
                 at = 0
@@ -255,6 +275,14 @@ async def apply_edit(
     items = list(course.items)
     if cmd.action == "clear":
         return []
+    if cmd.action == "keep":
+        # "첫번째만 남기고 다 지워" — 지목한 자리만 남긴다
+        keep = {resolve_index(i, len(items)) for i in cmd.indexes}
+        kept = [it for i, it in enumerate(items) if i in keep]
+        if not kept or len(kept) == len(items):
+            return items
+        start = kept[0].arrive or DEFAULT_START_TIME
+        return await recompute([it.place for it in kept], start, _infer_mode(kept), map_service)
     if cmd.action == "swap":
         return await _apply_swap(items, cmd, map_service)
     if cmd.action == "reorder":
@@ -366,10 +394,23 @@ async def _apply_add(
     """요청한 성격의 장소를 한 칸 끼워 넣는다(cmd.index 가 위치, -1 이면 맨 뒤)."""
     existing_ids = {it.place.id for it in items}
     region = course.region or DEFAULT_REGION
-    candidates = await map_service.search_places(region, [cmd.keyword], limit=10)
+    keyword = cmd.keyword or _next_slot_query(items)
+    candidates = await map_service.search_places(region, [keyword], limit=10)
+    if not cmd.keyword:
+        from app.pipeline.stored_pool import stored_candidates
+
+        slot = next((k for k, v in _SLOT_QUERY.items() if v == keyword), "activity")
+        candidates = candidates + stored_candidates(region, [(slot, "")], candidates)
     fresh = [p for p in candidates if p.id not in existing_ids]
     if not fresh:
         return items
+    if not cmd.keyword and items:
+        # 성격을 말하지 않았으면 고른 칸의 장소 중 마지막 장소에서 가까운 곳(동선이 튀지 않게)
+        from app.pipeline.planner import classify
+
+        fresh = [p for p in fresh if classify(p) == slot] or fresh
+        last = items[-1].place
+        fresh.sort(key=lambda p: abs(p.lat - last.lat) + abs(p.lng - last.lng))
     pick = next((p for p in fresh if p.category == cmd.match), fresh[0])
     new_item = TimelineItem(place=pick)
     if 0 <= cmd.index <= len(items):
@@ -378,6 +419,22 @@ async def _apply_add(
         items = [*items, new_item]
     start = items[0].arrive if items[0].arrive else DEFAULT_START_TIME
     return await recompute([it.place for it in items], start, _infer_mode(items), map_service)
+
+
+_SLOT_QUERY = {"meal": "맛집", "cafe": "카페", "activity": "가볼만한곳", "bar": "술집"}
+
+
+def _next_slot_query(items: list[TimelineItem]) -> str:
+    """코스에 없는 성격을 데이트 흐름 순서로 고른다(식사 → 카페 → 할거리 → 술집)."""
+    from app.pipeline.planner import classify
+
+    have = {classify(it.place) for it in items}
+    last = classify(items[-1].place) if items else ""
+    for slot in ("meal", "cafe", "activity", "bar"):
+        if slot not in have:
+            return _SLOT_QUERY[slot]
+    # 다 있으면 마지막과 다른 성격 중 할거리 우선
+    return _SLOT_QUERY["activity" if last != "activity" else "cafe"]
 
 
 def _infer_mode(items: list[TimelineItem]) -> TravelMode:
