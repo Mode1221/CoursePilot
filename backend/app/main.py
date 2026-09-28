@@ -1042,6 +1042,8 @@ def _change_note(old_ids: list[str], new_ids: list[str]) -> str:
     kept = len(set(old_ids) & set(new_ids))
     if new_ids == old_ids:
         return "장소는 그대로예요."
+    if kept == len(new_ids) and len(new_ids) < len(old_ids):
+        return f"조건에 맞추느라 {len(old_ids) - len(new_ids)}곳을 뺐어요."
     if kept == len(new_ids):
         return "장소는 그대로 두고 순서·시간만 맞췄어요."
     if kept:

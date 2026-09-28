@@ -85,6 +85,7 @@ def test_다시_짠_코스는_바뀐_정도를_말한다():
     assert _change_note(["a", "b"], ["b", "a"]) == "장소는 그대로 두고 순서·시간만 맞췄어요."
     assert _change_note(["a", "b"], ["a", "c"]) == "1곳은 그대로 두고 1곳을 새로 골랐어요."
     assert _change_note(["a", "b"], ["c", "d"]) == "모두 새로 골랐어요."
+    assert _change_note(["a", "b", "c"], ["a", "c"]) == "조건에 맞추느라 1곳을 뺐어요."
 
 
 async def test_첫_자리를_바꿔도_시작_시각을_지킨다():
