@@ -13,6 +13,24 @@ jobs:
       # 문서·설정의 충돌 마커는 테스트가 잡아 주지 않는다
       - run: ./scripts/check_conflict_markers.sh
 
+  # 의존성 취약점. 백엔드는 알려진 취약점이 하나라도 있으면 실패.
+  # 프론트는 Next 14 → 15 업그레이드 전까지 보고만 한다(남은 항목은 15.5 이상에서만 수정됨,
+  # 치명 등급인 이미지 최적화 RCE 는 next.config 의 images.unoptimized 로 엔드포인트를 꺼 두었다).
+  audit:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - run: pip install pip-audit
+      - run: pip-audit -r backend/requirements.txt
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9
+      - run: pnpm audit --prod || true
+        working-directory: frontend
+
   backend:
     runs-on: ubuntu-latest
     defaults:

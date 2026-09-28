@@ -1,0 +1,24 @@
+# 의존성 보안 업데이트 — 주 1회 PR. 취약점 수정은 GitHub 보안 알림으로 즉시 따로 온다.
+version: 2
+updates:
+  - package-ecosystem: pip
+    directory: /backend
+    schedule: { interval: weekly }
+    open-pull-requests-limit: 5
+  - package-ecosystem: npm
+    directory: /frontend
+    schedule: { interval: weekly }
+    open-pull-requests-limit: 5
+    ignore:
+      # 메이저 업그레이드(Next 15·React 19 등)는 손으로 한다 — 자동 PR 은 패치·마이너만
+      - dependency-name: "*"
+        update-types: ["version-update:semver-major"]
+  - package-ecosystem: docker
+    directory: /backend
+    schedule: { interval: monthly }
+  - package-ecosystem: docker
+    directory: /frontend
+    schedule: { interval: monthly }
+  - package-ecosystem: github-actions
+    directory: /
+    schedule: { interval: monthly }

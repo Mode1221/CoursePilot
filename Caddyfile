@@ -1,14 +1,30 @@
 # CoursePilot 리버스 프록시 + 자동 HTTPS (Let's Encrypt).
 # {$DOMAIN} 환경변수에서 도메인을 읽는다. 최초 기동 시 인증서 자동 발급.
 
+# 공통 보안 헤더 — HTTPS 강제(HSTS), MIME 추측 금지, 다른 사이트의 iframe 삽입 금지(클릭재킹),
+# 리퍼러 최소화, 쓰지 않는 브라우저 권한 차단, 서버 종류 숨김.
+(security_headers) {
+	header {
+		Strict-Transport-Security "max-age=31536000; includeSubDomains"
+		X-Content-Type-Options "nosniff"
+		X-Frame-Options "DENY"
+		Content-Security-Policy "frame-ancestors 'none'"
+		Referrer-Policy "strict-origin-when-cross-origin"
+		Permissions-Policy "camera=(), microphone=(), geolocation=(), payment=(self)"
+		-Server
+	}
+}
+
 # 프론트(Next.js)
 {$DOMAIN} {
+	import security_headers
 	encode gzip
 	reverse_proxy frontend:3000
 }
 
 # 백엔드(FastAPI + Socket.IO). WebSocket 은 Caddy 가 자동 업그레이드 처리.
 api.{$DOMAIN} {
+	import security_headers
 	encode gzip
 	reverse_proxy backend:8000
 }

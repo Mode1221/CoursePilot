@@ -36,3 +36,12 @@ def _isolated_place_repo():
     yield
     place_repo._mem.clear()
     clear_cache()
+
+
+@pytest.fixture(autouse=True)
+def _reset_sms_ip_caps():
+    """IP 당 하루 문자 상한은 테스트 클라이언트 주소 하나로 누적된다 — 테스트마다 비운다."""
+    from app.auth import verification_store
+
+    verification_store._ip_sends.clear()
+    yield

@@ -365,6 +365,14 @@
 - ✅ 관리 엔드포인트 토큰 보호(`ADMIN_TOKEN`, 미설정 시 개발용 개방)
 - ✅ 운영 기동 거부(fail fast) — production 에서 SESSION_SECRET·ADMIN_TOKEN·DB 비밀번호가
   없거나 약하면(32자 미만·change·secret·test 같은 예시 문구) 앱이 뜨지 않는다. 운영에서 SMS 키가 없으면 인증 요청 503(코드 노출 금지)
+- ✅ **의존성 취약점 정리**(2026-09-28) — pip-audit: starlette 0.38(요청 처리 취약점 다수)·python-socketio·python-dotenv·pytest
+  → fastapi 0.141.1 등으로 올려 0건. openai SDK 1.51 은 httpx 0.28 에서 클라이언트 생성이 실패해 1.109.1 로.
+  프론트: Next 14.2.13 → 14.2.35(치명 3·높음 다수 해결), postcss·ws overrides, Playwright 1.55.1.
+  남은 Next 항목은 15.5 이상에서만 수정 → 치명(이미지 최적화 RCE)은 `images.unoptimized` 로 엔드포인트를 끔
+  (next/image·Server Actions·middleware·rewrites 미사용이라 나머지 대부분 비해당, RSC DoS 는 Next 15 업그레이드 과제).
+  CI `audit` 잡(백엔드 차단·프론트 보고), Dependabot(주 1회, 메이저 제외).
+- ✅ Caddy 보안 헤더 — HSTS·nosniff·X-Frame-Options DENY·frame-ancestors 'none'·Referrer-Policy·Permissions-Policy, Server 숨김
+- ✅ 문자 비용 공격 방어 — 번호당 상한에 더해 **IP 당 하루 10통**(번호를 바꿔 가며 보내는 공격)
 - ✅ rate limit 은 신뢰 프록시(`TRUSTED_PROXIES`)에서 온 요청만 X-Forwarded-For 를 보고,
   프록시가 덧붙인 맨 오른쪽 값을 쓴다(헤더 위조로 우회 불가, 프록시 뒤 전체 차단도 방지)
 - ✅ 민감값 마스킹(`app/log_safe.py`) — 전화번호·인증번호·토큰이 로그에 남지 않는지 회귀 테스트
