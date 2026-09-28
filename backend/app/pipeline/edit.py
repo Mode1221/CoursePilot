@@ -322,13 +322,16 @@ async def apply_edit(
         candidates = await map_service.search_places(
             region, [cmd.keyword] if cmd.keyword else [], limit=10
         )
-        if not cmd.keyword or cmd.keyword in _QUALITY_WORDS.values():
-            # 같은 성격으로 바꾸는 요청 — 검색 10곳에 더해 상권에 저장된 같은 칸 장소도 후보로
-            from app.pipeline.planner import classify
-            from app.pipeline.stored_pool import stored_candidates
+        # 검색 10곳에 더해 상권에 저장된 장소도 후보로 — 같은 성격 교체면 지금 칸, 성격을 말했으면 그 칸
+        # ("카페로 바꿔줘" → 카페 칸에서 검색어에 맞는 곳을 먼저)
+        from app.pipeline.planner import classify
+        from app.pipeline.stored_pool import stored_candidates
 
-            slot = classify(items[index].place)
-            candidates = candidates + stored_candidates(region, [(slot, "")], candidates)
+        if not cmd.keyword or cmd.keyword in _QUALITY_WORDS.values():
+            slot, wanted = classify(items[index].place), ""
+        else:
+            slot, wanted = classify(Place(id="_", name=cmd.keyword, category=cmd.keyword, lat=0, lng=0)), cmd.keyword
+        candidates = candidates + stored_candidates(region, [(slot, wanted)], candidates)
         fresh = [p for p in candidates if p.id not in existing_ids]
         # 교체는 그 자리의 성격을 유지해야 한다(카페 자리에 식당이 오면 코스가 망가짐)
         current_category = items[index].place.category
