@@ -85,3 +85,34 @@ def test_다시_짠_코스는_바뀐_정도를_말한다():
     assert _change_note(["a", "b"], ["b", "a"]) == "장소는 그대로 두고 순서·시간만 맞췄어요."
     assert _change_note(["a", "b"], ["a", "c"]) == "1곳은 그대로 두고 1곳을 새로 골랐어요."
     assert _change_note(["a", "b"], ["c", "d"]) == "모두 새로 골랐어요."
+
+
+async def test_첫_자리를_바꿔도_시작_시각을_지킨다():
+    from app.adapters.map_service import MockMapService
+    from app.pipeline.edit import apply_edit, parse_edit
+    from app.schemas import Course, Place, TimelineItem
+
+    places = [Place(id=f"p{i}", name=f"p{i}", category="cafe", lat=37.5, lng=127.0) for i in range(2)]
+    course = Course(id="c", region="성수", items=[
+        TimelineItem(place=places[0], arrive=time(14), depart=time(15)),
+        TimelineItem(place=places[1], arrive=time(15, 10), depart=time(16)),
+    ])
+    items = await apply_edit(course, parse_edit("첫번째 빼고 다 좋아"), MockMapService())
+    assert items[0].place.id != "p0" and items[0].arrive == time(14)
+    front = await apply_edit(course, parse_edit("맨 앞에 카페 넣어줘"), MockMapService())
+    assert front[0].arrive == time(14)
+
+
+def test_다시_해줘는_곳_수를_지킨다(monkeypatch):
+    from app.config import settings
+    from app.main import api
+    from app.users import user_store
+
+    monkeypatch.setattr(settings, "rate_limit_per_min", 10_000)
+    c = TestClient(api)
+    u = user_store.create("010-5555-8888")
+    h = {"X-User-Id": u.id}
+    cid = c.post("/courses", json={"owner_id": u.id}, headers=h).json()["id"]
+    a = c.post(f"/courses/{cid}/generate", json={"text": "성수 오후 2시 데이트 4시간"}, headers=h).json()
+    b = c.post(f"/courses/{cid}/generate", json={"text": "다시 해줘"}, headers=h).json()
+    assert len(b["course"]["items"]) >= len(a["course"]["items"])

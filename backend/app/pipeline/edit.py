@@ -273,6 +273,8 @@ async def apply_edit(
 ) -> list[TimelineItem]:
     """편집 명령을 적용해 갱신된 타임라인을 반환. 전체 동선 재계산."""
     items = list(course.items)
+    # 원래 시작 시각 — 첫 자리를 바꾸거나 앞에 끼우면 새 카드에는 도착 시각이 없어 기본값(12시)으로 밀렸다
+    original_start = next((it.arrive for it in items if it.arrive), None) or DEFAULT_START_TIME
     if cmd.action == "clear":
         return []
     if cmd.action == "keep":
@@ -288,7 +290,7 @@ async def apply_edit(
     if cmd.action == "reorder":
         return await _apply_reorder(items, map_service)
     if cmd.action == "add":
-        return await _apply_add(course, items, cmd, map_service)
+        return await _apply_add(course, items, cmd, map_service, original_start)
     if cmd.index == MATCH_INDEX:
         index = next(
             (i for i, it in enumerate(items) if it.place.category == cmd.match),
@@ -339,7 +341,7 @@ async def apply_edit(
             return items
         items[index] = TimelineItem(place=replacement)
 
-    start = items[0].arrive if items and items[0].arrive else DEFAULT_START_TIME
+    start = original_start
     mode = _infer_mode(items)
     return await recompute([it.place for it in items], start, mode, map_service)
 
@@ -390,6 +392,7 @@ async def _apply_add(
     items: list[TimelineItem],
     cmd: EditCommand,
     map_service: MapService,
+    original_start=None,
 ) -> list[TimelineItem]:
     """요청한 성격의 장소를 한 칸 끼워 넣는다(cmd.index 가 위치, -1 이면 맨 뒤)."""
     existing_ids = {it.place.id for it in items}
@@ -417,7 +420,7 @@ async def _apply_add(
         items = [*items[: cmd.index], new_item, *items[cmd.index :]]
     else:
         items = [*items, new_item]
-    start = items[0].arrive if items[0].arrive else DEFAULT_START_TIME
+    start = original_start or items[0].arrive or DEFAULT_START_TIME
     return await recompute([it.place for it in items], start, _infer_mode(items), map_service)
 
 

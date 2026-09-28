@@ -793,6 +793,20 @@ async def generate(
                     on_progress,
                     exclude_place_ids=exclude_ids,
                 )
+                if exclude_ids and len(result.timeline) < len(old_ids):
+                    # "다시 해줘" — 지금 장소를 다 빼니 곳 수가 줄었다(후보가 적은 지역).
+                    # 한 곳씩만 다시 쓰도록 허용해 가며, 곳 수를 지키면서 가장 많이 바뀐 코스를 쓴다.
+                    for keep in old_ids:
+                        retry = await generate_course(
+                            request_text,
+                            get_map_service(),
+                            prefs,
+                            on_progress,
+                            exclude_place_ids=set(old_ids) - {keep},
+                        )
+                        if len(retry.timeline) >= len(old_ids):
+                            result = retry
+                            break
                 course.items = result.timeline
                 relaxed = result.relaxed
                 needs_confirmation = result.needs_confirmation
