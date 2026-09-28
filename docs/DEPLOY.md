@@ -228,6 +228,9 @@ python scripts/districts_map.py     # districts_map.html + 겹침 목록
    ```bash
    ./scripts/ops/backup.sh && ls -lh ./backups
    ```
+   오프사이트: `.env` 에 `OFFSITE_S3_*` 를 넣으면 로컬 백업 뒤 S3 호환 저장소에 한 부 더 올린다
+   (Oracle Object Storage 권장 — 버킷 생성 → Customer Secret Key 발급 → 버킷 수명 주기 규칙 30일 삭제).
+   실패하면 웹훅으로 알리고 로컬 백업은 남긴다.
 6. **크론 확인** — `deploy.sh` 가 설치한다
    ```bash
    crontab -l | sed -n '/coursepilot/,/coursepilot/p'
