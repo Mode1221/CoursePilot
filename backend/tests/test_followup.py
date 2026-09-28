@@ -1,0 +1,78 @@
+"""코스가 있을 때의 후속 요청 — 직전 조건을 이어받고 바뀐 부분만 반영한다."""
+from datetime import time
+
+from fastapi.testclient import TestClient
+
+from app.pipeline.decomposition import parse_constraints
+from app.pipeline.followup import followup_text
+
+PREV = "토요일 성수 오후 2시 데이트 4시간"
+
+
+def _c(text: str):
+    return parse_constraints(followup_text(text, PREV, time(14, 0)))
+
+
+def test_끝나는_시각은_끝_시각으로_읽는다():
+    c = _c("7시에 끝나게 해줘")
+    assert (c.region, c.start_time, c.end_time) == ("성수", time(14, 0), time(19, 0))
+
+
+def test_상대_시간_이동():
+    assert _c("1시간 늦게 시작하자").start_time == time(15, 0)
+    assert _c("30분 일찍").start_time == time(13, 30)
+    assert _c("두 시간 늦게").start_time == time(16, 0)
+
+
+def test_새_시간대_날짜_소요시간이_옛_값을_대신한다():
+    c = _c("내일 저녁으로 바꿔")
+    assert c.start_time == time(18, 0) and c.region == "성수"
+    assert _c("2시간만").duration_min == 120
+    assert _c("점심으로").start_time == time(12, 0)
+
+
+def test_이동_불만은_조건으로_바꾼다():
+    assert _c("아 너무 멀다").max_travel_min == 10
+    c = _c("걷기 싫어 차로 갈게")
+    assert c.travel_mode.value == "car" and c.max_travel_min is None
+
+
+def test_새_취향은_기존_조건에_더한다():
+    c = _c("디저트 먹고 싶어")
+    assert c.region == "성수" and "디저트" in c.keywords and c.start_time == time(14, 0)
+
+
+def test_채팅으로_이어서_말하면_지역과_시간이_유지된다(monkeypatch):
+    from app.config import settings
+    from app.main import api
+    from app.users import user_store
+
+    monkeypatch.setattr(settings, "rate_limit_per_min", 10_000)
+    c = TestClient(api)
+    u = user_store.create("010-5555-6666")
+    h = {"X-User-Id": u.id}
+    cid = c.post("/courses", json={"owner_id": u.id}, headers=h).json()["id"]
+    c.post(f"/courses/{cid}/generate", json={"text": "성수 오후 2시 데이트"}, headers=h)
+    first = c.post(f"/courses/{cid}/generate", json={"text": "디저트 먹고 싶어"}, headers=h).json()
+    assert first["course"]["region"] == "성수"
+    later = c.post(f"/courses/{cid}/generate", json={"text": "1시간 늦게 시작하자"}, headers=h).json()
+    items = later["course"]["items"]
+    assert items and items[0]["arrive"].startswith("15:")
+    msgs = c.get(f"/courses/{cid}/messages", headers=h).json()
+    assert "지역을 못 알아들어" not in msgs[-1]["text"]
+
+
+def test_다시_해줘는_다른_장소로(monkeypatch):
+    from app.config import settings
+    from app.main import api
+    from app.users import user_store
+
+    monkeypatch.setattr(settings, "rate_limit_per_min", 10_000)
+    c = TestClient(api)
+    u = user_store.create("010-5555-7777")
+    h = {"X-User-Id": u.id}
+    cid = c.post("/courses", json={"owner_id": u.id}, headers=h).json()["id"]
+    a = c.post(f"/courses/{cid}/generate", json={"text": "성수 오후 2시 데이트"}, headers=h).json()
+    b = c.post(f"/courses/{cid}/generate", json={"text": "다시 해줘"}, headers=h).json()
+    ids = lambda r: [it["place"]["id"] for it in r["course"]["items"]]  # noqa: E731
+    assert ids(b) and ids(a) != ids(b)
