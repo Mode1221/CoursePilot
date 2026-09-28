@@ -56,6 +56,7 @@ export default function ChatPanel({ courseId, compact = false }: { courseId: str
   const messages = useCourseStore((s) => s.messages);
   const setCourse = useCourseStore((s) => s.setCourse);
   const course = useCourseStore((s) => s.course);
+  const hasItems = (course?.items.length ?? 0) > 0;
 
   const { userId, questionsLeft, load, setQuestionsLeft } = useUserStore();
 
@@ -172,9 +173,13 @@ export default function ChatPanel({ courseId, compact = false }: { courseId: str
     <div style={{ display: "flex", flexDirection: "column", height: "100%", background: "var(--surface)" }}>
       {compact ? (
         <header style={{ padding: "var(--sp-3) var(--sp-4)", borderBottom: "1px solid var(--border)", fontWeight: 700 }}>
-          AI로 코스 고치기
+          {hasItems ? "AI로 코스 고치기" : "AI로 코스 만들기"}
           <p style={{ margin: "2px 0 0", fontSize: "var(--fs-xs)", color: "var(--text-muted)", fontWeight: 400 }}>
-            &ldquo;2번 다른 곳으로&rdquo;, &ldquo;매운 거 빼줘&rdquo;, &ldquo;7시에 끝나게&rdquo;
+            {hasItems ? (
+              <>&ldquo;2번 다른 곳으로&rdquo;, &ldquo;매운 거 빼줘&rdquo;, &ldquo;7시에 끝나게&rdquo;</>
+            ) : (
+              <>언제·어디서·누구와를 한 줄로 말해 주세요</>
+            )}
           </p>
         </header>
       ) : (
