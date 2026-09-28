@@ -23,6 +23,9 @@ const STAGE_LABELS: Record<string, string> = {
 };
 
 // 첫 사용자가 무엇을 입력할지 바로 알 수 있게 하는 예시(클릭 시 입력창에 채움)
+// 코스가 있을 때 한 번 눌러 바로 보내는 수정 요청(무엇을 말할 수 있는지도 알려 준다)
+const QUICK_EDITS = ["2번 다른 곳으로", "한 곳 더", "너무 멀어", "더 저렴하게", "1시간 늦게", "되돌려줘"];
+
 const EXAMPLES = [
   "토요일 오후 1시 성수동, 3시간, 도보 10분 이내",
   "금요일 저녁 7시 강남역에서 출발, 회식 4명, 1인 3만원",
@@ -87,13 +90,14 @@ export default function ChatPanel({ courseId, compact = false }: { courseId: str
     refreshCredits();
   }, [refreshCredits]);
 
-  async function send() {
-    if (!text.trim() || sending) return;
+  async function send(override?: string) {
+    const message = (override ?? text).trim();
+    if (!message || sending) return;
     setError(null);
     setNotice(null);
     setSending(true);
     try {
-      const res = await api.generate(courseId, text, userId ?? undefined, partnerToken ?? undefined);
+      const res = await api.generate(courseId, message, userId ?? undefined, partnerToken ?? undefined);
       setCourse(res.course);
       setText("");
       if (res.needs_confirmation) {
@@ -325,7 +329,7 @@ export default function ChatPanel({ courseId, compact = false }: { courseId: str
             <span>{error}</span>
             {/* 실패해도 입력한 문장은 남아 있으니, 그대로 한 번 더 보낼 수 있게 한다 */}
             {text.trim() && (
-              <Button size="sm" disabled={sending} onClick={send}>
+              <Button size="sm" disabled={sending} onClick={() => send()}>
                 다시 시도
               </Button>
             )}
@@ -364,11 +368,40 @@ export default function ChatPanel({ courseId, compact = false }: { courseId: str
             </span>
           )}
         </div>
+        {canUseAi && (course?.items.length ?? 0) > 0 && (
+          <div
+            role="group"
+            aria-label="빠른 수정"
+            style={{ display: "flex", gap: "var(--sp-1)", overflowX: "auto", marginBottom: "var(--sp-2)", paddingBottom: 2 }}
+          >
+            {QUICK_EDITS.map((q) => (
+              <button
+                key={q}
+                type="button"
+                disabled={sending || locked}
+                onClick={() => send(q)}
+                style={{
+                  flex: "0 0 auto",
+                  background: "var(--surface-2)",
+                  color: "var(--text)",
+                  border: "1px solid var(--border)",
+                  borderRadius: "var(--r-full)",
+                  padding: "4px 10px",
+                  fontSize: "var(--fs-xs)",
+                  cursor: sending || locked ? "default" : "pointer",
+                  whiteSpace: "nowrap",
+                }}
+              >
+                {q}
+              </button>
+            ))}
+          </div>
+        )}
         <div style={{ display: "flex", gap: "var(--sp-2)" }}>
           <Input
             value={text}
             onChange={(e) => setText(e.target.value)}
-            onKeyDown={(e) => e.key === "Enter" && send()}
+            onKeyDown={(e) => e.key === "Enter" && !e.nativeEvent.isComposing && send()}
             placeholder={
               !canUseAi ? "가입하면 AI에게 조건을 말할 수 있어요" : "예: 2번 다른 곳으로, 매운 거 빼줘"
             }
@@ -376,7 +409,7 @@ export default function ChatPanel({ courseId, compact = false }: { courseId: str
             aria-label="조건 입력"
             style={{ flex: 1 }}
           />
-          <Button variant="primary" onClick={send} disabled={sending || locked || !canUseAi}>
+          <Button variant="primary" onClick={() => send()} disabled={sending || locked || !canUseAi}>
             {sending ? "생성 중…" : "전송"}
           </Button>
         </div>
