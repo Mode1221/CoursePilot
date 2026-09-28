@@ -19,8 +19,20 @@ def test_교체_명령은_추가로_보지_않는다():
     assert parse_edit("두 번째 카페 다른 곳으로 바꿔줘").action == "replace"
 
 
-def test_카테고리가_없으면_추가로_보지_않는다():
-    assert parse_edit("하나 더 추가해줘").action == "none"
+def test_성격_없이_하나_더는_코스에_없는_성격을_붙인다():
+    """예전엔 새 코스를 만들어 버렸다("한 곳 더 추가" → 1곳짜리 새 코스)."""
+    cmd = parse_edit("하나 더 추가해줘")
+    assert cmd.action == "add" and cmd.keyword == ""
+
+
+async def test_성격_없이_하나_더_적용():
+    from app.pipeline.planner import classify
+
+    course = _course()
+    before = {classify(it.place) for it in course.items}
+    items = await apply_edit(course, parse_edit("한 곳 더 가자"), MockMapService())
+    assert len(items) == len(course.items) + 1
+    assert classify(items[-1].place) not in before
 
 
 async def test_요청한_성격의_장소가_뒤에_붙는다():

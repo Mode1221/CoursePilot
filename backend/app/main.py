@@ -29,6 +29,7 @@ from app.middleware import RateLimitMiddleware, RequestLogMiddleware
 from app.pipeline.agent import generate_course
 from app.pipeline.decomposition import is_actionable, parse_constraints
 from app.pipeline.edit import EditCommand, apply_edit, parse_edit
+from app.pipeline.followup import followup_text
 from app.popularity import popularity_store
 from app.queue import QueueOverflow, queues
 from app.realtime import (
@@ -696,17 +697,20 @@ async def generate(
         exclude_ids: set[str] | None = None
         if _REPLACE_ALL_RE.search(req.text):
             # 지금 코스의 장소는 빼고 같은 조건으로 다시 고른다
-            previous = _last_condition_text(course_id)
+            previous = _effective_condition(course_id)
             if previous:
                 request_text = previous
             exclude_ids = {it.place.id for it in course.items} or None
         elif _REGENERATE_RE.search(req.text):
-            previous = _last_condition_text(course_id)
+            previous = _effective_condition(course_id)
             if previous:
                 request_text = previous
+            # "다시 해줘"에 같은 코스가 나오면 아무 일도 안 한 것처럼 보인다 — 지금 장소는 뺀다
+            # (후보가 모자라면 generate_course 가 기존 후보로 되돌아간다)
+            exclude_ids = {it.place.id for it in course.items} or None
         elif _CONDITION_CHANGE_RE.search(req.text) or _ALL_QUALITY_RE.search(req.text):
             # 새 값이 앞에 오도록 이어 붙여 파서가 새 값을 우선 잡게 한다
-            previous = _last_condition_text(course_id)
+            previous = _effective_condition(course_id)
             if previous:
                 request_text = f"{req.text} {previous}"
 
@@ -721,11 +725,24 @@ async def generate(
 
             interpreted = await interpret_edit(req.text, course.items)
             if isinstance(interpreted, ConditionChange):
-                previous = _last_condition_text(course_id)
-                request_text = f"{interpreted.text} {previous or course.region or ''}".strip()
+                previous = _effective_condition(course_id) or course.region or ""
+                request_text = followup_text(
+                    f"{interpreted.text} {req.text}", previous, course.items[0].arrive
+                )
                 edit_cmd = EditCommand(action="none")
             elif interpreted is not None:
                 edit_cmd = interpreted
+        # 코스가 있는데 편집 명령이 아니면 새 코스 요청이 아니라 조건 일부를 바꾸는 말이다
+        # ("7시에 끝나게", "1시간 늦게", "너무 멀어", "디저트 먹고 싶어") — 직전 조건을 이어받는다.
+        if (
+            course.items
+            and edit_cmd.action == "none"
+            and request_text == req.text
+            and not _is_question(req.text)
+        ):
+            previous = _effective_condition(course_id)
+            if previous:
+                request_text = followup_text(req.text, previous, course.items[0].arrive)
 
         # 질문("여기 주차 되나요?")에 코스를 갈아엎지 않는다. 편집 명령이 아닌
         # 물음이면 지금 코스로 답하고 크레딧도 돌려준다.
@@ -781,6 +798,8 @@ async def generate(
                 needs_confirmation = result.needs_confirmation
                 closed_dropped = result.closed_dropped
                 gen_constraints = result.constraints
+                if course.items:
+                    _EFFECTIVE_CONDITION[course_id] = request_text  # 다음 후속 요청의 바탕
                 region_guessed = result.constraints.region is None
                 # 문장에 지역이 없어 저장된 선호로 채웠다면 그 사실을 알린다
                 if (
@@ -856,6 +875,8 @@ async def generate(
             # 없는 순번·카테고리를 지목하면 아무것도 바뀌지 않는다 → 알리고 크레딧도 돌려준다
             (x_user_id and user_store.refund_credit(x_user_id))
             ai_text = "요청하신 자리를 찾지 못했어요. 순번(예: 2번째)이나 장소 종류로 다시 말씀해 주세요."
+        elif is_edit and edit_cmd.action == "keep":
+            ai_text = f"말씀하신 곳만 남겼어요. 이제 {len(course.items)}곳이에요."
         elif is_edit and edit_cmd.action in ("replace", "remove", "add"):
             ai_text = _edit_reply(course, edit_cmd.action, old_ids, new_ids, old_names)
         elif is_edit and edit_cmd.action in ("reorder", "swap"):
@@ -891,6 +912,15 @@ _REGENERATE_RE = re.compile(
     r"(?:다시|새로|새롭게|리롤|다른\s*걸?로)\s*(?:한번|한\s*번)?\s*"
     r"(?:해|만들|찾|추천|짜|구성)|처음부터\s*다시"
 )
+
+
+# 코스별로 실제 생성에 쓴 조건 문장(후속 요청이 덧붙은 결과). 채팅 기록만 보면 "디저트 먹고 싶어"
+# 같은 후속 문장이 조건 문장으로 잡혀 지역·시간이 사라진다. 재시작하면 채팅 기록으로 폴백한다.
+_EFFECTIVE_CONDITION: dict[str, str] = {}
+
+
+def _effective_condition(course_id: str) -> str | None:
+    return _EFFECTIVE_CONDITION.get(course_id) or _last_condition_text(course_id)
 
 
 def _last_condition_text(course_id: str) -> str | None:

@@ -68,6 +68,32 @@ describe("ChatPanel", () => {
     expect(await screen.findByText(/완화된 조건으로 코스를 다시 구성했어요/)).toBeDefined();
   });
 
+  it("코스가 있으면 빠른 수정 칩을 눌러 바로 보낸다", async () => {
+    const withItems = { ...COURSE, items: [{ place: { id: "p1", name: "A", lat: 0, lng: 0 } }] };
+    useCourseStore.setState({ course: withItems } as never);
+    vi.mocked(api.generate).mockResolvedValue({
+      course: withItems,
+      relaxed: false,
+      needs_confirmation: false,
+    } as never);
+    render(<ChatPanel courseId="c1" />);
+    fireEvent.click(screen.getByRole("button", { name: "한 곳 더" }));
+    await waitFor(() => expect(api.generate).toHaveBeenCalledWith("c1", "한 곳 더", "u1", undefined));
+  });
+
+  it("코스가 비어 있으면 빠른 수정 칩이 없다", () => {
+    render(<ChatPanel courseId="c1" />);
+    expect(screen.queryByRole("group", { name: "빠른 수정" })).toBeNull();
+  });
+
+  it("한글 조합 중 Enter 는 보내지 않는다", () => {
+    render(<ChatPanel courseId="c1" />);
+    const input = screen.getByLabelText("조건 입력");
+    fireEvent.change(input, { target: { value: "성수" } });
+    fireEvent.keyDown(input, { key: "Enter", isComposing: true });
+    expect(api.generate).not.toHaveBeenCalled();
+  });
+
   it("비로그인 참여자는 입력이 잠긴다", () => {
     setUser(null);
     render(<ChatPanel courseId="c1" />);
