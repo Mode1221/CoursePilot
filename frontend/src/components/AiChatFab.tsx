@@ -26,6 +26,8 @@ export default function AiChatFab({ courseId, narrow }: { courseId: string; narr
   // 오른쪽 아래 — 카드들은 버튼 위에서 끝나게 페이지가 여백을 둔다.
   // 패널을 열면 타임라인을 덮으므로, AI 가 코스를 바꾸면 패널을 내려 결과(와 교체·삭제 버튼)가 바로 보이게 한다.
   const itemsKey = useCourseStore((s) => (s.course?.items ?? []).map((it) => it.place.id).join(","));
+  // 빈 코스에서 "고치기"는 어색하다 — 무엇을 할 수 있는지 버튼 이름이 말해 준다
+  const label = itemsKey ? "AI로 코스 고치기" : "AI로 코스 만들기";
   const [openedAt, setOpenedAt] = useState<string | null>(null);
   useEffect(() => {
     if (open) setOpenedAt((k) => k ?? itemsKey);
@@ -50,7 +52,7 @@ export default function AiChatFab({ courseId, narrow }: { courseId: string; narr
           ref={fabRef}
           type="button"
           onClick={() => setOpen(true)}
-          aria-label="AI로 코스 고치기"
+          aria-label={label}
           style={{
             position: "fixed",
             right: 20,
@@ -71,7 +73,7 @@ export default function AiChatFab({ courseId, narrow }: { courseId: string; narr
             cursor: "pointer",
           }}
         >
-          <span aria-hidden="true">✦</span> AI로 코스 고치기
+          <span aria-hidden="true">✦</span> {label}
         </button>
       )}
       {open && (

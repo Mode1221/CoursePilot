@@ -50,12 +50,12 @@ for (const [label, viewport, scheme] of [
   await member(page);
   await page.goto("/");
   await page.getByRole("button", { name: "코스 만들고 링크 보내기" }).click();
-  await page.getByRole("button", { name: "AI로 코스 고치기" }).click({ timeout: 15_000 });
+  await page.getByRole("button", { name: /AI로 코스 (고치기|만들기)/ }).click({ timeout: 15_000 });
   await page.getByLabel("조건 입력").fill("성수동 오전 10시 5시간 도보");
   await page.getByText("전송").click();
   await expect(page.getByText(/1\. 성수동 장소/)).toBeVisible({ timeout: 15_000 });
   await expectNoSeriousViolations(page, "코스 화면");
-  await page.getByRole("button", { name: "AI로 코스 고치기" }).click();
+  await page.getByRole("button", { name: /AI로 코스 (고치기|만들기)/ }).click();
   await expectNoSeriousViolations(page, "AI 채팅 열림");
 });
 
@@ -63,7 +63,7 @@ test("키보드만으로 AI 채팅을 열고 보내고 닫는다", async ({ page
   await member(page);
   await page.goto("/");
   await page.getByRole("button", { name: "코스 만들고 링크 보내기" }).click();
-  const fab = page.getByRole("button", { name: "AI로 코스 고치기" });
+  const fab = page.getByRole("button", { name: /AI로 코스 (고치기|만들기)/ });
   await fab.waitFor({ timeout: 15_000 });
   await fab.focus();
   await page.keyboard.press("Enter");
