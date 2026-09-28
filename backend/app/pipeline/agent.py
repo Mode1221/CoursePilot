@@ -363,6 +363,8 @@ def _apply_preferences(constraints: PlanConstraints, prefs: dict) -> None:
         constraints.travel_mode = TravelMode.CAR
 
 
+from app.pipeline.stored_pool import MAX_POOL, stored_candidates  # noqa: E402
+
 MAX_QUERY_KEYWORDS = 3  # 지역 + 키워드 3개까지만 검색 질의로 전달
 CANDIDATES_PER_SLOT = 6  # 칸마다 이 정도 후보가 있어야 카테고리·영업시간 필터를 견딘다
 MAX_CANDIDATES = 40  # 6칸 코스(칸당 6후보)까지 채울 수 있는 상한
@@ -447,8 +449,16 @@ async def _candidates(
     limit = min(MAX_CANDIDATES, max(10, len(desired_slots(constraints)) * CANDIDATES_PER_SLOT))
     if constraints.slot_queries or constraints.required_slots:
         candidates = await _slot_search(constraints, map_service, region)
+        slot_kw = [(q[0], q[1]) for q in constraints.slot_queries if len(q) == 2]
     else:
         candidates = await map_service.search_places(region, query_keywords, limit=limit)
+        slot_kw = []
+    # 벤더 검색은 질의당 10여 곳뿐이다 — 배치가 모아 둔 상권 전수에서 칸별로 더한다
+    joined = " ".join(query_keywords)
+    for slot in dict.fromkeys(desired_slots(constraints)):
+        if not any(s == slot for s, _ in slot_kw):
+            slot_kw.append((slot, joined))
+    candidates = (candidates + stored_candidates(region, slot_kw, candidates))[:MAX_POOL]
     candidates = _with_active_popups(candidates, constraints, region)
     if exclude_place_ids:
         # "전부 다른 곳으로" — 지금 코스에 있는 장소는 후보에서 뺀다
