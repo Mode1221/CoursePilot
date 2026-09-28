@@ -145,6 +145,8 @@ export default function PlaceDetailModal({
                 ({place.rating_count.toLocaleString()}명)
               </span>
             )}
+            {/* 평점은 Google Places 에서 온다 — 표시할 때 출처를 밝히는 것이 이용 조건이다 */}
+            <span style={{ color: "var(--text-muted)", fontSize: "var(--fs-sm)" }}> · Google 평점</span>
           </div>
         )}
         {yearsOpen != null && (

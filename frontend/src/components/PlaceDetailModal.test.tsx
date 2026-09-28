@@ -105,6 +105,7 @@ describe("PlaceDetailModal", () => {
     };
     const { getByText } = render(<PlaceDetailModal place={detailed} onClose={() => {}} />);
     await waitFor(() => getByText(/812/));
+    getByText(/Google 평점/); // 출처 표시(Google 이용 조건)
     getByText("주차 가능");
     getByText("단체석 주의");
     getByText(/년차/);
