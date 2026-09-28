@@ -4,7 +4,8 @@ import itertools
 import pytest
 from fastapi.testclient import TestClient
 
-from app.main import _ALL_QUALITY_RE, api
+from app.chat_api import _ALL_QUALITY_RE
+from app.main import api
 
 client = TestClient(api)
 _phones = itertools.count(1)

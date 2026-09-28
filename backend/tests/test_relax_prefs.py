@@ -32,7 +32,7 @@ def test_완화_재시도에_선호_프로필이_전달된다(monkeypatch):
     )
 
     seen: list[dict | None] = []
-    import app.main as main
+    import app.chat_api as main
     real = main.generate_course
 
     async def _spy(text, map_service, preferences=None, on_progress=None, force_relax=False):

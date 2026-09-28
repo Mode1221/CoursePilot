@@ -14,7 +14,7 @@ async def test_완화로_나아진게_없으면_완화했다고_하지_않는다
 
 
 async def test_완화하지_않으면_안내문에_완화_문구가_없다():
-    from app.main import _ai_reply
+    from app.chat_api import _ai_reply
     from app.schemas import Course, Place, TimelineItem
 
     def _item(pid: str) -> TimelineItem:

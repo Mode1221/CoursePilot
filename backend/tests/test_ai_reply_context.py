@@ -1,6 +1,6 @@
 from datetime import date, time
 
-from app.main import _ai_reply
+from app.chat_api import _ai_reply
 from app.schemas import Course, Place, TimelineItem
 
 PLACE = Place(id="p1", name="카페 A", category="cafe", lat=37.5, lng=127.0)

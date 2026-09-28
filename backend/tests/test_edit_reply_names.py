@@ -1,7 +1,7 @@
 """편집 결과 안내에 무엇이 빠지고 무엇이 들어왔는지 이름으로 알린다."""
 from datetime import time
 
-from app.main import _edit_reply
+from app.chat_api import _edit_reply
 from app.schemas import Course, Place, TimelineItem
 
 
