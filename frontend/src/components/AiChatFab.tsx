@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 import ChatPanel from "@/components/ChatPanel";
 import { useCourseStore } from "@/store/courseStore";
@@ -11,6 +11,18 @@ import { useCourseStore } from "@/store/courseStore";
  */
 export default function AiChatFab({ courseId, narrow }: { courseId: string; narrow: boolean }) {
   const [open, setOpen] = useState(false);
+  const fabRef = useRef<HTMLButtonElement>(null);
+  const panelRef = useRef<HTMLElement>(null);
+  const wasOpen = useRef(false);
+  // 키보드 사용자: 열면 입력창으로, 닫으면 여는 버튼으로 포커스를 돌려준다(포커스가 문서 맨 앞으로 튀지 않게)
+  useEffect(() => {
+    if (open) {
+      panelRef.current?.querySelector<HTMLInputElement>('input[aria-label="조건 입력"]')?.focus();
+    } else if (wasOpen.current) {
+      fabRef.current?.focus();
+    }
+    wasOpen.current = open;
+  }, [open]);
   // 오른쪽 아래 — 카드들은 버튼 위에서 끝나게 페이지가 여백을 둔다.
   // 패널을 열면 타임라인을 덮으므로, AI 가 코스를 바꾸면 패널을 내려 결과(와 교체·삭제 버튼)가 바로 보이게 한다.
   const itemsKey = useCourseStore((s) => (s.course?.items ?? []).map((it) => it.place.id).join(","));
@@ -35,6 +47,7 @@ export default function AiChatFab({ courseId, narrow }: { courseId: string; narr
     <>
       {!open && (
         <button
+          ref={fabRef}
           type="button"
           onClick={() => setOpen(true)}
           aria-label="AI로 코스 고치기"
@@ -71,6 +84,7 @@ export default function AiChatFab({ courseId, narrow }: { courseId: string; narr
             />
           )}
           <section
+            ref={panelRef}
             role="dialog"
             aria-label="AI 챗봇"
             className="cp-enter"
@@ -101,6 +115,7 @@ export default function AiChatFab({ courseId, narrow }: { courseId: string; narr
                 borderRadius: "50%",
                 border: 0,
                 background: "var(--surface-2)",
+                color: "var(--text)",
                 cursor: "pointer",
                 fontSize: 16,
               }}
