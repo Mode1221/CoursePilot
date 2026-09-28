@@ -73,6 +73,15 @@ docker compose up --build -d   # docker-compose.yml (로컬, HTTPS/프록시 없
 - `db`는 pgvector 이미지, healthcheck 통과 후 `backend` 기동.
 - 키는 `backend` 서비스 `environment` 또는 `.env`로 주입.
 
+### 자동 배포 (머지 → VM 반영)
+첫 `./deploy.sh` 이후에는 크론이 5분마다 `scripts/ops/auto_deploy.sh` 를 돌린다.
+main 에 새 커밋이 있으면 그 커밋 sha 이미지(`DEPLOY_TAG`)로 `deploy.sh` 를 실행하고,
+실패하면 직전 배포 sha 로 되돌린 뒤 웹훅으로 알린다(실패한 sha 는 재시도 안 함).
+SSH 로 밀어 넣지 않고 VM 이 당겨 오므로 GitHub 에 SSH 키를 맡기지 않는다.
+- 로그: `logs/deploy.log`, 상태: `.deploy/deployed`·`.deploy/failed`
+- 끄기: `.env` 에 `AUTO_DEPLOY=false`
+- VM 저장소에 커밋 안 된 수정이 있으면 배포를 보류하고 알린다
+
 ### 개별 배포
 ```bash
 # backend

@@ -30,6 +30,8 @@ fi
 
 # 필수값 확인. 여기서 걸러야 컨테이너가 반쯤 뜬 채로 헤매지 않는다.
 set -a; . ./.env; set +a
+# 자동 배포(auto_deploy.sh)는 커밋 sha 로 고정해 부른다. .env 의 IMAGE_TAG 보다 우선한다.
+export IMAGE_TAG="${DEPLOY_TAG:-${IMAGE_TAG:-latest}}"
 : "${DOMAIN:?.env 에 DOMAIN 설정 필요}"
 : "${POSTGRES_PASSWORD:?.env 에 POSTGRES_PASSWORD 설정 필요}"
 : "${SESSION_SECRET:?.env 에 SESSION_SECRET 설정 필요 (openssl rand -hex 32)}"
