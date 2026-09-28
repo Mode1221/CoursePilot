@@ -22,3 +22,17 @@ def _paid_mode_by_default(monkeypatch):
     test_free_mode.py 에서 명시적으로 켜서 검증한다."""
     monkeypatch.setattr(settings, "free_mode", False)
     yield
+
+
+@pytest.fixture(autouse=True)
+def _isolated_place_repo():
+    """저장 장소는 코스 후보 풀로 쓰인다 — 앞 테스트가 남긴 목업 장소가 다음 테스트 코스에
+    섞이지 않도록 테스트마다 인메모리 저장소를 비운다."""
+    from app.pipeline.stored_pool import clear_cache
+    from app.places import place_repo
+
+    place_repo._mem.clear()
+    clear_cache()
+    yield
+    place_repo._mem.clear()
+    clear_cache()

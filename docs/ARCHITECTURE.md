@@ -17,6 +17,7 @@
    - `pipeline/llm.py:decompose` — 자연어→`PlanConstraints`. Anthropic Haiku(키) 또는 규칙 파서(`pipeline/decomposition.py`) 폴백.
    - 채팅 수정: `pipeline/edit.parse_edit`(규칙) → 못 알아들으면 `pipeline/llm_edit.interpret_edit`(LLM 도구 호출, 코스 목록 입력) → `apply_edit`.
    - `adapters/map_service.py:get_map_service()` — 후보 장소 수집(네이버/Mock, Google 평점 enrich).
+   - `pipeline/stored_pool.py` — 벤더 검색(질의당 10여 곳)에 더해 배치가 저장한 상권 장소를 칸별 15곳씩 후보에 붙인다(`place_repo.near`, 상권 풀 10분 캐시, 합계 120곳 상한). 같은 성격 교체("2번 다른 곳으로")도 이 풀을 쓴다.
    - `pipeline/planner.py:plan_course` — 스코어링·템플릿·동선·Best-of-N.
    - `pipeline/validation.py:build_timeline` — 영업시간·이동시간 물리 검증.
    - 부족 시 조건 완화 재시도(이동시간↑, 소프트 키워드 드롭). 완화 강도는 `feedback.py:acceptance_rate()` 로 학습.
