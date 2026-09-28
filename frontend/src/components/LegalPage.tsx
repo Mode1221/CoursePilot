@@ -1,3 +1,4 @@
+import Link from "next/link";
 import type { ReactNode } from "react";
 
 /** 법률 문서 공통 껍데기. 본문은 페이지가 넘긴다. */
@@ -39,7 +40,7 @@ export default function LegalPage({
       </p>
       {children}
       <p style={{ marginTop: "var(--sp-8)", fontSize: "var(--fs-sm)" }}>
-        <a href="/">← 홈으로</a>
+        <Link href="/">← 홈으로</Link>
       </p>
     </main>
   );

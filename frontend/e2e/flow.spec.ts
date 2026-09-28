@@ -183,7 +183,7 @@ test("먼저 상대에게 묻기: 링크 → 상대 카드 → 합친 코스에 
   expect(link).toContain("/together/");
   const partner = await context.browser()!.newPage();
   await partner.goto(link!);
-  await expect(partner.getByText(/같이 정하재요 · 30초 · 가입 없음/)).toBeVisible();
+  await expect(partner.getByRole("paragraph").filter({ hasText: /같이 정하재요 · 30초 · 가입 없음/ })).toBeVisible();
   await partner.getByText("피곤해 (많이 못 걸어)").click();
   await partner.getByText("디저트").click();
   await partner.getByText("매운 거").click();

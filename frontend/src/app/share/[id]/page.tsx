@@ -24,8 +24,9 @@ async function fetchCourse(id: string): Promise<Course | null> {
   }
 }
 
-export async function generateMetadata({ params }: { params: { id: string } }): Promise<Metadata> {
-  const course = await fetchCourse(params.id);
+export async function generateMetadata({ params }: { params: Promise<{ id: string }> }): Promise<Metadata> {
+  const { id } = await params;
+  const course = await fetchCourse(id);
   if (!course) {
     return { title: "공유된 코스 — CoursePilot" };
   }
@@ -44,6 +45,7 @@ export async function generateMetadata({ params }: { params: { id: string } }): 
   };
 }
 
-export default function SharePage({ params }: { params: { id: string } }) {
-  return <ShareView id={params.id} />;
+export default async function SharePage({ params }: { params: Promise<{ id: string }> }) {
+  const { id } = await params;
+  return <ShareView id={id} />;
 }

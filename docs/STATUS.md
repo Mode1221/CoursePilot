@@ -378,6 +378,9 @@
   남은 Next 항목은 15.5 이상에서만 수정 → 치명(이미지 최적화 RCE)은 `images.unoptimized` 로 엔드포인트를 끔
   (next/image·Server Actions·middleware·rewrites 미사용이라 나머지 대부분 비해당, RSC DoS 는 Next 15 업그레이드 과제).
   CI `audit` 잡(백엔드 차단·프론트 보고), Dependabot(주 1회, 메이저 제외).
+- ✅ **Next 15.5.26 + React 19.3** — Next 14 에만 남아 있던 취약점(RSC DoS·SSRF·RCE 등) 해소 → `pnpm audit --prod` 0건,
+  CI `audit` 잡을 프론트도 차단으로. 동적 페이지 `params` 가 Promise 로 바뀐 것 반영(클라이언트는 `useParams`),
+  zustand 4.5.7 + `use-sync-external-store` 1.5 override(React 19 peer), 링크 안 버튼(중첩 상호작용) → 버튼 모양 `Link`.
 - ✅ Caddy 보안 헤더 — HSTS·nosniff·X-Frame-Options DENY·frame-ancestors 'none'·Referrer-Policy·Permissions-Policy, Server 숨김
 - ✅ 문자 비용 공격 방어 — 번호당 상한에 더해 **IP 당 하루 10통**(번호를 바꿔 가며 보내는 공격)
 - ✅ rate limit 은 신뢰 프록시(`TRUSTED_PROXIES`)에서 온 요청만 X-Forwarded-For 를 보고,

@@ -1,5 +1,6 @@
 "use client";
 
+import { useParams } from "next/navigation";
 import { useEffect, useState } from "react";
 
 import AiChatFab from "@/components/AiChatFab";
@@ -18,8 +19,9 @@ import type { Course } from "@/types";
 
 const FAB_GUTTER = 76; // 떠 있는 버튼 높이 + 위아래 여백
 
-export default function PlanPage({ params }: { params: { id: string } }) {
-  const { id } = params;
+export default function PlanPage() {
+  // Next 15: 페이지 params 가 Promise 로 바뀌었다 — 클라이언트 페이지는 useParams 로 읽는다
+  const { id } = useParams<{ id: string }>();
   const setCourse = useCourseStore((s) => s.setCourse);
   const clearCourse = useCourseStore((s) => s.clearCourse);
   const setLocked = useCourseStore((s) => s.setLocked);
