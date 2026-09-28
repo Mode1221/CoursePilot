@@ -9,7 +9,7 @@ pydantic==2.13.5
 pydantic-settings==2.15.0
 httpx==0.28.1
 anthropic==0.40.0
-openai==1.109.1  # 1.55 미만은 httpx 0.28 과 충돌(클라이언트 생성 실패)
+openai==3.19.2  # 1.55 미만은 httpx 0.28 과 충돌(클라이언트 생성 실패)
 python-dotenv==1.2.3
 pyyaml==6.0.2  # 테스트: prod compose 와 .env.example 키 일치 검사
 pytest==9.1.1
