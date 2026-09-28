@@ -258,3 +258,6 @@ a:hover { color: var(--text-muted); }
 
 /* 글자색을 지정하지 않은 입력창은 브라우저 기본(검정)이라 다크 모드에서 입력한 글자가 안 보였다 */
 input, textarea, select { color: var(--text); }
+
+/* fieldset 은 기본 최소 너비가 내용 폭(min-content)이라 좁은 화면에서 체크박스 줄이 줄바꿈되지 않고 넘쳤다 */
+fieldset { min-width: 0; }

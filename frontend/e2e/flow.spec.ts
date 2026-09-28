@@ -30,7 +30,7 @@ async function asMember(page: import("@playwright/test").Page) {
 async function openChat(page: import("@playwright/test").Page) {
   const dialog = page.getByRole("dialog", { name: "AI 챗봇" });
   if (await dialog.isVisible().catch(() => false)) return;
-  await page.getByRole("button", { name: "AI로 코스 고치기" }).click({ timeout: 15_000 });
+  await page.getByRole("button", { name: /AI로 코스 (고치기|만들기)/ }).click({ timeout: 15_000 });
   await expect(dialog).toBeVisible();
 }
 
