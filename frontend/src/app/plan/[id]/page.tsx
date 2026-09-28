@@ -101,6 +101,8 @@ export default function PlanPage({ params }: { params: { id: string } }) {
     setViewers,
   ]);
 
+  const courseTitle = useCourseStore((st) => st.course?.title);
+
   if (notFound) {
     return <NotFound message="링크가 잘못되었거나 삭제된 코스일 수 있어요." />;
   }
@@ -112,6 +114,9 @@ export default function PlanPage({ params }: { params: { id: string } }) {
     <div style={{ display: "flex", flexDirection: "column", height: "100dvh" }}>
       <AppNav />
       <ConnectionBanner />
+      {/* 스크린리더용 페이지 제목·본문 랜드마크(화면에는 코스 카드가 제목 역할을 한다) */}
+      <main style={{ flex: 1, minHeight: 0, display: "flex", flexDirection: "column" }}>
+      <h1 className="sr-only">{courseTitle || "코스"}</h1>
       {narrow ? (
         <div style={{ flex: 1, minHeight: 0, overflow: "auto" }}>
           <div style={{ padding: "var(--sp-3) var(--sp-4) 0" }}>
@@ -134,6 +139,7 @@ export default function PlanPage({ params }: { params: { id: string } }) {
           </div>
         </>
       )}
+      </main>
       <CourseActionBar courseId={id} />
       <AiChatFab courseId={id} narrow={narrow} />
     </div>

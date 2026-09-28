@@ -38,6 +38,7 @@
   --text: #171412;
   --text-muted: #45413d;
   --text-faint: #6f6a64;
+  --brand-hover: #2b2724;
 
   /* 간격 (4의 배수) */
   --sp-1: 4px;  --sp-2: 8px;  --sp-3: 12px; --sp-4: 16px;
@@ -87,7 +88,8 @@
     --line: #403c36;
     --text: #f2f0eb;
     --text-muted: #b5b0a8;
-    --text-faint: #7f7a73;
+    --text-faint: #a39e96; /* 가장 어두운 면(surface-3)에서도 4.5:1 */
+    --brand-hover: #d6d2ca;
 
     --shadow-1: 0 1px 2px rgba(0, 0, 0, .4);
     --shadow-2: 0 12px 32px rgba(0, 0, 0, .55);
@@ -185,7 +187,8 @@ button:not(:disabled):active, [role="button"]:not([aria-disabled="true"]):active
   .cp-btn--plain:not(:disabled):hover { --btn-bg: var(--surface-2); }
 }
 @media (hover: hover) and (pointer: fine) {
-  .cp-btn--primary:not(:disabled):hover, .cp-btn--soft:not(:disabled):hover { --btn-bg: #2b2724; --btn-bd: #2b2724; }
+  /* 테마별 토큰 — 고정색(#2b2724)은 다크 모드에서 글자(어두운 색)와 같아져 hover 시 글자가 사라졌다 */
+  .cp-btn--primary:not(:disabled):hover, .cp-btn--soft:not(:disabled):hover { --btn-bg: var(--brand-hover); --btn-bd: var(--brand-hover); }
   .cp-btn--secondary:not(:disabled):hover { --btn-bg: var(--surface-2); }
   .cp-btn--ghost:not(:disabled):hover { --btn-bg: var(--surface-2); --btn-fg: var(--text); }
   .cp-btn--danger:not(:disabled):hover { --btn-bg: var(--danger-weak); }
@@ -243,3 +246,15 @@ a:hover { color: var(--text-muted); }
 .cp-arrow:disabled { opacity: .35; cursor: not-allowed; }
 @media (hover: hover) and (pointer: fine) { .cp-arrow:not(:disabled):hover { background: var(--surface-2); } }
 .cp-stop { padding-top: var(--sp-3); padding-bottom: var(--sp-3); }
+
+/* 입력 안내 문구도 본문 대비 규칙을 따른다(브라우저 기본 회색은 다크 모드에서 3:1 미만) */
+::placeholder { color: var(--text-faint); opacity: 1; }
+
+/* 화면에는 숨기고 스크린리더에는 읽히게 */
+.sr-only {
+  position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px;
+  overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; border: 0;
+}
+
+/* 글자색을 지정하지 않은 입력창은 브라우저 기본(검정)이라 다크 모드에서 입력한 글자가 안 보였다 */
+input, textarea, select { color: var(--text); }

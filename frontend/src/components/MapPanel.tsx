@@ -87,9 +87,9 @@ export default function MapPanel({
   const mapHeight = split ? "calc(100% - 8px)" : 240;
   const conditions = course.together?.summary && course.together.summary.length > 0 && (
     <section aria-label="둘의 조건" style={{ marginTop: split ? 0 : "var(--sp-4)" }}>
-      <h3 style={{ margin: "0 0 var(--sp-2)", fontSize: "var(--fs-md)", color: "var(--text-muted)", fontWeight: 600 }}>
+      <h2 style={{ margin: "0 0 var(--sp-2)", fontSize: "var(--fs-md)", color: "var(--text-muted)", fontWeight: 600 }}>
         {course.together.owner_name}·{course.together.partner_name}의 조건
-      </h3>
+      </h2>
       <AttributionChips
         items={course.together.summary}
         label="코스 전체에 반영된 의견"
@@ -137,7 +137,7 @@ export default function MapPanel({
 
       <div style={split ? { ...CARD, overflowY: "auto", minHeight: 0 } : CARD}>
       <div style={{ display: "flex", alignItems: "center", gap: "var(--sp-2)", marginBottom: "var(--sp-3)", flexWrap: "wrap" }}>
-        <h3 style={{ margin: 0 }}>타임라인</h3>
+        <h2 style={{ margin: 0, fontSize: "var(--fs-lg)" }}>타임라인</h2>
         {course.items.length > 0 && <CourseSummary course={course} />}
         {locked && <Badge tone="warn">잠금</Badge>}
         {course.items.length > 0 && (
