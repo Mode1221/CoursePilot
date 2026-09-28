@@ -5,6 +5,8 @@
 """
 from __future__ import annotations
 
+import re
+
 from app.schemas import Course
 
 # 질문에 자주 나오는 사실 축 → 장소 태그와 맞춰 본다
@@ -13,7 +15,8 @@ _FACT_QUESTIONS: tuple[tuple[str, tuple[str, ...]], ...] = (
     ("단체석", ("단체", "룸", "몇 명까지")),
     ("반려동물", ("반려동물", "강아지", "애견")),
     ("콘센트", ("콘센트", "노트북", "카공")),
-    ("웨이팅", ("웨이팅", "줄", "대기")),
+    # "줄" 한 글자는 "바꿔줄 수 있어?"에 걸렸다 — 줄 서기 표현만 본다
+    ("웨이팅", ("웨이팅", "줄 서", "줄서", "줄이 길", "줄 길", "대기")),
     ("예약", ("예약",)),
     # 동반 조건은 취향이 아니라 가부다 — 물어보면 태그로 분명히 답한다
     ("휠체어", ("휠체어", "배리어프리", "유모차")),
@@ -27,6 +30,7 @@ UNKNOWN_FACT_QUESTIONS: tuple[tuple[str, tuple[str, ...]], ...] = (
     ("흡연", ("흡연", "담배")),
     ("콜키지", ("콜키지", "주류 반입", "와인 반입")),
     ("배달", ("배달", "포장")),
+    ("메뉴", ("메뉴", "뭐 팔", "시그니처", "대표 음식")),
 )
 # "비 오면?" — 코스를 다시 짜기 전에, 지금 코스가 비에 얼마나 견디는지부터 답한다
 _RAIN_WORDS = ("비 오", "비오", "우천", "장마", "비 올", "비가 오")
@@ -219,6 +223,89 @@ def cost_answer(course: Course) -> str:
     unknown = len(course.items) - len(priced)
     tail = f" {unknown}곳은 가격 정보가 없어요." if unknown else ""
     return f"1인 약 {total:,}원 예상이에요{suffix}.{tail}"
+
+
+_WHERE_WORDS = ("어디", "뭐야", "뭔데", "어떤 곳", "어떤 데", "무슨 곳", "뭐하는")
+
+
+_SLOT_WORDS = {
+    "cafe": ("카페", "커피", "디저트", "빵집"),
+    "meal": ("식당", "밥집", "맛집", "음식점", "레스토랑", "밥"),
+    "bar": ("술집", "바", "펍", "포차", "와인바"),
+    "activity": ("전시", "공원", "할거리", "놀거리", "산책"),
+}
+_PARTICLE = r"(?:은|는|이|가|에|의|도|만|이랑|랑|\s|$|\?)"
+
+
+def _pointed_index(course: Course, text: str) -> int | None:
+    """질문이 코스의 특정 자리를 가리키면 그 위치(0부터). "2번째", "마지막", "카페는"."""
+    from app.pipeline.edit import _find_index, resolve_index
+    from app.pipeline.planner import classify
+
+    idx = _find_index(text)
+    if idx != -1:
+        i = resolve_index(idx, len(course.items))
+        return i if 0 <= i < len(course.items) else None
+    for slot, words in _SLOT_WORDS.items():
+        if any(re.search(rf"(?<![가-힣]){w}{_PARTICLE}", text) for w in words):
+            for i, it in enumerate(course.items):
+                if classify(it.place) == slot:
+                    return i
+    return None
+
+
+def place_answer(course: Course, i: int) -> str:
+    """한 자리 소개: 이름·성격·주소·머무는 시간·비용."""
+    item = course.items[i]
+    p = item.place
+    parts = [f"{i + 1}번째는 {p.name}" + (f"({p.category})" if p.category else "")]
+    if p.address:
+        parts.append(p.address)
+    if item.arrive and item.depart:
+        parts.append(f"{item.arrive.strftime('%H:%M')}~{item.depart.strftime('%H:%M')} 머물러요")
+    if p.price is not None:
+        parts.append(f"1인 약 {p.price:,}원" + (" (추정)" if p.price_estimated else ""))
+    if p.rating is not None and (p.rating_count or 0) >= 30:
+        parts.append(f"평점 {p.rating:.1f}")
+    return ", ".join(parts) + "."
+
+
+def end_time_answer(course: Course) -> str | None:
+    first, last = course.items[0], course.items[-1]
+    if not (first.arrive and last.depart):
+        return None
+    return f"{first.arrive.strftime('%H:%M')}에 시작해 {last.depart.strftime('%H:%M')}쯤 끝나요."
+
+
+_CAN_EDIT_RE = re.compile(r"(바꿔|바꿀|수정|고쳐|고칠|추가|빼|편집)\S*\s*(줄\s*수|수\s*있|돼|되나|가능)")
+HELP_TEXT = (
+    "네, 말로 고칠 수 있어요. 예: \"2번 다른 곳으로\", \"카페 대신 공원\", \"한 곳 더\", "
+    "\"7시에 끝나게\", \"너무 멀어\", \"되돌려줘\"."
+)
+
+
+def specific_answer(course: Course, text: str) -> str | None:
+    """규칙으로 딱 맞게 답할 수 있으면 그 답, 아니면 None(요약으로 얼버무리지 않게 호출측이 판단)."""
+    if _CAN_EDIT_RE.search(text):
+        return HELP_TEXT
+    pointed = _pointed_index(course, text)
+    if pointed is not None:
+        single = course.model_copy(update={"items": [course.items[pointed]]})
+        if any(w in text for w in _HOURS_WORDS):
+            return hours_answer(single)
+        if any(w in text for w in _COST_WORDS) and "걸" not in text:
+            return cost_answer(single)
+        fact = fact_answer(single, text)
+        if fact:
+            return fact
+        if any(w in text for w in _WHERE_WORDS):
+            return place_answer(course, pointed)
+    answer = course_answer(course, text)
+    if answer == course_answer_summary(course):
+        if any(w in text for w in ("끝나", "마치", "몇 시에 끝")):
+            return end_time_answer(course)
+        return None
+    return answer
 
 
 def course_answer(course: Course, text: str = "") -> str:
