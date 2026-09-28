@@ -17,14 +17,14 @@ describe("공유 페이지 미리보기", () => {
         }),
       }),
     );
-    const meta = await generateMetadata({ params: { id: "c1" } });
+    const meta = await generateMetadata({ params: Promise.resolve({ id: "c1" }) });
     expect(meta.title).toMatch(/성수동 코스/);
     expect(meta.openGraph?.description).toBeTruthy();
   });
 
   it("백엔드가 죽어 있어도 기본 메타데이터로 렌더한다", async () => {
     vi.stubGlobal("fetch", vi.fn().mockRejectedValue(new Error("ECONNREFUSED")));
-    const meta = await generateMetadata({ params: { id: "c1" } });
+    const meta = await generateMetadata({ params: Promise.resolve({ id: "c1" }) });
     expect(meta.title).toBe("공유된 코스 — CoursePilot");
   });
 
@@ -33,7 +33,7 @@ describe("공유 페이지 미리보기", () => {
       "fetch",
       vi.fn().mockRejectedValue(new DOMException("timeout", "TimeoutError")),
     );
-    const meta = await generateMetadata({ params: { id: "c1" } });
+    const meta = await generateMetadata({ params: Promise.resolve({ id: "c1" }) });
     expect(meta.title).toBe("공유된 코스 — CoursePilot");
   });
 });

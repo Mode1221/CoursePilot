@@ -2,8 +2,8 @@
 const nextConfig = {
   // 런타임 스테이지에 node_modules 전체를 넣지 않기 위해 standalone 출력을 쓴다.
   output: "standalone",
-  // next/image 를 쓰지 않는다. 이미지 최적화 엔드포인트(/_next/image)는 Next 14 에서 원격 코드 실행
-  // 취약점(GHSA, 15.5.24 에서 수정)이 있어 아예 끈다.
+  // next/image 를 쓰지 않는다 — 쓰지 않는 이미지 최적화 엔드포인트(/_next/image)는 공격 면만 늘리므로 끈다
+  // (Next 14 에서 원격 코드 실행 취약점이 났던 곳이다).
   images: { unoptimized: true },
   env: {
     // 비워 두면 브라우저가 현재 호스트에서 api.<도메인> 을 유도한다

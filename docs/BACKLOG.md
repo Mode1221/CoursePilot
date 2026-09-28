@@ -13,9 +13,6 @@
    - 평점: `app/adapters/google.py` (Text Search 매칭 정확도).
    - SMS/결제: `app/adapters/sms.py`, `app/adapters/payment.py` (NHN 응답 header, 포트원 v1 토큰/조회).
 
-- **Next 15 + React 19 업그레이드** — Next 14 계열은 RSC DoS 등 15.5 이상에서만 고쳐진 취약점이 남아 있다
-  (치명 RCE 는 이미지 최적화를 꺼 막아 둠). 업그레이드 후 CI `audit` 잡의 프론트 검사를 차단으로 바꾼다.
-
 ## P1 — 품질·데이터
 0. **자연어 커버리지 확대** — 지역·시각·범위·키워드·편집에 더해 인원수(`test_party_size.py`), 날짜(`test_plan_date.py`), 방문 개수(`test_stop_count.py`), 카테고리 지목 편집(`test_edit_by_category.py`), 출발지 지정(`test_start_place.py`), 이동수단 혼합(`test_mixed_travel.py`), 우천 대체(`test_rainy_course.py`), 주말 날짜(`test_plan_date.py`)까지 처리.
 3. **리뷰 RAG 고도화** (🟡/⬜) — 약관 준수(요약 금지 소스 구분) 내 데이터 강화. 재수집 중복 저장·협찬 표시 리뷰 검색 제외는 처리됨.
