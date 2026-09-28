@@ -793,6 +793,20 @@ async def generate(
                     on_progress,
                     exclude_place_ids=exclude_ids,
                 )
+                if exclude_ids and len(result.timeline) < len(old_ids):
+                    # "다시 해줘" — 지금 장소를 다 빼니 곳 수가 줄었다(후보가 적은 지역).
+                    # 한 곳씩만 다시 쓰도록 허용해 가며, 곳 수를 지키면서 가장 많이 바뀐 코스를 쓴다.
+                    for keep in old_ids:
+                        retry = await generate_course(
+                            request_text,
+                            get_map_service(),
+                            prefs,
+                            on_progress,
+                            exclude_place_ids=set(old_ids) - {keep},
+                        )
+                        if len(retry.timeline) >= len(old_ids):
+                            result = retry
+                            break
                 course.items = result.timeline
                 relaxed = result.relaxed
                 needs_confirmation = result.needs_confirmation
@@ -896,6 +910,8 @@ async def generate(
                 pref_region,
                 closed_dropped,
             )
+            if old_ids and course.items and not needs_confirmation:
+                ai_text = f"{ai_text} {_change_note(old_ids, new_ids)}"
         chat_store.append(course_id, "ai", ai_text)
         await broadcast_state(course_id, course.model_dump(mode="json"))
         await broadcast_message(course_id, "ai", ai_text)
@@ -1019,6 +1035,20 @@ def _edit_reply(
             return f"{order}번째를 '{gone}' 대신 '{new_name}'으로 바꿨어요."
         return f"{order}번째를 '{new_name}'으로 바꿨어요."
     return f"수정했어요. 이제 {n}곳이에요."
+
+
+def _change_note(old_ids: list[str], new_ids: list[str]) -> str:
+    """이미 있던 코스를 다시 짰을 때 무엇이 바뀌었는지(다 바뀐 줄 알고 처음부터 다시 보지 않게)."""
+    kept = len(set(old_ids) & set(new_ids))
+    if new_ids == old_ids:
+        return "장소는 그대로예요."
+    if kept == len(new_ids) and len(new_ids) < len(old_ids):
+        return f"조건에 맞추느라 {len(old_ids) - len(new_ids)}곳을 뺐어요."
+    if kept == len(new_ids):
+        return "장소는 그대로 두고 순서·시간만 맞췄어요."
+    if kept:
+        return f"{kept}곳은 그대로 두고 {len(new_ids) - kept}곳을 새로 골랐어요."
+    return "모두 새로 골랐어요."
 
 
 def _ai_reply(

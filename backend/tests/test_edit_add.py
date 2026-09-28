@@ -41,3 +41,9 @@ async def test_요청한_성격의_장소가_뒤에_붙는다():
     assert len(items) == 2
     assert items[1].place.category == "cafe"
     assert items[0].place.id == "p1"
+
+
+def test_한_곳_더도_추가다():
+    """빠른 수정 칩 문구 그대로 — 예전엔 '한 곳'을 방문 개수 1로 읽어 1곳짜리 코스가 됐다."""
+    for text in ("한 곳 더", "한 군데 더", "하나 더"):
+        assert parse_edit(text).action == "add", text
