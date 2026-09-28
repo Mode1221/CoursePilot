@@ -48,12 +48,26 @@ from app.users import CreditError, user_store
 _DEV_DB_PASSWORD = "coursepilot:coursepilot@"
 
 
+_MIN_SECRET_LEN = 32
+_PLACEHOLDER_WORDS = ("change", "example", "secret", "password", "test", "xxx")
+
+
+def _weak_secret(value: str) -> bool:
+    """운영 시크릿으로 못 쓰는 값: 비었거나, 32자 미만이거나, 예시 문구가 들어 있다."""
+    v = value.strip()
+    if len(v) < _MIN_SECRET_LEN:
+        return True
+    lowered = v.lower()
+    return any(w in lowered for w in _PLACEHOLDER_WORDS)
+
+
 def _production_warnings() -> list[str]:
     """운영에서 비어 있으면 안 되는 설정을 모은다(값은 절대 로그에 남기지 않는다)."""
     missing = []
-    if not settings.session_secret:
+    # 비어 있지 않아도 짧거나 예시 값이면 없는 것과 같다(추측·사전 공격으로 뚫린다).
+    if _weak_secret(settings.session_secret):
         missing.append("SESSION_SECRET")  # 없으면 id 헤더만으로 남의 계정이 된다
-    if not settings.admin_token:
+    if _weak_secret(settings.admin_token):
         missing.append("ADMIN_TOKEN")  # 없으면 /admin/* 이 열린다
     if _DEV_DB_PASSWORD in settings.database_url:
         missing.append("POSTGRES_PASSWORD")  # 개발 기본 비밀번호를 그대로 쓰고 있다
