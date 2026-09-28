@@ -114,7 +114,7 @@ export default function TogetherPanel({ courseId }: { courseId: string }) {
   if (!status) {
     return (
       <section style={box}>
-        <h3 style={{ margin: "0 0 var(--sp-1)", fontSize: "var(--fs-lg)" }}>상대에게 먼저 물어보기</h3>
+        <h2 style={{ margin: "0 0 var(--sp-1)", fontSize: "var(--fs-lg)" }}>상대에게 먼저 물어보기</h2>
         <p style={{ margin: "0 0 var(--sp-4)", color: "var(--text-muted)", fontSize: "var(--fs-sm)", lineHeight: 1.5 }}>
           링크를 보내면 상대가 30초 카드에 답해요. 둘의 답을 합쳐 코스를 만듭니다.
         </p>
