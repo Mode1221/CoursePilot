@@ -91,3 +91,23 @@ async def test_코스_후보에_저장_장소가_들어간다():
     got = await _candidates(PlanConstraints(region="성수", duration_min=240), Vendor())
     ids = {p.id for p in got}
     assert "v1" in ids and len(ids & {f"m{i}" for i in range(20)}) >= 10
+
+
+async def test_성격을_말한_교체도_저장_장소에서_찾는다():
+    """벤더 검색이 비어도 상권에 저장된 그 성격의 장소로 바꾼다."""
+    from app.pipeline.edit import apply_edit, parse_edit
+    from app.schemas import Course, TimelineItem
+
+    class Empty:
+        async def search_places(self, region, keywords, limit=10):
+            return []
+
+        async def get_route(self, origin, dest, mode):
+            from app.schemas import Route, TravelMode
+
+            return Route(mode=TravelMode.WALK, duration_min=5, distance_m=300)
+
+    place_repo.upsert_many([_p("gallery", "문화,예술 > 전시관", name="작은 갤러리")])
+    course = Course(id="c", region="성수", items=[TimelineItem(place=_p("cafe1", "음식점 > 카페"))])
+    items = await apply_edit(course, parse_edit("첫번째를 전시로 바꿔줘"), Empty())
+    assert items[0].place.id == "gallery"
