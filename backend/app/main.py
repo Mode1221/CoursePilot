@@ -19,7 +19,7 @@ from pydantic import BaseModel, Field
 from app.accounts_api import _require_self, accounts_router
 from app.adapters.map_service import get_map_service
 from app.admin_api import admin_router
-from app.answers import course_answer
+from app.answers import course_answer, specific_answer
 from app.bookmarks import bookmark_store
 from app.chat import ChatMessage, chat_store
 from app.config import settings
@@ -750,7 +750,11 @@ async def generate(
             (x_user_id and user_store.refund_credit(x_user_id))
             course.locked = False
             await broadcast_lock(course_id, False)
-            ai_text = course_answer(course, req.text)
+            ai_text = specific_answer(course, req.text)
+            if ai_text is None:
+                from app.pipeline.llm_answer import llm_answer
+
+                ai_text = await llm_answer(course, req.text) or course_answer(course, req.text)
             chat_store.append(course_id, "ai", ai_text)
             await broadcast_message(course_id, "ai", ai_text)
             return GenerateResponse(course=course, relaxed=False, needs_confirmation=False)
