@@ -1,4 +1,4 @@
-"""LOCALDATA 파일이 24개 상권의 시군구를 덮는지."""
+"""LOCALDATA 파일이 모든 상권의 시군구를 덮는지."""
 import pytest
 
 from app.batch.coverage import covered_sigungu, missing_districts, required_sigungu
@@ -25,7 +25,7 @@ def test_모든_상권에_시군구가_지정돼_있다():
 
 def test_시군구별로_어느_상권이_걸리는지_안다():
     mapping = required_sigungu()
-    assert mapping["성동구"] == ["성수"]
+    assert mapping["성동구"] == ["성수", "서울숲", "왕십리"]
     assert set(mapping["마포구"]) == {"연남", "홍대", "합정", "망원"}
     assert sum(len(v) for v in mapping.values()) == len(DISTRICTS)
 
@@ -42,7 +42,7 @@ def test_없는_시군구와_영향받는_상권을_알려준다(tmp_path):
     _csv(tmp_path, "seongdong.csv", ["서울특별시 성동구 성수이로 100"])
     missing = missing_districts(tmp_path)
     assert "성동구" not in missing
-    assert set(missing["종로구"]) == {"종로", "익선동", "서촌", "북촌", "대학로"}
+    assert set(missing["종로구"]) == {"종로", "익선동", "서촌", "북촌", "대학로", "광화문"}
 
 
 def test_디렉터리가_없으면_전부_미커버로_본다(tmp_path):
@@ -54,8 +54,8 @@ def test_주소_컬럼이_없는_파일은_무시한다(tmp_path):
     assert covered_sigungu(tmp_path) == {}
 
 
-def test_전국_파일_한_개로_24개_상권을_모두_덮는다(tmp_path):
-    """신원천은 업종별 전국 파일이다 — 파일 하나가 11개 시군구를 다 담는다."""
+def test_전국_파일_한_개로_모든_상권을_덮는다(tmp_path):
+    """신원천은 업종별 전국 파일이다 — 파일 하나가 모든 시군구를 다 담는다."""
     addresses = [f"서울특별시 {d.sigungu} {d.name}로 10" for d in DISTRICTS]
     _csv(tmp_path, "general_restaurants.csv", addresses)
     assert missing_districts(tmp_path) == {}

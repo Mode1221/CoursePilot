@@ -66,7 +66,7 @@
 - (인증) `session_token.py` — `<발급시각>.<HMAC(user_id:발급시각)>` 토큰, 90일 만료.
   만료·형식 불일치는 `verify` 가 False → 라우터가 401. 비밀키 없으면 개발 폴백.
 - `localdata.py` — LOCALDATA(지방행정 인허가) CSV 인덱스. 폐업 판정·인허가일자(업력)·지역 폐업률. 무료·무인증, 주 1회 갱신(`LOCALDATA_CSV_DIR`).
-  적재는 파일을 통째로 읽지 않고 한 줄씩 흘려 읽으며(`load_csv(path)`), 24개 상권의
+  적재는 파일을 통째로 읽지 않고 한 줄씩 흘려 읽으며(`load_csv(path)`), 상권들의
   시군구(11곳) 주소가 아닌 행은 레코드를 만들지 않고 버린다 — 전국 파일을 다 담으면
   6GB VM 에서 OOM 이 난다. 적재는 lifespan 의 `localdata_refresher` 태스크에서만 한다(기동 1회 + 하루 한 번 stale 확인,
   종료 시 취소). 요청 경로(`ClosedFilterMapService`)는 적재하지 않고, 인덱스가 비어 있으면
@@ -118,7 +118,7 @@
 5. 학습 스토어는 전역 싱글턴 → 테스트는 `tests/conftest.py` 및 각자 `_mem.clear()` 로 격리.
 
 ### 배치 (`app/batch/`)
-- `districts.py` — 수집 대상 상권 24곳(좌표·반경·소속 시군구). 좌표는 대표 역·랜드마크
+- `districts.py` — 수집 대상 상권 36곳(서울 35·판교, 좌표·반경·소속 시군구). 좌표는 대표 역·랜드마크
   기준이고, 붙어 있는 상권은 같은 원을 두 번 훑지 않도록 반경을 줄여 잡았다
   (`scripts/districts_map.py` 로 배치·겹침 확인, 테스트가 회귀를 막는다).
 - `seed.py` — 키 없이 전체 흐름을 돌리기 위한 시드 장소(상권당 100~200건). 슬롯 비중·
@@ -128,10 +128,10 @@
   덕분에 Google 키가 나중에 들어와도 남은 것부터 이어서 채워진다.
 - `progress.py` — (상권×카테고리) 조각 단위 진행 상태(JSON, 원자적 교체). 중간에 죽어도
   재실행이 남은 조각부터 이어 간다. 실패한 조각은 끝낸 것으로 치지 않는다. 20시간 지나면 폐기.
-- `coverage.py` — LOCALDATA CSV 가 24개 상권의 11개 시군구를 덮는지. 빠지면 그 상권은
+- `coverage.py` — LOCALDATA CSV 가 상권들의 시군구(현재 16개)를 덮는지. 빠지면 그 상권은
   폐업 판정이 통째로 빠진다(`scripts/fetch_localdata.py --check-only`).
   신원천은 업종별 전국 파일이라 앞부분만 보면 안 된다 — CP949 로 한 줄씩 흘려 읽고
-  11개 시군구를 다 찾으면 조기 종료한다.
+  대상 시군구를 다 찾으면 조기 종료한다.
 - `places_build.py` — 상권 전수 수집(카카오) → 폐업 제거(LOCALDATA) → Google 영업시간·평점 페이싱 → upsert.
   실행: `python scripts/build_places.py` (하루 1회, Google Details 20건/일·인지도 500건/회).
   수집은 `grid.py` 가 상권 원을 반경 300m 칸으로 쪼갠 격자 단위로 돈다(카카오 질의당 45건 상한 회피)
