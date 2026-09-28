@@ -148,7 +148,8 @@ def parse_edit(text: str) -> EditCommand:
     idx = _find_index(text)
     match = ""
     # 추가는 순서 지목이 없어도 성립한다(맨 뒤에 덧붙임)
-    if _ADD_RE.search(text) and not _REPLACE_RE.search(text) and not _REMOVE_RE.search(text):
+    adding = _ADD_RE.search(text) or _ONE_MORE_RE.search(text)
+    if adding and not _REPLACE_RE.search(text) and not _REMOVE_RE.search(text):
         keyword, cat = _find_category(text)
         if keyword or _ONE_MORE_RE.search(text):
             # 위치를 말했으면 그 자리에 끼워 넣는다(기본은 맨 뒤).

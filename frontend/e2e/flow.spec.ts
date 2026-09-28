@@ -118,6 +118,22 @@ test("자리를 집어 다른 성격으로 바꾼다", async ({ page }) => {
   await expect(page.getByText(/바꿨어요/)).toBeVisible();
 });
 
+test("빠른 수정 칩으로 한 곳 더 넣고, 채팅으로 되돌린다", async ({ page }) => {
+  await asMember(page);
+  await createCourse(page, "성수동 오전 10시 5시간 도보");
+  const stops = page.getByText(/^\d+\. 성수동 장소/);
+  const before = await stops.count();
+
+  await openChat(page);
+  await page.getByRole("button", { name: "한 곳 더" }).click();
+  await expect(stops).toHaveCount(before + 1, { timeout: 15_000 });
+
+  await openChat(page);
+  await page.getByLabel("조건 입력").fill("되돌려줘");
+  await page.getByText("전송").click();
+  await expect(stops).toHaveCount(before, { timeout: 15_000 });
+});
+
 test("공유 링크는 편집 없이 코스를 보여준다", async ({ page, context }) => {
   await asMember(page);
   await createCourse(page, "성수동 오전 10시 5시간 도보");
