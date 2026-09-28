@@ -8,7 +8,7 @@
 - **db** (PostgreSQL + pgvector): SQLAlchemy 2.0. **DB 불가 시 전 스토어가 인메모리 폴백** — 단일 소스 `app/db.py:is_ready()`.
 
 ## 코스 생성 요청 흐름 (핵심 경로)
-`POST /courses/{id}/generate` (main.py) →
+`POST /courses/{id}/generate` (chat_api.py) →
 1. **큐 직렬화**: `queue.py:queues.run(course_id, action)` — 코스별 액션 직렬화(동시편집 lost update 방지).
    대기 8건 초과는 429, 액션 60초 초과는 504 로 끊는다(외부 호출이 물려도 코스 큐가 잠기지 않게).
 2. **크레딧 차감**: `users.py:consume_credit` (DB면 `FOR UPDATE` 원자적). 실패 시 402, 예외 시 환불.
@@ -83,7 +83,7 @@
 - `places.py` — 전역 장소 스냅샷(id→장소 복원, CF 추천용).
 
 ### 코어
-- `main.py` 엔드포인트, `models.py` ORM, `schemas.py` 도메인, `store.py` 코스 저장.
+- `main.py` 앱·미들웨어·코스 CRUD·장소 편집 엔드포인트, `chat_api.py` AI 채팅(생성·완화·수정·질문·되돌리기·채팅 기록), `models.py` ORM, `schemas.py` 도메인, `store.py` 코스 저장.
 - `users.py` 회원·크레딧(차감·환불 모두 행 잠금), `auth.py` SMS 인증(시도·발송 제한 + 번호 정규화 — 표기가 달라도 같은 계정), `payment_ledger.py` 결제 원장(`mark_used()` 반환값으로만 지급 판단 — 동시 충전 중복 지급 차단), `bookmarks.py`, `chat.py`.
 - `session_token.py` — HMAC 서명 세션 토큰. `SESSION_SECRET` 이 있으면 `X-User-Id` 만으로는 인증되지 않는다. 개인 데이터(`_require_self`)와 **코스 생성자 판정(`_owned_course`)** 모두 이 토큰을 본다.
 - `answers.py` 질문 유형별 답변(사실 태그·비용·영업시간·이동·우천·아이 동반), `reasons.py` 추천 근거.

@@ -5,7 +5,8 @@ import itertools
 
 from fastapi.testclient import TestClient
 
-from app.main import _is_question, api
+from app.chat_api import _is_question
+from app.main import api
 
 client = TestClient(api)
 _phones = itertools.count(1)

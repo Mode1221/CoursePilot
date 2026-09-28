@@ -3,7 +3,7 @@ from datetime import time
 
 import pytest
 
-from app.main import _ai_reply
+from app.chat_api import _ai_reply
 from app.pipeline.agent import PlanResult, generate_course
 from app.schemas import Course, Place, PlanConstraints, TimelineItem
 
