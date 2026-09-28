@@ -1,5 +1,6 @@
 "use client";
 
+import { useParams } from "next/navigation";
 import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
 
@@ -13,8 +14,9 @@ import { toast } from "@/store/toastStore";
  * 상대가 링크로 들어오는 화면. 가입 없음, 30초, 서로의 답은 안 보인다.
  * 카드를 내면 "합쳐볼게요"로 넘어가고, 코스가 만들어지면 공유 화면으로 보낸다.
  */
-export default function TogetherPage({ params }: { params: { token: string } }) {
-  const { token } = params;
+export default function TogetherPage() {
+  // Next 15: 페이지 params 가 Promise 로 바뀌었다 — 클라이언트 페이지는 useParams 로 읽는다
+  const { token } = useParams<{ token: string }>();
   const [status, setStatus] = useState<TogetherStatus | null>(null);
   const [missing, setMissing] = useState(false);
   const [sent, setSent] = useState(false);
