@@ -671,8 +671,25 @@ async def generate(
         region_guessed = False  # 지역을 못 알아들어 기본 지역으로 만든 경우
         pref_region: str | None = None  # 선호 프로필로 지역을 채운 경우
         gen_constraints: PlanConstraints | None = None  # 편집 명령이면 None
+        old_items = list(course.items)
         old_ids = [it.place.id for it in course.items]
         old_names = {it.place.id: it.place.name for it in course.items}
+        if _UNDO_RE.search(req.text):
+            # "되돌려줘" — 직전 AI 변경 전으로. 한 번 더 말하면 다시 앞으로(맞바꿈)
+            (x_user_id and user_store.refund_credit(x_user_id))
+            previous_items = _UNDO_SNAPSHOT.get(course_id)
+            if previous_items is not None:
+                _UNDO_SNAPSHOT[course_id] = old_items
+                course.items = previous_items
+                ai_text = "직전 상태로 되돌렸어요. 한 번 더 말하면 다시 바꾼 코스로 돌아가요."
+            else:
+                ai_text = "되돌릴 이전 코스가 없어요."
+            course.locked = False
+            store.save(course)
+            await broadcast_lock(course_id, False)
+            chat_store.append(course_id, "ai", ai_text)
+            await broadcast_message(course_id, "ai", ai_text)
+            return GenerateResponse(course=course, relaxed=False, needs_confirmation=False)
         edit_cmd = parse_edit(req.text) if course.items else EditCommand(action="none")
         # "다시 해줘" — 직전 조건을 그대로 다시 쓴다(조건이 없다고 되묻지 않게)
         request_text = req.text
@@ -692,6 +709,23 @@ async def generate(
             previous = _last_condition_text(course_id)
             if previous:
                 request_text = f"{req.text} {previous}"
+
+        # 규칙 파서가 못 알아들은 수정 요청("카페 대신 산책할 데", "너무 비싸")은 LLM 이
+        # 지금 코스를 보고 해석한다. 키가 없거나 실패하면 규칙 결과를 그대로 쓴다.
+        if (
+            course.items
+            and request_text == req.text
+            and (edit_cmd.action in ("none", "clarify") or _INSTEAD_RE.search(req.text))
+        ):
+            from app.pipeline.llm_edit import ConditionChange, interpret_edit
+
+            interpreted = await interpret_edit(req.text, course.items)
+            if isinstance(interpreted, ConditionChange):
+                previous = _last_condition_text(course_id)
+                request_text = f"{interpreted.text} {previous or course.region or ''}".strip()
+                edit_cmd = EditCommand(action="none")
+            elif interpreted is not None:
+                edit_cmd = interpreted
 
         # 질문("여기 주차 되나요?")에 코스를 갈아엎지 않는다. 편집 명령이 아닌
         # 물음이면 지금 코스로 답하고 크레딧도 돌려준다.
@@ -772,6 +806,8 @@ async def generate(
             course.locked = False
         store.save(course)
         new_ids = [it.place.id for it in course.items]
+        if old_items and new_ids != old_ids:
+            _remember_undo(course_id, old_items)
         # 코스에 채택된 장소에 인기 가점(암묵적 정량 신호)
         popularity_store.bump_many(new_ids)
         # 시간대 컨텍스트(#12): 코스 시작 시간대에 채택 신호 누적
@@ -892,6 +928,22 @@ _ALL_QUALITY_RE = re.compile(
     r"(?:전부|모두|전체|싹|다)\s*(?:좀\s*)?(?:더\s*)?"
     r"(?:저렴|싸게|비싸|조용|활기|가까|분위기|실내|야외|고급|캐주얼)"
 )
+_UNDO_RE = re.compile(
+    r"되돌려|되돌리|원래\s*대로|이전\s*(?:코스|걸로|거로)|아까\s*(?:코스|걸로|거로|게\s*나)|실행\s*취소"
+)
+# 코스별 직전 AI 변경 전 상태(한 단계). 프로세스 메모리 — 재시작하면 사라져도 되는 편의 기능이다.
+_UNDO_SNAPSHOT: dict[str, list] = {}
+_UNDO_MAX_COURSES = 5000
+
+
+def _remember_undo(course_id: str, items: list) -> None:
+    _UNDO_SNAPSHOT.pop(course_id, None)
+    _UNDO_SNAPSHOT[course_id] = items
+    while len(_UNDO_SNAPSHOT) > _UNDO_MAX_COURSES:
+        _UNDO_SNAPSHOT.pop(next(iter(_UNDO_SNAPSHOT)))
+
+
+_INSTEAD_RE = re.compile(r"대신|말고")  # "카페 대신 공원" — 규칙 파서가 추가로 오해하던 표현
 _REPLACE_ALL_RE = re.compile(
     r"(?:전부|다|모두|싹)\s*다른\s*(?:곳|데|장소)|여기\s*말고\s*다른|비슷한데\s*다른"
 )
