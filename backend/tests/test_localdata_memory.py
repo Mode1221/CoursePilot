@@ -64,11 +64,11 @@ def test_대상_시군구가_아닌_행은_버린다():
     assert registry.find("밖에있는집") is None
 
 
-def test_대상_시군구_목록이_24개_상권을_덮는다():
+def test_대상_시군구_목록이_모든_상권을_덮는다():
     from app.batch.districts import DISTRICTS
 
     assert TARGET_SIGUNGU == {d.sigungu for d in DISTRICTS}
-    assert len(TARGET_SIGUNGU) == 11
+    assert len(TARGET_SIGUNGU) == 16  # 서울 15개 구 + 분당구
 
 
 def test_인코딩을_앞부분만_보고_판별한다(tmp_path):

@@ -192,7 +192,7 @@ Mock 장소("성수동 장소 1")로는 이름·가격·영업시간이 실제�
 ```bash
 cd backend
 python scripts/seed_mock_places.py --dry-run   # 분포만 확인
-python scripts/seed_mock_places.py             # 상권 24곳에 3,600여 건 투입
+python scripts/seed_mock_places.py             # 상권마다 150건 투입
 python scripts/verify_places.py                # 상권별 건수·슬롯 분포 확인
 python scripts/seed_mock_places.py --clear     # 실데이터가 들어오면 시드만 삭제
 ```
@@ -312,14 +312,14 @@ python scripts/build_places.py
 # ③ 결과 점검
 python scripts/verify_places.py
 ```
-- **첫 줄 로그**에 카카오 콜 수와 예상 소요가 찍힌다(24개 상권 = 최대 288콜, 약 2분).
+- **첫 줄 로그**에 카카오 콜 수와 예상 소요가 찍힌다(36개 상권 = 최대 432콜, 약 3분).
 - 중간에 죽어도(네트워크·rate limit) **다시 실행하면 남은 조각부터 이어서** 한다.
   진행 상태는 `BATCH_STATE_DIR`(기본 `/tmp`)에 남는다. 처음부터 돌리려면 `--no-resume`.
 - 실패한 조각은 끝낸 것으로 치지 않으므로 다음 실행에서 그 조각만 다시 시도한다.
 - **Google 키는 나중에 넣어도 된다.** 재실행하면 이미 채운 것은 건너뛰고 남은 것부터
   이어서 채운다 — 매일 재수집이 어제 채운 값을 덮어쓰지 않는다.
-- `fetch_localdata.py` 는 24개 상권이 속한 **11개 시군구**(성동·마포·용산·중·종로·강남·
-  영등포·광진·송파·서대문·분당)를 다 덮는지 확인하고, 빠진 곳과 영향받는 상권을 찍는다.
+- `fetch_localdata.py` 는 상권들이 속한 **16개 시군구**(성동·마포·용산·중·종로·강남·
+  영등포·광진·송파·서대문·동작·관악·노원·양천·성북·분당)를 다 덮는지 확인하고, 빠진 곳과 영향받는 상권을 찍는다.
 - `verify_places.py` 는 상권별 건수 / 슬롯 미매핑 / 폐업 잔존 / Google 매핑률을 보여 준다.
 
 ## 프로덕션 안전장치
