@@ -892,6 +892,8 @@ async def generate(
                 pref_region,
                 closed_dropped,
             )
+            if old_ids and course.items and not needs_confirmation:
+                ai_text = f"{ai_text} {_change_note(old_ids, new_ids)}"
         chat_store.append(course_id, "ai", ai_text)
         await broadcast_state(course_id, course.model_dump(mode="json"))
         await broadcast_message(course_id, "ai", ai_text)
@@ -1015,6 +1017,18 @@ def _edit_reply(
             return f"{order}번째를 '{gone}' 대신 '{new_name}'으로 바꿨어요."
         return f"{order}번째를 '{new_name}'으로 바꿨어요."
     return f"수정했어요. 이제 {n}곳이에요."
+
+
+def _change_note(old_ids: list[str], new_ids: list[str]) -> str:
+    """이미 있던 코스를 다시 짰을 때 무엇이 바뀌었는지(다 바뀐 줄 알고 처음부터 다시 보지 않게)."""
+    kept = len(set(old_ids) & set(new_ids))
+    if new_ids == old_ids:
+        return "장소는 그대로예요."
+    if kept == len(new_ids):
+        return "장소는 그대로 두고 순서·시간만 맞췄어요."
+    if kept:
+        return f"{kept}곳은 그대로 두고 {len(new_ids) - kept}곳을 새로 골랐어요."
+    return "모두 새로 골랐어요."
 
 
 def _ai_reply(

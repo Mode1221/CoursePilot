@@ -76,3 +76,12 @@ def test_다시_해줘는_다른_장소로(monkeypatch):
     b = c.post(f"/courses/{cid}/generate", json={"text": "다시 해줘"}, headers=h).json()
     ids = lambda r: [it["place"]["id"] for it in r["course"]["items"]]  # noqa: E731
     assert ids(b) and ids(a) != ids(b)
+
+
+def test_다시_짠_코스는_바뀐_정도를_말한다():
+    from app.main import _change_note
+
+    assert _change_note(["a", "b"], ["a", "b"]) == "장소는 그대로예요."
+    assert _change_note(["a", "b"], ["b", "a"]) == "장소는 그대로 두고 순서·시간만 맞췄어요."
+    assert _change_note(["a", "b"], ["a", "c"]) == "1곳은 그대로 두고 1곳을 새로 골랐어요."
+    assert _change_note(["a", "b"], ["c", "d"]) == "모두 새로 골랐어요."
