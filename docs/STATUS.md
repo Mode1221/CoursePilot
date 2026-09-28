@@ -216,7 +216,8 @@
     장소는 고르지 않고 검색어만 낸다. 키 없음·실패·범위 밖 번호면 규칙 결과 그대로.
   - **후속 요청은 직전 조건을 이어받는다**(`pipeline/followup.py`) — 코스가 있을 때 편집 명령이 아닌 말은 새 코스가 아니라
     조건 일부 변경으로 본다. "7시에 끝나게"(끝 시각), "1시간 늦게"·"30분 일찍"(상대 이동), "내일 저녁으로"(날짜·시간대 교체),
-    "너무 멀어"(도보 10분), "차로 갈게", "디저트 먹고 싶어"(취향 추가). 실제 생성에 쓴 조건 문장을 코스별로 기억한다.
+    "너무 멀어"(도보 10분), "차로 갈게", "디저트 먹고 싶어"(취향 추가), "홍대로 바꿔줘"(옛 지역 제거). 실제 생성에 쓴 조건 문장을
+    코스별로 기억한다. 시나리오 25문장 회귀 테스트(`tests/test_chat_scenarios.py`).
   - "한 곳 더"(성격 없이) → 코스에 없는 성격을 식사→카페→할거리→술집 순으로 골라 마지막 장소 근처에 추가
   - 첫 자리 교체·맨 앞 추가 때 시작 시각이 기본값(12시)으로 밀리던 버그 수정. "다시 해줘"가 장소를 다 빼 곳 수가 줄면
     한 곳씩만 다시 쓰도록 허용해 곳 수를 지킨다
@@ -385,7 +386,8 @@
 - ✅ **Next 15.5.26 + React 19.3** — Next 14 에만 남아 있던 취약점(RSC DoS·SSRF·RCE 등) 해소 → `pnpm audit --prod` 0건,
   CI `audit` 잡을 프론트도 차단으로. 동적 페이지 `params` 가 Promise 로 바뀐 것 반영(클라이언트는 `useParams`),
   zustand 4.5.7 + `use-sync-external-store` 1.5 override(React 19 peer), 링크 안 버튼(중첩 상호작용) → 버튼 모양 `Link`.
-- ✅ Caddy 보안 헤더 — HSTS·nosniff·X-Frame-Options DENY·frame-ancestors 'none'·Referrer-Policy·Permissions-Policy, Server 숨김
+- ✅ Caddy 보안 헤더 — HSTS·nosniff·X-Frame-Options DENY·CSP(frame-ancestors·object-src none·base-uri)·Referrer-Policy·
+  Permissions-Policy, Server 숨김. script-src/connect-src 까지 막는 전체 CSP 는 지도 SDK 도메인 실측 후(BACKLOG)
 - ✅ 문자 비용 공격 방어 — 번호당 상한에 더해 **IP 당 하루 10통**(번호를 바꿔 가며 보내는 공격)
 - ✅ rate limit 은 신뢰 프록시(`TRUSTED_PROXIES`)에서 온 요청만 X-Forwarded-For 를 보고,
   프록시가 덧붙인 맨 오른쪽 값을 쓴다(헤더 위조로 우회 불가, 프록시 뒤 전체 차단도 방지)
