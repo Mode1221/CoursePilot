@@ -156,7 +156,8 @@ def test_배치_크론이_nice_로_돈다():
         if re.match(r"^[\d*]", ln) and "scripts/" in ln and "ops/" not in ln
     ]
     assert len(lines) == 5  # localdata / build_places / refresh_places / refresh_hot / purge_guests
-    assert all("nice -n 19" in ln for ln in lines)
+    # nice 는 컨테이너 안의 python 에 걸려야 한다(docker compose CLI 앞이면 배치는 그대로 돈다)
+    assert all("exec -T backend nice -n 19 python" in ln for ln in lines)
 
 
 def test_deploy가_배치_중에는_기다린다():

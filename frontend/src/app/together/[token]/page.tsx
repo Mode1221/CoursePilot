@@ -70,8 +70,12 @@ export default function TogetherPage() {
     return (
       <main style={wrap}>
         <h1>보냈어요 ✨</h1>
-        <p style={{ color: "var(--text-muted)" }}>
-          {status.owner_name}님 답이랑 합쳐볼게요. {status.built ? "코스가 준비됐어요!" : "잠깐만 기다려 주세요."}
+        <p role="status" style={{ color: "var(--text-muted)" }}>
+          {status.built
+            ? "둘의 답을 합친 코스가 준비됐어요!"
+            : status.submitted.includes(status.owner_name)
+              ? `${status.owner_name}님 답이랑 합치는 중이에요. 잠깐만 기다려 주세요.`
+              : `${status.owner_name}님이 카드를 내면 바로 합쳐서 여기에 보여 드릴게요.`}
         </p>
         {status.built && (
           <Link href={`/plan/${status.course_id}`}>

@@ -412,7 +412,8 @@ async def generate(
                 if exclude_ids and len(result.timeline) < len(old_ids):
                     # "다시 해줘" — 지금 장소를 다 빼니 곳 수가 줄었다(후보가 적은 지역).
                     # 한 곳씩만 다시 쓰도록 허용해 가며, 곳 수를 지키면서 가장 많이 바뀐 코스를 쓴다.
-                    for keep in old_ids:
+                    # 최대 2번만 — 곳 수만큼 순서대로 다시 만들면(각각 LLM 분해 포함) 60초 큐 제한에 걸려 504 가 났다.
+                    for keep in old_ids[:REGENERATE_RETRIES]:
                         retry = await generate_course(
                             request_text,
                             get_map_service(),
@@ -429,7 +430,7 @@ async def generate(
                 closed_dropped = result.closed_dropped
                 gen_constraints = result.constraints
                 if course.items:
-                    _EFFECTIVE_CONDITION[course_id] = request_text  # 다음 후속 요청의 바탕
+                    _remember_condition(course_id, request_text)  # 다음 후속 요청의 바탕
                 region_guessed = result.constraints.region is None
                 # 문장에 지역이 없어 저장된 선호로 채웠다면 그 사실을 알린다
                 if (
@@ -551,6 +552,15 @@ _REGENERATE_RE = re.compile(
 # 코스별로 실제 생성에 쓴 조건 문장(후속 요청이 덧붙은 결과). 채팅 기록만 보면 "디저트 먹고 싶어"
 # 같은 후속 문장이 조건 문장으로 잡혀 지역·시간이 사라진다. 재시작하면 채팅 기록으로 폴백한다.
 _EFFECTIVE_CONDITION: dict[str, str] = {}
+EFFECTIVE_CONDITION_MAX = 5000  # 코스 수만큼 끝없이 쌓이지 않게(오래된 것부터 버린다)
+REGENERATE_RETRIES = 2
+
+
+def _remember_condition(course_id: str, text: str) -> None:
+    _EFFECTIVE_CONDITION.pop(course_id, None)  # 다시 넣어 가장 최근으로
+    _EFFECTIVE_CONDITION[course_id] = text
+    while len(_EFFECTIVE_CONDITION) > EFFECTIVE_CONDITION_MAX:
+        _EFFECTIVE_CONDITION.pop(next(iter(_EFFECTIVE_CONDITION)))
 
 
 def _effective_condition(course_id: str) -> str | None:

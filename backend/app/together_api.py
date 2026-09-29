@@ -9,9 +9,10 @@
 """
 from __future__ import annotations
 
+import logging
 import secrets
 
-from fastapi import APIRouter, Header, HTTPException
+from fastapi import APIRouter, BackgroundTasks, Header, HTTPException
 from pydantic import BaseModel, Field
 
 from app.adapters.map_service import get_map_service
@@ -167,7 +168,10 @@ async def together_status(token: str, x_device_id: str | None = Header(default=N
 
 @together_router.post("/together/{token}/input", response_model=TogetherStatus)
 async def partner_input(
-    token: str, card: CardRequest, x_device_id: str | None = Header(default=None)
+    token: str,
+    card: CardRequest,
+    background: BackgroundTasks,
+    x_device_id: str | None = Header(default=None),
 ) -> TogetherStatus:
     """상대의 30초 카드. 가입 없음. 비공개 저장."""
     _validate(card)
@@ -188,7 +192,15 @@ async def partner_input(
     store.save(course)
     # 시작한 사람 화면이 "상대 답함"으로 바뀌도록 상태를 밀어준다(카드 원문은 _public 이 뺀다)
     await broadcast_state(course.id, _public(course))
-    await broadcast_message(course.id, "ai", f"{name}님이 카드를 보냈어요. 합쳐볼게요.")
+    both = _both_in(course)
+    await broadcast_message(
+        course.id,
+        "ai",
+        f"{name}님이 카드를 보냈어요. 둘의 답을 합쳐 볼게요."
+        if both
+        else f"{name}님이 카드를 보냈어요. {t.owner_name}님 카드도 내면 바로 합쳐요.",
+    )
+    _schedule_auto_build(course, background)
     return _status(course)
 
 
@@ -196,6 +208,7 @@ async def partner_input(
 async def owner_input(
     course_id: str,
     card: CardRequest,
+    background: BackgroundTasks,
     x_user_id: str | None = Header(default=None),
     x_user_token: str | None = Header(default=None),
 ) -> TogetherStatus:
@@ -223,6 +236,7 @@ async def owner_input(
     _mark_changed(course)
     store.save(course)
     await broadcast_state(course_id, _public(course))
+    _schedule_auto_build(course, background)
     return _status(course)
 
 
@@ -235,6 +249,7 @@ async def build_together(
     """두 카드를 합쳐 코스를 만든다. 생성자만. 한 명만 냈으면 그 사람 기준 초안(나중에 재조정).
 
     합치기는 장소 검색을 칸마다 여러 번 한다 — 체험은 3회, 회원은 하루 몫 안에서.
+    둘 다 카드를 내면 자동으로도 불린다(`_auto_build`) — 이 버튼은 초안·다시 합치기·자동 실패 때 쓴다.
     """
     from app.identity import is_guest
     from app.usage import charge
@@ -244,6 +259,12 @@ async def build_together(
     if owner is None:
         raise HTTPException(status_code=403, detail="코스 생성자만 할 수 있어요")
     ticket = charge("build", subject=owner.id, guest=is_guest(owner))
+    return await _run_build(course_id, owner.id, ticket)
+
+
+async def _run_build(course_id: str, x_user_id: str | None, ticket) -> dict:
+    """합치기 본체(큐 직렬화). 몫(ticket)은 호출한 쪽이 이미 가져왔고, 결과를 못 주면 여기서 돌려준다."""
+    from app.queue import QueueOverflow
 
     async def action() -> dict:
         course = store.get(course_id)
@@ -288,6 +309,7 @@ async def build_together(
         except BaseException:
             ticket.release()  # 결과를 못 줬다 — 몫을 돌려준다
             course.locked = False
+            await broadcast_lock(course_id, False)
             raise
         try:
             course.items = result.timeline
@@ -316,8 +338,6 @@ async def build_together(
         who = " · ".join(sorted(t.inputs))
         await broadcast_message(course_id, "ai", f"{who}의 카드를 합쳐 코스를 만들었어요.")
         return {"course": _public(course), "status": _status(course).model_dump()}
-
-    from app.queue import QueueOverflow
 
     try:
         return await queues.run(course_id, action)
@@ -359,6 +379,53 @@ async def owner_accept(
     store.save(course)
     await broadcast_state(course_id, course.model_dump(mode="json"))
     return _status(course)
+
+
+logger = logging.getLogger("coursepilot")
+
+
+def _both_in(course: Course) -> bool:
+    t = course.together
+    return t is not None and t.owner_name in t.inputs and t.partner_name in t.inputs
+
+
+def _schedule_auto_build(course: Course, background: BackgroundTasks) -> None:
+    """두 사람 카드가 다 모였고 아직 코스가 없으면 자동으로 합친다.
+
+    예전엔 상대 화면이 "합쳐볼게요"라고 했지만 실제로는 시작한 사람이 버튼을 눌러야 했다 —
+    그 사람이 화면을 안 보고 있으면 상대는 끝없이 기다렸다. 응답을 먼저 보내고 뒤에서 합친다.
+    이미 만든 코스의 카드가 바뀐 경우(stale)는 자동으로 갈아엎지 않는다 — "다시 합치기"는 사람이 고른다.
+    """
+    if course.items or course.locked or not _both_in(course):
+        return
+    background.add_task(_auto_build, course.id)
+
+
+async def _auto_build(course_id: str) -> None:
+    from app.identity import is_guest
+    from app.usage import UsageDenied, charge
+
+    course = store.get(course_id)
+    if course is None or course.items or course.owner_id is None or not _both_in(course):
+        return
+    owner = user_store.get(course.owner_id)
+    if owner is None:
+        return
+    try:
+        ticket = charge("build", subject=owner.id, guest=is_guest(owner))
+    except UsageDenied:
+        await broadcast_message(
+            course_id,
+            "ai",
+            "둘의 카드가 다 모였어요. 합치기 횟수를 다 써서 자동으로 합치지 못했어요 — "
+            f"{course.together.owner_name if course.together else '시작한'}님이 로그인하면 바로 합칠 수 있어요.",
+        )
+        return
+    try:
+        await _run_build(course_id, owner.id, ticket)
+    except Exception:  # 자동 합치기 실패는 버튼으로 다시 할 수 있다 — 요청은 이미 끝났으니 로그만
+        logger.exception("자동 합치기 실패: %s", course_id)
+        await broadcast_message(course_id, "ai", "자동으로 합치지 못했어요. '둘의 카드 합쳐서 코스 만들기'를 눌러 주세요.")
 
 
 def _record_accept(course: Course, actor: str) -> None:

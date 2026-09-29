@@ -5,7 +5,7 @@
 """
 from __future__ import annotations
 
-from fastapi import APIRouter, Header, HTTPException
+from fastapi import APIRouter, Header, HTTPException, Request
 from pydantic import BaseModel, Field
 
 from app.feedback import feedback_store
@@ -17,30 +17,47 @@ from app.store import store
 signals_router = APIRouter(tags=["signals"])
 
 
+def _signer(user_id: str | None, token: str | None) -> str | None:
+    """서명이 맞는 실제 계정 id. 예전엔 X-User-Id 헤더를 그대로 믿어, 아무 id 나 바꿔 적으며
+    같은 장소에 별점을 끝없이 새로 매길 수 있었다(순위 조작). 서명이 틀리면 로그인하지 않은 것으로 본다."""
+    from app.identity import resolve_caller
+
+    try:
+        caller = resolve_caller(user_id, token)
+    except HTTPException:
+        return None
+    return caller.user_id if caller else None
+
+
 class RatingRequest(BaseModel):
     stars: int = Field(ge=1, le=5)
 
 
 @signals_router.post("/places/{place_id}/rating")
 async def rate_place(
-    place_id: str, req: RatingRequest, x_user_id: str | None = Header(default=None)
+    place_id: str,
+    req: RatingRequest,
+    request: Request,
+    x_user_id: str | None = Header(default=None),
+    x_user_token: str | None = Header(default=None),
 ) -> dict:
     """장소 원탭 별점(1~5). 자체 정량 신호로 planner 스코어에 반영 (data #9).
 
     같은 사람이 다시 매기면 표본을 늘리지 않고 이전 점수를 대체한다
     (반복 제출로 평균을 흔들 수 없게).
     """
+    from app.middleware import client_ip
     from app.ratings import user_rating_store
+    from app.usage import ip_subject
 
-    if x_user_id:
-        previous = user_rating_store.previous(x_user_id, place_id)
-        if previous == req.stars:
-            avg_same = rating_store.averages([place_id]).get(place_id)
-            return {"ok": True, "average": avg_same, "counted": False}
-        rating_store.submit(place_id, req.stars, replaces=previous)
-        user_rating_store.remember(x_user_id, place_id, req.stars)
-    else:
-        rating_store.submit(place_id, req.stars)
+    # 로그인(체험 포함)이면 그 사람, 아니면 IP 하나를 한 사람으로 센다 — 익명 반복 제출로 평균을 흔들지 못하게
+    who = _signer(x_user_id, x_user_token) or ip_subject(client_ip(request))
+    previous = user_rating_store.previous(who, place_id)
+    if previous == req.stars:
+        avg_same = rating_store.averages([place_id]).get(place_id)
+        return {"ok": True, "average": avg_same, "counted": False}
+    rating_store.submit(place_id, req.stars, replaces=previous)
+    user_rating_store.remember(who, place_id, req.stars)
     avg = rating_store.averages([place_id]).get(place_id)
     return {"ok": True, "average": avg}
 
@@ -50,7 +67,9 @@ REVISIT_WEIGHT = 2  # 재방문 의사는 장소 단위 강한 긍정(또 가고
 
 @signals_router.post("/places/{place_id}/revisit")
 async def mark_revisit(
-    place_id: str, x_user_id: str | None = Header(default=None)
+    place_id: str,
+    x_user_id: str | None = Header(default=None),
+    x_user_token: str | None = Header(default=None),
 ) -> dict:
     """재방문 의사 토글 (data #10). "또 가고 싶어요" → 장소 인기 강한 가점.
 
@@ -59,9 +78,10 @@ async def mark_revisit(
     """
     from app.revisits import revisit_store
 
-    if not x_user_id:
+    who = _signer(x_user_id, x_user_token)  # 서명된 계정만 — 헤더에 아무 id 나 적어 부풀리지 못하게
+    if not who:
         return {"ok": True, "counted": False}
-    if not revisit_store.mark(x_user_id, place_id):
+    if not revisit_store.mark(who, place_id):
         return {"ok": True, "counted": False}
     popularity_store.bump(place_id, weight=REVISIT_WEIGHT)
     return {"ok": True, "counted": True}

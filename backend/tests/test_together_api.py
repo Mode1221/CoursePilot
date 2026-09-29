@@ -88,9 +88,8 @@ def test_토큰으로는_AI_명령을_못_한다(client):
 def test_둘_다_수락하면_확정(client):
     uid, h, cid, token = _start(client)
     client.post(f"/courses/{cid}/together/input", json={"cravings": ["고기"]}, headers=h)
-    client.post(f"/together/{token}/input", json={"cravings": ["디저트"]})
     assert client.post(f"/together/{token}/accept").status_code == 400  # 아직 코스 없음
-    client.post(f"/courses/{cid}/together/build", headers=h)
+    client.post(f"/together/{token}/input", json={"cravings": ["디저트"]})  # 둘 다 모이면 자동으로 합친다
     assert client.post(f"/together/{token}/accept").json()["accepted_by"] == ["지은"]
     st = client.post(f"/courses/{cid}/together/accept", headers=h).json()
     assert sorted(st["accepted_by"]) == ["민수", "지은"]
@@ -156,3 +155,42 @@ def test_직접_검색에서_학원_같은_부적합_업태는_빠지되_이름�
     assert names == ["제이엠파트너스"]
     names = [p["name"] for p in client.get("/places/search", params={"region": "홍대", "q": "좋은자리취미미술학원"}).json()]
     assert "좋은자리취미미술학원" in names
+
+
+def test_두_카드가_모이면_자동으로_합친다(client):
+    """예전엔 상대 화면이 "합쳐볼게요"라고만 하고, 시작한 사람이 버튼을 눌러야 코스가 생겼다."""
+    uid, h, cid, token = _start(client)
+    client.post(f"/courses/{cid}/together/input", json={"cravings": ["고기"]}, headers=h)
+    assert client.get(f"/together/{token}").json()["built"] is False  # 한 명만 — 아직
+    st = client.post(f"/together/{token}/input", json={"cravings": ["디저트"]}).json()
+    assert st["built"] is False  # 응답은 먼저, 합치기는 뒤에서
+    assert client.get(f"/together/{token}").json()["built"] is True
+    assert client.get(f"/courses/{cid}").json()["items"]
+
+
+def test_상대가_먼저_내도_시작한_사람이_내면_합친다(client):
+    uid, h, cid, token = _start(client)
+    client.post(f"/together/{token}/input", json={"cravings": ["디저트"]})
+    assert client.get(f"/together/{token}").json()["built"] is False
+    client.post(f"/courses/{cid}/together/input", json={"cravings": ["고기"]}, headers=h)
+    assert client.get(f"/together/{token}").json()["built"] is True
+
+
+def test_이미_만든_코스는_카드가_바뀌어도_자동으로_갈아엎지_않는다(client):
+    uid, h, cid, token = _start(client)
+    client.post(f"/courses/{cid}/together/input", json={"cravings": ["고기"]}, headers=h)
+    client.post(f"/together/{token}/input", json={"cravings": ["디저트"]})
+    before = [it["place"]["id"] for it in client.get(f"/courses/{cid}").json()["items"]]
+    st = client.post(f"/together/{token}/input", json={"cravings": ["양식"]}).json()
+    assert st["stale"] is True
+    assert [it["place"]["id"] for it in client.get(f"/courses/{cid}").json()["items"]] == before
+
+
+def test_합치기_몫이_없으면_자동으로_합치지_않고_알린다(client, monkeypatch):
+    from app import usage
+
+    monkeypatch.setitem(usage.LIMITS, "build", usage.Limit(guest=0, member=0))
+    uid, h, cid, token = _start(client)
+    client.post(f"/courses/{cid}/together/input", json={"cravings": ["고기"]}, headers=h)
+    client.post(f"/together/{token}/input", json={"cravings": ["디저트"]})
+    assert client.get(f"/together/{token}").json()["built"] is False

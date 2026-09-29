@@ -68,6 +68,34 @@ def init_db() -> bool:
         )
     try:
         Base.metadata.create_all(_engine)
-        return True
     except Exception:
         return False
+    _ensure_expression_indexes()
+    return True
+
+
+# JSON 칸 안의 값으로 자주 찾는 조회용 표현식 인덱스(Postgres 전용).
+# create_all 은 이미 있는 테이블에 인덱스를 더하지 않으므로 여기서 IF NOT EXISTS 로 만든다.
+# 조회식(places.py `_lat_lng_exprs`, store.py `find_by_together_token`)과 **글자 그대로** 같아야 쓰인다.
+EXPRESSION_INDEXES = (
+    "CREATE INDEX IF NOT EXISTS ix_places_lat_lng ON places "
+    "((CAST(data ->> 'lat' AS FLOAT)), (CAST(data ->> 'lng' AS FLOAT)))",
+    "CREATE INDEX IF NOT EXISTS ix_courses_together_token ON courses "
+    "((state -> 'together' ->> 'token'))",
+)
+
+
+def _ensure_expression_indexes() -> None:
+    import logging
+
+    from sqlalchemy import text
+
+    assert _engine is not None
+    if _engine.dialect.name != "postgresql":
+        return
+    for ddl in EXPRESSION_INDEXES:
+        try:
+            with _engine.begin() as conn:
+                conn.execute(text(ddl))
+        except Exception:  # 인덱스가 없어도 조회는 된다(느릴 뿐) — 기동을 막지 않는다
+            logging.getLogger("coursepilot").warning("표현식 인덱스 생성 실패: %s", ddl.split(" ON ")[0])

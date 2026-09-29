@@ -1,7 +1,7 @@
 "use client";
 
 import dynamic from "next/dynamic";
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 
 import AiNotice from "@/components/AiNotice";
 import AlternativesList from "@/components/AlternativesList";
@@ -55,6 +55,16 @@ export default function MapPanel({
   const [altIndex, setAltIndex] = useState<number | null>(null);
   const [reasons, setReasons] = useState<Record<string, string[]>>({});
   const editDisabled = readOnly || locked;
+  // 지도는 이 함수가 바뀌면 마커를 전부 다시 그리고 화면 범위를 되돌린다(사용자가 옮긴 지도가 튄다).
+  // 잠금·진행 단계처럼 코스와 무관한 재렌더마다 새 함수가 되지 않게 고정한다.
+  const items = course?.items;
+  const onSelectStop = useCallback(
+    (i: number) => {
+      const place = items?.[i]?.place;
+      if (place) setSelected(place);
+    },
+    [items],
+  );
   const courseId = course?.id;
   const itemKey = course?.items.map((it) => it.place.id).join(",") ?? "";
 
@@ -128,7 +138,7 @@ export default function MapPanel({
       >
         {split && conditions}
         <div style={split ? { flex: 1, minHeight: 220, marginTop: split ? "var(--sp-3)" : 0 } : undefined}>
-          <MapCanvas items={course.items} onSelect={(i) => setSelected(course.items[i].place)} height={mapHeight} />
+          <MapCanvas items={course.items} onSelect={onSelectStop} height={mapHeight} />
         </div>
         {course.items.length > 0 && <AiNotice />}
         {course.items.length > 0 && <AreaStatusLine region={course.region} />}

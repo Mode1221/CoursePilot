@@ -101,11 +101,15 @@ class CourseStore:
             from app.models import CourseModel
 
             with SessionLocal() as s:
-                rows = s.execute(
-                    select(CourseModel.state).where(
-                        CourseModel.state["together"]["token"].as_string() == token
-                    )
-                ).all()
+                if s.bind.dialect.name == "postgresql":
+                    # 키를 리터럴로 — 표현식 인덱스(db.py `ix_courses_together_token`)를 탄다.
+                    # 상대 화면이 4초마다 부르는 조회라 전체 스캔이면 코스가 쌓일수록 느려진다.
+                    from sqlalchemy import literal_column
+
+                    expr = literal_column("courses.state -> 'together' ->> 'token'")
+                else:
+                    expr = CourseModel.state["together"]["token"].as_string()
+                rows = s.execute(select(CourseModel.state).where(expr == token)).all()
                 return Course.model_validate(rows[0][0]) if rows else None
         for course in self._mem.values():
             if course.together and course.together.token == token:
