@@ -38,7 +38,7 @@
 - (backend) `reasons.py` — 코스 장소 선택 근거 계산(저장 없이 코스+마지막 요청으로).
 - (backend) `signals_api.py` — 별점·재방문·완주·만족도·조회·함께가요 라우터(크레딧 미소모, 멱등).
 - (backend) `accounts_api.py` — 가입·SMS 인증·선호·크레딧·포인트 구매 라우터.
-- (backend) `admin_api.py` — 관리 엔드포인트(/admin/metrics, /admin/signals, /admin/dashboard)와 토큰 검사. `admin_dashboard.py` — 의존성 없는 단일 HTML 대시보드.
+- (backend) `admin_api.py` — 관리 엔드포인트(/admin/metrics, /admin/signals, /admin/growth, /admin/dashboard)와 토큰 검사. `admin_dashboard.py` — 의존성 없는 단일 HTML 대시보드.
 - (backend) `answers.py` — 질문 답변(사실 태그·비용·영업시간·코스 요약). 외부 호출 없음.
 - `weights.py` — 스코어 계수(`PLACE_WEIGHTS`/`COURSE_WEIGHTS`) 단일 출처.
 - `simulation.py` — 합성 사용 신호 생성·리플레이(`simulate_sessions`/`replay`/`rank_quality`), CLI `backend/scripts/replay_signals.py`.
@@ -70,6 +70,14 @@
   `charge()` 가 `Ticket` 을 돌려주고, 결과를 못 준 요청(실패·질문·되묻기)은 `release()` 로 되돌린다.
   LLM 상한은 `llm_client.get_*_client()` 한 곳에서(넘으면 None → 호출부가 규칙 폴백), Google 은 `_consume`·리뷰 소스에서.
   한도 초과는 `UsageDenied` → `main.py` 핸들러가 `{"detail","code"}`(guest_required·login_required·daily_limit·service_busy).
+- (유입·초대) `referrals.py` — 첫 방문 출처(first-touch)와 초대 보상. 체험 시작(`/auth/guest`)·가입(`/signup`)·카카오 로그인
+  요청의 `source`·`campaign`·`invite`(같이 정하기 링크 토큰)를 받아 `clean_source`(소문자 `[a-z0-9_-]` 32자)로 정리해 남긴다.
+  **초대자는 요청 값이 아니라 링크 토큰으로 찾은 코스의 주인**(`resolve_invite`). 보상은 계정을 새로 만들 때만(`_logged_in(new_member=True)`
+  → `on_new_member`), 로그인 수단 해시(`identity_key`) 유니크로 1회, 초대자당 30일 5회, 자기 링크·QA 제외.
+  값은 `usage.INVITE_BONUS`(7일 동안 회원 하루 몫 +코스 5·AI 20·합치기 5)이고 `usage.member_limit` 이 한도 계산에서 더한다
+  (체험 몫·서비스 전체 상한은 그대로). 저장은 새 테이블 `user_acquisition`·`invite_rewards`(DB 없으면 인메모리) —
+  기존 `users` 표는 바꾸지 않으므로 `create_all` 만으로 운영 DB 에 생긴다. `merge_guest` 가 체험 기록을 회원으로 옮기고(`move`),
+  계정 삭제·체험 정리 때 유입 기록을 지운다(보상 기록은 재가입 재보상 방지로 남김). 집계는 `GET /admin/growth`(대시보드 "유입·초대").
 - (로그인) `adapters/kakao_auth.py` — 카카오 인가 코드 → 회원번호. `accounts_api.py` 의 `/auth/guest`·`/auth/kakao`·`/me`.
 - (인증) `session_token.py` — `<발급시각>.<HMAC(user_id:발급시각)>` 토큰, 90일 만료.
   만료·형식 불일치는 `verify` 가 False → 라우터가 401. 비밀키 없으면 개발 폴백.
@@ -109,6 +117,18 @@
 - `source.py` 리뷰 수집(Google 숫자/attribution, 네이버 링크만) + `SafeReviewSource` 폴백 래퍼.
 - `sponsored.py` 협찬 필터(표기·구조 신호, "내돈내산"은 반대 신호), `aspects.py` 태그 추출.
 - `embedding.py`/`rag.py` 임베딩·검색(제한적). 요약 폴백은 **원문 대신 태그**로만 구성.
+
+### 공유 미리보기(OG)·유입 경로 (frontend)
+- `app/(home)/layout.tsx`+`opengraph-image.tsx` — 랜딩(/) 기본 카드. `together/[token]/layout.tsx`·`share/[id]/page.tsx` 의 `generateMetadata`
+  와 같은 폴더 `opengraph-image.tsx` 가 초대·공유 카드를 그린다(`services/ogImage.tsx`, next/og).
+  초대 미리보기는 열람 이벤트를 남기지 않는 `GET /together/{token}/preview`(보낸 사람 이름·요청 한 줄·완성 여부·지역·장소 수 —
+  링크를 연 사람이 화면에서 보는 것만), 공유는 `GET /courses/{id}`. 실패·틀린 토큰이면 일반 카드(`services/ogText.ts`).
+- 절대 주소(`metadataBase`)는 요청 호스트(`X-Forwarded-Host/Proto`, 없으면 `Host`; 런타임 `SITE_URL` 이 있으면 우선)로 만든다
+  (`services/siteUrl.ts`). 이 때문에 헤더를 읽는 화면만 동적 렌더 — 루트 레이아웃은 정적 메타만 둬 약관·로그인 등은 정적으로 남는다.
+- 이미지 글꼴은 `public/fonts/og-sans-kr-bold.woff`(Noto Sans CJK KR Bold 부분집합: ASCII·KS X 1001 한글 2,350자·자모·기호, OFL, 약 180KB).
+  글꼴에 없는 글자는 next/og 가 외부 글꼴을 받으려 하므로 `ogSafe` 가 기호·이모지를 빼고, 드문 음절이 있는 문구는 일반 문구로 바꾼다.
+- `services/acquisition.ts` — 첫 방문 주소의 `src`/`utm_source`·`utm_campaign` 과 `/together/<토큰>` 을 localStorage(try/catch)에 기억
+  (`components/AcquisitionCapture.tsx`, 루트 레이아웃). `api.ts` 가 체험 시작·가입·카카오 로그인 요청에 붙이고, 로그인하면 지운다.
 
 ### 배포 산출물
 - `.github/workflows/release.yml` — main 머지 시 buildx(QEMU)로 **linux/arm64** 이미지를

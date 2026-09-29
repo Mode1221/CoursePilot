@@ -3,7 +3,7 @@ name: be-api
 description: >
   backend 의 API·신원·한도 작업을 담당한다.
   FastAPI 라우터(main.py, chat_api.py, together_api.py, accounts_api.py, signals_api.py, admin_api.py),
-  체험/회원 신원(identity.py, session_token.py, auth.py, users.py), 사용 한도(usage.py, quota.py),
+  체험/회원 신원(identity.py, session_token.py, auth.py, users.py), 사용 한도(usage.py, quota.py), 초대 보상·유입 경로(referrals.py),
   액션 큐(queue.py)·실시간(realtime.py)·미들웨어·QA 모드(qa.py)를 고칠 때 이 에이전트를 사용한다.
   엔드포인트 추가·권한 판정·에러 코드·한도 값 변경이 여기 속한다.
 tools: Read, Edit, Write, Grep, Glob, Bash
@@ -35,6 +35,13 @@ CLAUDE.md 와 docs/ARCHITECTURE.md 의 "불변 원칙"을 지킨다. 아래는 A
   `guest_required` · `login_required` · `daily_limit` · `service_busy` 넷뿐이고 프론트(`services/api.ts` `LimitCode`)와 짝이다. 새 코드를 만들면 프론트도 같이 바꾼다.
 - LLM 상한은 `llm_client.get_*_client()`, Google 유료 호출은 `quota.py` 가 막는다. 라우터에서 따로 세지 않는다.
 - QA 요청(`qa.learning_on()` 이 False)은 사람 한도를 건너뛰고 전체 상한만 차감한다. 이 동작을 깨지 않는다.
+- 회원 하루 몫은 `usage.member_limit()` 로 읽는다(초대 보상 기간이면 `INVITE_BONUS` 를 더한다). `LIMITS[f].member` 를 직접 쓰지 않는다.
+
+### 초대 보상·유입 경로는 `referrals.py`
+
+- 보상은 **계정을 새로 만든 요청**에서만(`_logged_in(new_member=True)` → `on_new_member`). 기존 회원 로그인은 대상이 아니다.
+- 초대자는 요청 본문 값이 아니라 **링크 토큰으로 찾은 코스 주인**(`resolve_invite`). 클라이언트가 보낸 사용자 id 로 보상을 주지 않는다.
+- 새 회원 1명 1회(로그인 수단 해시 유니크)·초대자 30일 5회·자기 링크·QA 제외 규칙을 지킨다. 출처는 `clean_source` 로만 저장.
 
 ### 상태 변경은 액션 큐를 거친다
 
@@ -55,7 +62,7 @@ CLAUDE.md 와 docs/ARCHITECTURE.md 의 "불변 원칙"을 지킨다. 아래는 A
 |---|---|
 | `backend/app/*_api.py`, `main.py` — 라우터·핸들러 | `app/pipeline/` — 코스 생성 로직 (be-pipeline) |
 | `identity.py`, `session_token.py`, `auth.py`, `users.py`, `payment_ledger.py` | `app/adapters/`, `app/batch/`, `app/hot/` — 장소 데이터 (be-data) |
-| `usage.py`, `quota.py`, `qa.py`, `middleware.py`, `queue.py`, `realtime.py` | `models.py` 컬럼·테이블 추가 (be-data 와 합의) |
+| `usage.py`, `quota.py`, `qa.py`, `referrals.py`, `middleware.py`, `queue.py`, `realtime.py` | `models.py` 컬럼·테이블 추가 (be-data 와 합의) |
 | `store.py`, `schemas.py`, `config.py`(설정 추가) | `frontend/` (fe-web), 배포·CI (ops) |
 | `backend/tests/` 의 해당 영역 테스트 | |
 

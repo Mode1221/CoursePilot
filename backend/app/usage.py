@@ -21,7 +21,7 @@ import hashlib
 import hmac
 import logging
 from dataclasses import dataclass
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta, timezone
 
 from app.config import settings
 
@@ -60,6 +60,15 @@ GLOBAL_DAILY: dict[str, int] = {
     "google.reviews": 100,  # 리뷰 요약용 구형 Places(텍스트검색+상세) 호출
 }
 
+
+# 초대 보상: 같이 정하기 링크로 온 사람이 **새 회원**이 되면 두 사람 모두 7일 동안 회원 하루 몫에 더한다.
+# 한 번에 주는 쿠폰(잔액 관리)이 아니라 "기간 동안 하루 몫 +N" 이라 기존 카운터를 그대로 쓴다.
+# 보상을 다시 받으면 기간이 마지막 보상부터 7일로 늘어난다(겹쳐 쌓이지는 않는다).
+# 체험(게스트) 몫에는 더하지 않는다 — 체험은 로그인으로 이어지는 입구다.
+# 서비스 전체 상한(GLOBAL_DAILY)은 그대로다 — 청구서의 상한선은 보상으로도 뚫리지 않는다.
+# 누가 보상을 받는지(새 회원만·1회·초대자 상한)는 app/referrals.py 가 정한다.
+INVITE_BONUS: dict[str, int] = {"course": 5, "ai": 20, "build": 5}
+INVITE_BONUS_DAYS = 7
 
 
 class UsageDenied(Exception):
@@ -325,7 +334,7 @@ def charge(
         return Ticket(tuple(taken))
 
     person = _person_key(feature, subject, guest, now)
-    if not counters.take(person, limit.guest if guest else limit.member):
+    if not counters.take(person, limit.guest if guest else member_limit(feature, subject, now)):
         raise login_required(_FEATURE_NAMES.get(feature, "")) if guest else daily_limit()
     taken.append(person)
 
@@ -364,8 +373,29 @@ def allow_new_guest(ip: str, now: datetime | None = None) -> bool:
 
 def remaining(feature: str, *, subject: str, guest: bool, now: datetime | None = None) -> int:
     limit = LIMITS[feature]
-    cap = limit.guest if guest else limit.member
+    cap = limit.guest if guest else member_limit(feature, subject, now)
     return max(0, cap - counters.used(_person_key(feature, subject, guest, now)))
+
+
+def invite_bonus_until(subject: str, now: datetime | None = None) -> datetime | None:
+    """초대 보상이 켜져 있으면 끝나는 시각(UTC, tz 없음). 없거나 지났으면 None."""
+    from app.referrals import referral_store
+
+    last = referral_store.last_reward_at(subject)
+    if last is None:
+        return None
+    until = last + timedelta(days=INVITE_BONUS_DAYS)
+    ref = (now or datetime.now(UTC)).astimezone(UTC).replace(tzinfo=None)
+    return until if ref < until else None
+
+
+def member_limit(feature: str, subject: str, now: datetime | None = None) -> int:
+    """회원 하루 몫 = 기본 + (초대 보상 기간이면) INVITE_BONUS."""
+    base = LIMITS[feature].member
+    extra = INVITE_BONUS.get(feature, 0)
+    if extra and invite_bonus_until(subject, now) is not None:
+        return base + extra
+    return base
 
 
 def forget_subject(subject: str) -> int:

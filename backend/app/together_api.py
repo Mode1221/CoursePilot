@@ -29,6 +29,7 @@ from app.pipeline.consensus import (
 )
 from app.queue import queues
 from app.realtime import broadcast_lock, broadcast_message, broadcast_progress, broadcast_state
+from app.referrals import reward_offer
 from app.schemas import Course, TogetherState
 from app.session_token import verify
 from app.store import store
@@ -71,6 +72,18 @@ class TogetherStatus(BaseModel):
     request_text: str
     cards: dict
     stale: bool = False
+    # 링크로 온 사람이 새로 가입하면 두 사람이 받는 보상(화면 안내용, app/referrals.py)
+    invite_reward: dict | None = None
+
+
+class TogetherPreview(BaseModel):
+    """메신저 미리보기(OG 카드)용. 링크를 가진 사람이 화면에서 이미 보는 것만 담는다."""
+
+    owner_name: str
+    request_text: str
+    built: bool
+    region: str | None = None
+    stops: int = 0
 
 
 def _owned(course_id: str, user_id: str | None, token: str | None) -> Course:
@@ -116,6 +129,7 @@ def _status(course: Course) -> TogetherStatus:
         request_text=t.request_text,
         stale=t.stale,
         cards=CARD_SPEC,
+        invite_reward=reward_offer(),
     )
 
 
@@ -164,6 +178,22 @@ async def together_status(token: str, x_device_id: str | None = Header(default=N
     course = _by_token(token)
     funnel_store.record("link_opened", course.id, "partner", x_device_id, once=True)
     return _status(course)
+
+
+@together_router.get("/together/{token}/preview", response_model=TogetherPreview)
+async def together_preview(token: str) -> TogetherPreview:
+    """링크 미리보기. **열람 이벤트를 남기지 않는다** — 카카오톡 등 메신저 서버가 미리보기를 만들려고
+    링크를 가져가는 건 상대가 연 게 아니다(예전엔 OG 생성이 `link_opened` 를 먼저 찍었다)."""
+    course = _by_token(token)
+    t = course.together
+    assert t is not None
+    return TogetherPreview(
+        owner_name=t.owner_name,
+        request_text=t.request_text,
+        built=bool(course.items),
+        region=course.region,
+        stops=len(course.items),
+    )
 
 
 @together_router.post("/together/{token}/input", response_model=TogetherStatus)

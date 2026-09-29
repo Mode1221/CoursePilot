@@ -50,7 +50,7 @@ DASHBOARD_HTML = """<!doctype html>
 </head>
 <body>
 <h1>CoursePilot 운영 대시보드</h1>
-<p class="sub">폴백률·유료 API 잔여 한도·학습 신호를 한 화면에서 봅니다. 30초마다 갱신.</p>
+<p class="sub">폴백률·유료 API 잔여 한도·학습 신호·유입 경로를 한 화면에서 봅니다. 30초마다 갱신.</p>
 <div class="row">
   <input id="token" type="password" placeholder="ADMIN_TOKEN (설정된 경우)" />
   <button id="refresh">새로고침</button>
@@ -63,6 +63,7 @@ DASHBOARD_HTML = """<!doctype html>
   <section><h2>알림</h2><div id="alerts"></div></section>
   <section><h2>학습 신호</h2><div id="signals"></div></section>
   <section><h2>온보딩 응답</h2><div id="prefs"></div></section>
+  <section><h2>유입·초대 (7일 / 30일)</h2><div id="growth"></div></section>
 </div>
 <script>
 const $ = (id) => document.getElementById(id);
@@ -85,12 +86,14 @@ async function load() {
   localStorage.setItem(TOKEN_KEY, token);
   const headers = token ? { "X-Admin-Token": token } : {};
   try {
-    const [m, s] = await Promise.all([
+    const [m, s, g] = await Promise.all([
       fetch("./metrics", { headers }).then((r) => r.ok ? r.json() : Promise.reject(r.status)),
       fetch("./signals", { headers }).then((r) => r.ok ? r.json() : Promise.reject(r.status)),
+      fetch("./growth", { headers }).then((r) => r.ok ? r.json() : Promise.reject(r.status)),
     ]);
     $("error").textContent = "";
     render(m, s);
+    renderGrowth(g);
   } catch (status) {
     $("error").textContent = status === 401
       ? "관리자 토큰이 필요합니다." : `지표를 불러오지 못했어요 (${esc(status)})`;
@@ -137,6 +140,26 @@ function render(m, s) {
     `<tr><td>응답률</td><td class="num">${p.answered_rate === null || p.answered_rate === undefined ? "-" : pct(p.answered_rate)}</td></tr>`,
     ...Object.entries(filled).map(([k, v]) => `<tr><td>${esc(k)}</td><td class="num">${v}</td></tr>`),
   ]);
+}
+
+function renderGrowth(g) {
+  const w7 = (g.windows || {})["7d"] || {}, w30 = (g.windows || {})["30d"] || {};
+  const both = (k) => `<td class="num">${esc(w7[k] ?? 0)}</td><td class="num">${esc(w30[k] ?? 0)}</td>`;
+  const sources = [...new Set([
+    ...Object.keys(w30.signups_by_source || {}), ...Object.keys(w30.guests_by_source || {}),
+  ])];
+  const by = (w, kind, src) => (w[kind] || {})[src] ?? 0;
+  $("growth").innerHTML = rows(["항목", "7일", "30일"], [
+    `<tr><td>체험 시작</td>${both("guests")}</tr>`,
+    `<tr><td>가입</td>${both("signups")}</tr>`,
+    `<tr><td>보낸 초대(링크)</td>${both("invites_sent")}</tr>`,
+    `<tr><td>초대 링크 열람</td>${both("invite_opens")}</tr>`,
+    `<tr><td>초대로 온 가입</td>${both("invite_signups")}</tr>`,
+    `<tr><td>초대 보상 지급</td>${both("rewards_granted")}</tr>`,
+  ]) + rows(["출처", "가입 7/30일", "체험 7/30일"], sources.map((src) =>
+    `<tr><td>${esc(src)}</td>`
+    + `<td class="num">${by(w7, "signups_by_source", src)}/${by(w30, "signups_by_source", src)}</td>`
+    + `<td class="num">${by(w7, "guests_by_source", src)}/${by(w30, "guests_by_source", src)}</td></tr>`));
 }
 
 $("refresh").addEventListener("click", load);

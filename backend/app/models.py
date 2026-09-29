@@ -160,6 +160,36 @@ class FunnelEventModel(Base):
     at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
 
 
+class AcquisitionModel(Base):
+    """사람별 첫 방문 출처(first-touch)와 같이 정하기 초대 여부 (app/referrals.py).
+
+    출처·캠페인은 정리된 짧은 값(`[a-z0-9_-]` 32자)만, 초대자는 서버가 코스에서 찾은 id 만 담는다.
+    """
+
+    __tablename__ = "user_acquisition"
+
+    user_id: Mapped[str] = mapped_column(String, primary_key=True)
+    source: Mapped[str | None] = mapped_column(String, nullable=True, index=True)
+    campaign: Mapped[str | None] = mapped_column(String, nullable=True)
+    inviter_id: Mapped[str | None] = mapped_column(String, nullable=True, index=True)
+    course_id: Mapped[str | None] = mapped_column(String, nullable=True)
+    guest_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True, index=True)
+    member_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True, index=True)
+
+
+class InviteRewardModel(Base):
+    """초대 보상 지급 기록. invitee_key(로그인 수단 해시) 유니크로 새 회원 1명당 1번만."""
+
+    __tablename__ = "invite_rewards"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    invitee_key: Mapped[str] = mapped_column(String, unique=True)
+    invitee_id: Mapped[str] = mapped_column(String, index=True)
+    inviter_id: Mapped[str] = mapped_column(String, index=True)
+    course_id: Mapped[str | None] = mapped_column(String, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, index=True)
+
+
 class OutcomeModel(Base):
     """코스 예측 점수 vs 실제 만족도 (data #17)."""
 

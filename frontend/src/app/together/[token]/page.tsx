@@ -6,9 +6,12 @@ import { useCallback, useEffect, useState } from "react";
 
 import TogetherCards from "@/components/TogetherCards";
 import { Button, Skeleton } from "@/components/ui";
+import { rememberInvite } from "@/services/acquisition";
 import { api, ApiError, type TogetherStatus } from "@/services/api";
+import { inviteOfferText } from "@/services/login";
 import { saveTogetherToken } from "@/services/togetherToken";
 import { toast } from "@/store/toastStore";
+import { useUserStore } from "@/store/userStore";
 
 /**
  * 상대가 링크로 들어오는 화면. 가입 없음, 30초, 서로의 답은 안 보인다.
@@ -21,6 +24,13 @@ export default function TogetherPage() {
   const [missing, setMissing] = useState(false);
   const [sent, setSent] = useState(false);
   const [myName, setMyName] = useState("");
+  const { kind, load: loadUser } = useUserStore();
+
+  useEffect(() => {
+    loadUser();
+    // 이 링크로 온 사람이 나중에 가입하면 두 사람 모두 보상 — 토큰을 기억해 둔다(초대자는 서버가 토큰으로 찾는다)
+    rememberInvite(token);
+  }, [loadUser, token]);
 
   const load = useCallback(async () => {
     try {
@@ -66,7 +76,11 @@ export default function TogetherPage() {
     );
   }
 
+  // 이미 회원이면 보상 대상이 아니다(새 가입만) — 안내하지 않는다
+  const offer = status.invite_reward && kind !== "member" ? inviteOfferText(status.invite_reward) : null;
+
   if (sent) {
+    const loginNext = status.built ? `/plan/${status.course_id}` : `/together/${token}`;
     return (
       <main style={wrap}>
         <h1>보냈어요 ✨</h1>
@@ -85,6 +99,17 @@ export default function TogetherPage() {
         <Button full variant="ghost" onClick={() => setSent(false)} style={{ marginTop: "var(--sp-2)" }}>
           내 답 수정하기
         </Button>
+        {offer && (
+          <p style={{ marginTop: "var(--sp-5)", fontSize: "var(--fs-sm)", color: "var(--text-muted)" }}>
+            {offer}{" "}
+            <Link
+              href={`/login?next=${encodeURIComponent(loginNext)}`}
+              style={{ color: "var(--brand-strong)", fontWeight: 600 }}
+            >
+              로그인하기
+            </Link>
+          </p>
+        )}
         <p style={{ marginTop: "var(--sp-6)", fontSize: "var(--fs-xs)", color: "var(--text-faint)" }}>
           내 답은 합친 뒤에도 예산은 공개되지 않아요.
         </p>
@@ -120,6 +145,11 @@ export default function TogetherPage() {
       <p style={{ color: "var(--text-muted)", marginBottom: "var(--sp-3)" }}>
         탭만 하면 돼요. 서로의 답은 합치기 전까지 안 보여요.
       </p>
+      {offer && (
+        <p style={{ marginTop: 0, marginBottom: "var(--sp-3)", fontSize: "var(--fs-xs)", color: "var(--text-faint)" }}>
+          가입 없이 답해도 돼요. {offer}
+        </p>
+      )}
       <label style={{ display: "block", marginBottom: "var(--sp-5)", fontSize: "var(--fs-sm)" }}>
         내 이름{" "}
         <input

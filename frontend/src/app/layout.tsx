@@ -1,13 +1,27 @@
 import type { Metadata } from "next";
 import type { ReactNode } from "react";
 
+import AcquisitionCapture from "@/components/AcquisitionCapture";
 import ToastHost from "@/components/ToastHost";
+import { DEFAULT_DESCRIPTION, DEFAULT_TITLE, SITE_NAME } from "@/services/ogText";
 
 import "./globals.css";
 
+// 기본 제목·설명. 정적 페이지(약관·로그인 등)는 그대로 정적으로 굽는다 — 여기서 요청 헤더를 읽으면
+// 모든 화면이 요청마다 렌더하는 동적 페이지로 바뀐다. 미리보기 이미지는 절대 주소가 필요해서
+// 요청 호스트를 아는 곳(랜딩 (home)/layout.tsx, together/[token], share/[id])에서만 붙인다.
 export const metadata: Metadata = {
-  title: "CoursePilot — 둘이 같이 정하는 데이트 코스",
-  description: "데이트 계획, 검색 말고 상대에게 먼저 물어보세요. 30초면 둘 다 괜찮은 코스가 나옵니다.",
+  title: DEFAULT_TITLE,
+  description: DEFAULT_DESCRIPTION,
+  applicationName: SITE_NAME,
+  openGraph: {
+    type: "website",
+    siteName: SITE_NAME,
+    locale: "ko_KR",
+    title: DEFAULT_TITLE,
+    description: DEFAULT_DESCRIPTION,
+  },
+  twitter: { card: "summary", title: DEFAULT_TITLE, description: DEFAULT_DESCRIPTION },
 };
 
 export const viewport = {
@@ -34,6 +48,7 @@ export default function RootLayout({ children }: { children: ReactNode }) {
       <body>
         {children}
         <ToastHost />
+        <AcquisitionCapture />
       </body>
     </html>
   );
