@@ -48,6 +48,16 @@ def _reset_sms_ip_caps():
 
 
 @pytest.fixture(autouse=True)
+def _fresh_map_service():
+    """지도 서비스는 벤더 키가 있으면 재사용된다 — 테스트끼리 설정이 새지 않게 비운다."""
+    import app.adapters.map_service as ms
+
+    ms._SERVICE = None
+    yield
+    ms._SERVICE = None
+
+
+@pytest.fixture(autouse=True)
 def _reset_usage_counters():
     """사용 한도 카운터(체험·회원·서비스 전체)는 프로세스 전역이다 — 테스트마다 비운다."""
     from app import usage

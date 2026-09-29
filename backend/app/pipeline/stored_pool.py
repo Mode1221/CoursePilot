@@ -16,6 +16,7 @@ from app.schemas import Place
 STORED_PER_SLOT = 15  # 칸마다 저장 장소에서 더할 후보 수
 MAX_POOL = 120  # 벤더 + 저장 후보 합계 상한(플래너 비용)
 DEFAULT_RADIUS_M = 1000
+CACHE_MAX = 64  # 항목 하나가 장소 최대 3,000개 — 상권 36곳 + 여유
 CACHE_TTL_SEC = 600  # 상권 풀은 배치가 하루 한 번 바꾼다 — 요청마다 DB 를 훑지 않는다
 _cache: dict[tuple[float, float, int], tuple[float, list[Place]]] = {}
 _GENERIC = {"맛집", "카페", "가볼만한곳", "술집", ""}
@@ -80,6 +81,8 @@ def stored_candidates(
             pool = place_repo.near(lat, lng, radius)
         except Exception:  # 저장소 장애가 코스 생성을 막으면 안 된다
             return []
+        if len(_cache) >= CACHE_MAX:  # 상권 밖 지역도 키가 되므로 끝없이 쌓이지 않게(가장 오래된 것부터)
+            _cache.pop(min(_cache, key=lambda k: _cache[k][0]))
         _cache[key] = (time.monotonic(), pool)
     if not pool:
         return []

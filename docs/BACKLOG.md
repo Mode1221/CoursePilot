@@ -22,6 +22,9 @@
   - 별점·재방문 신호(`signals_api.py`)는 아직 서명 없는 `X-User-Id` 를 받는다(순위 조작 여지, 낮음).
   - 운영에서 `SMS_DEV_FALLBACK=true` 면 남의 번호로 **새 계정**을 선점할 수 있다(기존 계정 탈취는 막음). 공개 전 반드시 끈다.
 
+- **DB 호출 비동기화** — 저장소·학습 스토어가 동기 SQLAlchemy 라 1 OCPU 에서 느린 쿼리가 모든 요청을 막는다.
+  `asyncio.to_thread` 로 감싸거나 AsyncSession 으로 전환(`store.py`·`places.py`·`planner.py` 신호 조회부터).
+
 ## P1 — 품질·데이터
 0. **자연어 커버리지 확대** — 지역·시각·범위·키워드·편집에 더해 인원수(`test_party_size.py`), 날짜(`test_plan_date.py`), 방문 개수(`test_stop_count.py`), 카테고리 지목 편집(`test_edit_by_category.py`), 출발지 지정(`test_start_place.py`), 이동수단 혼합(`test_mixed_travel.py`), 우천 대체(`test_rainy_course.py`), 주말 날짜(`test_plan_date.py`)까지 처리.
 3. **리뷰 RAG 고도화** (🟡/⬜) — 약관 준수(요약 금지 소스 구분) 내 데이터 강화. 재수집 중복 저장·협찬 표시 리뷰 검색 제외는 처리됨.

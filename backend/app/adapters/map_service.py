@@ -7,7 +7,6 @@ from __future__ import annotations
 
 from abc import ABC, abstractmethod
 from datetime import date, time, timedelta
-from functools import lru_cache
 from time import monotonic
 
 from app.config import settings
@@ -231,7 +230,6 @@ class CachedSearchMapService(MapService):
         return route
 
 
-@lru_cache(maxsize=1)
 class StoredMergeMapService(MapService):
     """검색 결과에 **저장된 보강 값**(영업시간·평점·google_place_id)을 얹는다.
 
@@ -292,11 +290,45 @@ class StoredMergeMapService(MapService):
         return await self._inner.get_route(origin, dest, mode)
 
 
-def get_map_service() -> MapService:
-    """설정에 따라 구현체 선택(싱글턴). 키 없으면 Mock.
+_SERVICE: tuple[tuple, MapService] | None = None
 
-    장소 발견은 카카오(무료·정확한 카테고리 코드)를 우선하고, 경로는 네이버가 맡는다.
+
+def get_map_service() -> MapService:
+    """설정에 따라 구현체 선택. 벤더 키가 있으면 **프로세스당 하나를 재사용**한다.
+
+    예전에는 요청마다 새로 만들었다(`@lru_cache` 가 함수가 아니라 클래스에 붙어 있었다).
+    그래서 검색·경로 캐시(5분)와 카카오 지역 중심 캐시가 요청 하나 안에서만 살았고,
+    HTTP 연결 재사용도 없었으며, 저장 장소 이름 인덱스(2,000건)를 요청마다 다시 읽었다.
+
+    재사용 키에 이벤트 루프를 넣는다 — httpx 클라이언트는 만든 루프에 묶여 있어서,
+    배치처럼 `asyncio.run` 을 여러 번 부르는 프로세스에서 닫힌 루프의 클라이언트를 쓰면 안 된다.
+    키가 없을 때(개발·테스트: Mock/시드)는 재사용하지 않는다 — 테스트가 설정을 바꿔 가며 부른다.
     """
+    global _SERVICE
+    import asyncio
+
+    try:
+        loop_id = id(asyncio.get_running_loop())
+    except RuntimeError:
+        loop_id = None
+    has_vendor = bool(settings.kakao_rest_api_key or settings.naver_search_enabled)
+    key = (
+        loop_id,
+        settings.kakao_rest_api_key,
+        settings.naver_apihub_key_id,
+        settings.naver_client_id,
+        settings.naver_search_enabled,
+    )
+    if has_vendor and _SERVICE is not None and _SERVICE[0] == key:
+        return _SERVICE[1]
+    service = _build_map_service()
+    if has_vendor:
+        _SERVICE = (key, service)
+    return service
+
+
+def _build_map_service() -> MapService:
+    """장소 발견은 카카오(무료·정확한 카테고리 코드)를 우선하고, 경로는 네이버가 맡는다."""
     naver: MapService | None = None
     if settings.naver_search_enabled:
         from app.adapters.naver import NaverMapService

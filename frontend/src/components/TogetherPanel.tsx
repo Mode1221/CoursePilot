@@ -29,28 +29,37 @@ export default function TogetherPanel({ courseId }: { courseId: string }) {
   // 혼자 AI 로 코스를 만든 뒤에는 입력 박스가 첫 화면을 다 차지해 코스가 안 보였다 — 한 줄로 접어 둔다
   const [expanded, setExpanded] = useState(false);
 
+  // 다른 코스로 옮기면 이전 코스의 링크 토큰을 쓰지 않는다
+  useEffect(() => {
+    setToken(null);
+    setStatus(null);
+  }, [courseId]);
+
   const refresh = useCallback(async () => {
     if (!userId) return;
     try {
-      const { token } = await api.togetherLink(courseId, userId);
-      setToken(token);
-      setStatus(await api.togetherStatus(token));
+      // 링크 토큰은 코스마다 한 번만 받는다(예전엔 확인할 때마다 두 번씩 불렀다)
+      const t = token ?? (await api.togetherLink(courseId, userId)).token;
+      if (t !== token) setToken(t);
+      setStatus(await api.togetherStatus(t));
     } catch {
       /* 아직 시작 전 */
     }
-  }, [courseId, userId]);
+  }, [courseId, userId, token]);
 
   useEffect(() => {
     if (course?.together) refresh();
   }, [course?.together, refresh]);
 
-  // 소켓이 끊겨도 상대가 냈는지 알 수 있게, 기다리는 동안은 가볍게 확인한다
+  // 상대가 카드를 내면 소켓으로 코스 상태가 오고 위 효과가 다시 확인한다. 폴링은 소켓이 끊겼을 때 대비용 —
+  // 연결돼 있으면 20초, 끊겼으면 4초.
   const waiting = !!status && !status.submitted.some((n) => n !== status.owner_name);
+  const connected = useCourseStore((s) => s.connected);
   useEffect(() => {
     if (!waiting) return;
-    const id = setInterval(refresh, 4000);
+    const id = setInterval(refresh, connected ? 20000 : 4000);
     return () => clearInterval(id);
-  }, [waiting, refresh]);
+  }, [waiting, refresh, connected]);
 
   if (!userId) return null;
 

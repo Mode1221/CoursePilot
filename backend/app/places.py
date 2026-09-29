@@ -96,9 +96,8 @@ class PlaceRepository:
             from app.db import SessionLocal
             from app.models import PlaceModel
 
-            plat = PlaceModel.data["lat"].as_float()
-            plng = PlaceModel.data["lng"].as_float()
             with SessionLocal() as s:
+                plat, plng = _lat_lng_exprs(s)
                 rows = s.execute(
                     select(PlaceModel.data)
                     .where(plat.between(lat - dlat, lat + dlat), plng.between(lng - dlng, lng + dlng))
@@ -117,6 +116,24 @@ class PlaceRepository:
         from app.db import is_ready
 
         return is_ready()
+
+
+def _lat_lng_exprs(session):
+    """좌표 비교식. Postgres 에서는 키를 **SQL 리터럴**로 박아 표현식 인덱스(db.py)를 타게 한다.
+
+    SQLAlchemy 기본 JSON 경로는 키를 바인드 파라미터로 보내 인덱스 식과 모양이 달라진다 —
+    그러면 저장 장소 1.8만 건 JSON 을 매번 전부 풀어 보는 전체 스캔이 된다.
+    """
+    from sqlalchemy import Float, cast, literal_column
+
+    from app.models import PlaceModel
+
+    if session.bind.dialect.name == "postgresql":
+        return (
+            cast(literal_column("places.data ->> 'lat'"), Float),
+            cast(literal_column("places.data ->> 'lng'"), Float),
+        )
+    return PlaceModel.data["lat"].as_float(), PlaceModel.data["lng"].as_float()
 
 
 def _approx_m(lat1: float, lng1: float, lat2: float, lng2: float) -> float:
