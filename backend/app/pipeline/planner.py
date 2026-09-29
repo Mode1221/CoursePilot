@@ -449,6 +449,13 @@ def _base_slots(constraints: PlanConstraints) -> list[str]:
             )
     evening = constraints.start_time is not None and constraints.start_time.hour >= 18
     comp = constraints.companion
+    late = constraints.start_time is not None and (
+        constraints.start_time.hour >= 21 or constraints.start_time.hour < 4
+    )
+    if late and comp != "가족" and not constraints.stop_count and constraints.duration_min is None:
+        # 밤 9시 이후 시작: 식당·카페·전시는 대부분 닫는다 — 술집 두 곳(분위기 다른 곳)으로.
+        # 예전엔 식사 → 카페 → 술 틀로 짜다 카페·전시가 밤 11시~자정에 들어가거나(영업시간 모름) 한 곳만 남았다.
+        return _replace_excluded(["bar", "bar"], excluded_slots(constraints))
 
     # 회식: 식사+술 중심 / 데이트: 활동·분위기 포함 / 가족: 술 배제·활동 위주
     if comp == "회식":
@@ -965,7 +972,8 @@ async def plan_course(
 
     valid = [(lb, tl) for (lb, _), tl in zip(seeds, timelines, strict=True) if not isinstance(tl, BaseException)]
     # 같은 성격이 연달아 오는 코스(식사 → 식사)는 다른 시드가 있으면 고르지 않는다
-    if any(not _repeats(tl) for _, tl in valid if tl):
+    wants_repeat = any(a == b for a, b in zip(slots, slots[1:], strict=False))  # 심야 술집 두 곳처럼 의도한 반복
+    if not wants_repeat and any(not _repeats(tl) for _, tl in valid if tl):
         valid = [(lb, tl) for lb, tl in valid if not _repeats(tl)]
     for label, timeline in valid:
         s = course_score(timeline)

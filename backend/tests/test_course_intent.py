@@ -157,3 +157,9 @@ def test_시간_모르는_전시_카페는_밤늦게_넣지_않는다():
     assert not is_open_during(cafe, time(0, 22), time(1, 22))
     assert is_open_during(cafe, time(15, 0), time(16, 0))
     assert is_open_during(bar, time(22, 43), time(23, 43))  # 술집은 늦게까지 여는 곳이 많다
+
+
+def test_밤_9시_이후는_술집_두_곳():
+    assert desired_slots(parse_constraints("금요일 밤 9시 홍대에서 심야 데이트")) == ["bar", "bar"]
+    # 개수를 말했거나 순서를 말했으면 그걸 따른다
+    assert _slots("금요일 밤 9시 홍대 파스타 먹고 와인바") == ["meal", "cafe", "bar"]
