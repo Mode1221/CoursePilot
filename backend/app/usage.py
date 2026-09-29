@@ -40,7 +40,7 @@ class Limit:
 LIMITS: dict[str, Limit] = {
     "course": Limit(guest=1, member=20),  # 새 코스(빈 코스 포함) 만들기
     "ai": Limit(guest=5, member=30),  # AI 코스 생성·수정·완화(LLM + 장소 검색 다수)
-    "ask": Limit(guest=10, member=100),  # 코스를 바꾸지 않는 질문·되묻기(LLM 답변·해석을 부를 수 있다)
+    "ask": Limit(guest=5, member=40),  # 코스를 바꾸지 않는 질문·되묻기(LLM 답변·해석을 부를 수 있다). 규칙 답변이 먼저라 실제 LLM 은 일부
     "build": Limit(guest=3, member=20),  # 두 사람 카드 합치기(장소 검색 6~24회)
     "review": Limit(guest=3, member=30),  # 리뷰 요약(Google 2콜 + LLM)
     "search": Limit(guest=30, member=300),  # 장소 직접 검색(카카오)
