@@ -72,11 +72,26 @@ def is_open_at(place: Place, t: time) -> bool:
     return not _overlaps_break(t, place)
 
 
+LATE_NIGHT = time(21, 30)
+EARLY_MORNING = time(8, 0)
+_DAYTIME_WORDS = ("전시", "행사", "미술", "박물관", "기념관", "갤러리", "카페", "공방", "서점", "소품", "체험")
+
+
+def _daytime_only(place: Place) -> bool:
+    """영업시간을 모를 때 낮 장사로 보는 성격(술집·음식점은 늦게까지 여는 곳이 많아 제외)."""
+    hay = f"{place.category or ''} {place.name}"
+    return any(w in hay for w in _DAYTIME_WORDS) and not any(w in hay for w in ("주점", "와인", "펍", "호프", "칵테일", "이자카야", "포차", "술집"))
+
+
 def is_open_during(place: Place, arrive: time, depart: time) -> bool:
     """도착~출발 체류 구간 전체가 영업 중인지 검증.
 
     도착 시 영업 + 폐점 전 출발 + 체류 중 브레이크 진입 없음.
     """
+    if place.open_time is None and place.close_time is None and _daytime_only(place):
+        # 영업시간을 모르는 전시·행사·카페를 밤늦게 넣지 않는다(운영 점검: 밤 10시 43분 기념관 전시, 0시 22분 카페)
+        if arrive >= LATE_NIGHT or arrive < EARLY_MORNING or (depart < arrive and depart > EARLY_MORNING):
+            return False
     if not is_open_at(place, arrive):
         return False
     if _is_overnight(place):

@@ -511,8 +511,9 @@ async def _candidates(
         if not any(s == slot for s, _ in slot_kw):
             slot_kw.append((slot, joined))
     candidates = (candidates + stored_candidates(region, slot_kw, candidates))[:MAX_POOL]
-    candidates = keep_near(candidates, region)  # "삼청동"인데 인사동·종로3가가 섞이지 않게
     candidates = _with_active_popups(candidates, constraints, region)
+    # "삼청동"인데 인사동·종로3가가 섞이지 않게 — 팝업·행사도 포함(북촌 요청에 서울광장 행사가 들어왔다)
+    candidates = keep_near(candidates, region)
     if exclude_place_ids:
         # "전부 다른 곳으로" — 지금 코스에 있는 장소는 후보에서 뺀다
         filtered = [p for p in candidates if p.id not in exclude_place_ids]
