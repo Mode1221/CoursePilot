@@ -28,11 +28,11 @@ def test_실행_권한이_있다(script):
 def test_크론_항목이_다섯_가지_작업을_덮는다():
     text = (OPS / "crontab.txt").read_text()
     jobs = [ln for ln in text.splitlines() if re.match(r"^[\d*]", ln)]
-    assert len(jobs) == 8  # + refresh_hot(핫플·팝업) + auto_deploy + purge_guests(체험 정리)
+    assert len(jobs) == 11  # + refresh_hot(핫플·팝업) + auto_deploy + purge_guests + 팝업 2회 + 품질 점검
     joined = "\n".join(jobs)
     for expected in (
         "fetch_localdata.py", "build_places.py", "refresh_places.py",
-        "backup.sh", "disk_check.sh", "auto_deploy.sh", "purge_guests.py",
+        "backup.sh", "disk_check.sh", "auto_deploy.sh", "purge_guests.py", "quality_check.sh",
     ):
         assert expected in joined, f"크론에 {expected} 항목이 없다"
 
@@ -90,7 +90,7 @@ def test_크론_로그가_쓸_수_있는_경로로_간다():
     >> 리다이렉트가 권한 거부로 죽고 5개 잡이 전부 조용히 실행되지 않는다."""
     text = (OPS / "crontab.txt").read_text()
     assert "/var/log" not in text
-    assert text.count("{{ROOT}}/logs/") == 8
+    assert text.count("{{ROOT}}/logs/") == 11
 
 
 def test_설치_스크립트가_로그_백업_디렉터리를_만들고_쓰기를_확인한다():
@@ -155,7 +155,7 @@ def test_배치_크론이_nice_로_돈다():
         ln for ln in (OPS / "crontab.txt").read_text().splitlines()
         if re.match(r"^[\d*]", ln) and "scripts/" in ln and "ops/" not in ln
     ]
-    assert len(lines) == 5  # localdata / build_places / refresh_places / refresh_hot / purge_guests
+    assert len(lines) == 7  # localdata / build_places / refresh_places / refresh_hot ×3 / purge_guests
     # nice 는 컨테이너 안의 python 에 걸려야 한다(docker compose CLI 앞이면 배치는 그대로 돈다)
     assert all("exec -T backend nice -n 19 python" in ln for ln in lines)
 
@@ -212,3 +212,14 @@ def test_릴리스는_이미지_뒤에_VM_에_배포한다():
     assert "needs: build" in wf
     assert "StrictHostKeyChecking=yes" in wf
     assert "DEPLOY_SSH_KEY" in wf
+
+
+def test_팝업은_하루_세_번_갱신한다():
+    text = (OPS / "crontab.txt").read_text()
+    assert len(re.findall(r"refresh_hot\.py --only popups", text)) == 2
+    assert re.search(r"^30 5 \* \* \* .*refresh_hot\.py >>", text, re.M)  # 새벽엔 전체(핫플+팝업)
+
+
+def test_품질_점검은_기준_미달을_알린다():
+    text = (OPS / "quality_check.sh").read_text()
+    assert "--fail-under" in text and "notify.sh" in text

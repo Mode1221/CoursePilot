@@ -16,6 +16,10 @@ class SequenceStore:
 
     def bump_sequence(self, categories: list[str], weight: float = 1.0) -> None:
         """카테고리 나열의 인접 전이를 가중 누적."""
+        from app.qa import learning_on
+
+        if not learning_on():  # 운영 자동 QA 는 학습 신호를 쌓지 않는다
+            return
         if self._db_ready():
             from app.db import SessionLocal
             from app.models import SequenceModel

@@ -1,4 +1,4 @@
 {
   "extends": "next/core-web-vitals",
-  "ignorePatterns": ["e2e/**", "playwright.config.ts"]
+  "ignorePatterns": ["e2e/**", "e2e-prod/**", "playwright.config.ts", "playwright.prod.config.ts"]
 }

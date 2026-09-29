@@ -407,6 +407,10 @@ python scripts/verify_places.py
 | 매일 03:00 | 상권 수집·보강 |
 | 매일 04:30 | 저장된 장소 갱신(TTL 기준) |
 | 매일 05:00 | DB 백업 |
+| 매일 05:30 | 요즘 뜨는 곳 + 팝업·전시 |
+| 매일 12:30·17:30 | 팝업·전시만 다시(며칠짜리 행사가 많다) |
+| 매일 05:45 | 가입 안 한 체험 계정·지난 한도 카운터 정리 |
+| 매일 06:15 | 추천 품질 회귀 점검(기준 미달이면 웹훅) |
 | 6시간마다 | 디스크 사용률 점검 |
 
 - 실행이 겹치면 뒤에 뜬 쪽이 종료 코드 1 로 빠진다(`batch_lock`). 크론 중복은 걱정하지 않아도 된다.
@@ -445,3 +449,21 @@ docker compose -f docker-compose.prod.yml exec backend python scripts/eval_conse
 # 상권을 좁히려면: --regions 성수,홍대
 ```
 카카오 로컬·네이버 경로만 쓴다(Google·LLM 폴백은 스크립트가 끈다). 48개 시나리오 기준 몇 분. 출력의 "요약"과 "실패 상세"를 보고 고친다.
+
+## 운영 자동 QA (`.github/workflows/qa.yml`)
+3시간마다, 그리고 이미지 빌드·배포가 끝날 때마다 GitHub 러너가 운영 사이트를 모바일 크롬으로 점검한다
+(`frontend/e2e-prod/`). 실패하면 `qa-failure` 라벨 이슈가 열리고(저장소 주인에게 메일), 통과하면 닫힌다.
+
+설정(한 번):
+1. VM 에서 토큰을 만들어 `.env` 에 넣고 백엔드를 다시 띄운다.
+   ```bash
+   cd /opt/coursepilot
+   echo "QA_TOKEN=$(openssl rand -hex 32)" >> .env && grep QA_TOKEN .env
+   docker compose -f docker-compose.prod.yml up -d backend
+   ```
+2. 같은 값을 GitHub → Settings → Secrets and variables → Actions → **QA_TOKEN** 으로 저장.
+3. (선택) **ALERT_WEBHOOK_URL** 시크릿 — 슬랙 등으로도 받고 싶을 때. 주소가 다르면 Variables 에 `QA_BASE_URL`·`QA_API_URL`.
+
+토큰이 없으면 읽기 점검(헬스·페이지)만 돌고 같이 정하기 흐름은 건너뛴다.
+QA 요청은 학습 신호를 쌓지 않고 개인 한도에서 빠지지만 서비스 일일 상한(LLM 등)은 차감된다 — 한 번에 LLM 몇 회 수준.
+수동 실행: Actions → Production QA → Run workflow. 로컬: `cd frontend && QA_TOKEN=... pnpm test:prod`.

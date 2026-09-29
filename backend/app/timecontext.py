@@ -21,6 +21,10 @@ class TimeContextStore:
         self._mem: dict[tuple[str, str], float] = defaultdict(float)
 
     def bump(self, place_id: str, daypart: str, weight: float = 1.0) -> None:
+        from app.qa import learning_on
+
+        if not learning_on():  # 운영 자동 QA 는 학습 신호를 쌓지 않는다
+            return
         if self._db_ready():
             from app.db import SessionLocal
             from app.models import TimeContextModel
@@ -37,6 +41,10 @@ class TimeContextStore:
 
     def bump_many(self, place_ids: list[str], daypart: str, weight: float = 1.0) -> None:
         """여러 장소를 한 번에 가산. DB 모드에서도 세션·커밋 1회로 처리한다."""
+        from app.qa import learning_on
+
+        if not learning_on():  # 운영 자동 QA 는 학습 신호를 쌓지 않는다
+            return
         if not place_ids:
             return
         if not self._db_ready():

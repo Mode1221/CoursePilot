@@ -24,6 +24,9 @@
 - **DB 호출 비동기화** — 저장소·학습 스토어가 동기 SQLAlchemy 라 1 OCPU 에서 느린 쿼리가 모든 요청을 막는다.
   `asyncio.to_thread` 로 감싸거나 AsyncSession 으로 전환(`store.py`·`places.py`·`planner.py` 신호 조회부터).
 
+- **운영 QA 확장** — 지금은 같이 정하기 핵심 흐름만. 혼자 만들기(자연어 → 코스)·카카오 로그인 왕복(실계정 필요)·
+  결제는 미포함. 추가 시 `frontend/e2e-prod/prod.spec.ts`, LLM 호출 수(서비스 상한)와 3시간 주기를 함께 고려.
+
 ## P1 — 품질·데이터
 0. **자연어 커버리지 확대** — 지역·시각·범위·키워드·편집에 더해 인원수(`test_party_size.py`), 날짜(`test_plan_date.py`), 방문 개수(`test_stop_count.py`), 카테고리 지목 편집(`test_edit_by_category.py`), 출발지 지정(`test_start_place.py`), 이동수단 혼합(`test_mixed_travel.py`), 우천 대체(`test_rainy_course.py`), 주말 날짜(`test_plan_date.py`)까지 처리.
 3. **리뷰 RAG 고도화** (🟡/⬜) — 약관 준수(요약 금지 소스 구분) 내 데이터 강화. 재수집 중복 저장·협찬 표시 리뷰 검색 제외는 처리됨.

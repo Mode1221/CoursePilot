@@ -6,7 +6,7 @@ export default defineConfig({
   esbuild: { jsx: "automatic" }, // React 17+ 자동 JSX 런타임
   test: {
     // E2E(Playwright)는 vitest 대상에서 제외
-    exclude: ["e2e/**", "node_modules/**"],
+    exclude: ["e2e/**", "e2e-prod/**", "node_modules/**"],
     environment: "jsdom", // 컴포넌트 렌더 테스트용
   },
   resolve: {

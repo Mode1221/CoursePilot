@@ -311,6 +311,19 @@ def charge(
     limit = LIMITS[feature]
     taken: list[str] = []
 
+    from app.qa import learning_on
+
+    if not learning_on():
+        # 운영 자동 QA(토큰 확인됨): 사람·IP 몫은 건너뛴다 — 배포가 잦은 날 점검이 한도에 걸려 거짓 경보를
+        # 내지 않게. 서비스 전체 상한은 그대로 센다(점검도 비용이다).
+        gkey = _global_key(feature, now)
+        glimit = GLOBAL_DAILY.get(feature)
+        if glimit is not None:
+            if not counters.take(gkey, glimit):
+                raise service_busy()
+            taken.append(gkey)
+        return Ticket(tuple(taken))
+
     person = _person_key(feature, subject, guest, now)
     if not counters.take(person, limit.guest if guest else limit.member):
         raise login_required(_FEATURE_NAMES.get(feature, "")) if guest else daily_limit()

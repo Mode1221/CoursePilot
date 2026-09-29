@@ -15,6 +15,10 @@ class BehaviorStore:
         self._mem: dict[str, dict[str, float]] = defaultdict(lambda: defaultdict(float))
 
     def bump(self, user_id: str, categories: list[str], weight: float = 1.0) -> None:
+        from app.qa import learning_on
+
+        if not learning_on():  # 운영 자동 QA 는 학습 신호를 쌓지 않는다
+            return
         if not user_id:
             return
         if self._db_ready():
