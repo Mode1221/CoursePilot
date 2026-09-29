@@ -41,7 +41,7 @@ export default function AppNav() {
       }}
     >
       <Link href="/" style={{ fontWeight: 700, color: "var(--text)", textDecoration: "none" }}>
-        CoursePilot
+        픽앤어스
       </Link>
       <Link href="/mypage" style={{ color: "var(--text-muted)", textDecoration: "none", fontSize: "var(--fs-sm)" }}>
         내 코스

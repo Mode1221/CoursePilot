@@ -30,14 +30,14 @@ describe("공유 페이지 미리보기", () => {
   it("백엔드가 죽어 있어도 기본 메타데이터로 렌더한다", async () => {
     vi.stubGlobal("fetch", vi.fn().mockRejectedValue(new Error("ECONNREFUSED")));
     const meta = await generateMetadata({ params: Promise.resolve({ id: "c1" }) });
-    expect(meta.title).toBe("공유된 코스 — CoursePilot");
-    expect(meta.openGraph?.title).toBe("공유된 코스 — CoursePilot");
+    expect(meta.title).toBe("공유된 코스 — 픽앤어스");
+    expect(meta.openGraph?.title).toBe("공유된 코스 — 픽앤어스");
   });
 
   it("없는 코스(404)면 일반 미리보기 — 무엇이 없는지 드러내지 않는다", async () => {
     vi.stubGlobal("fetch", vi.fn().mockResolvedValue({ ok: false, status: 404, json: async () => ({}) }));
     const meta = await generateMetadata({ params: Promise.resolve({ id: "nope" }) });
-    expect(meta.title).toBe("공유된 코스 — CoursePilot");
+    expect(meta.title).toBe("공유된 코스 — 픽앤어스");
     expect(String(meta.description)).not.toMatch(/nope/);
   });
 
@@ -47,6 +47,6 @@ describe("공유 페이지 미리보기", () => {
       vi.fn().mockRejectedValue(new DOMException("timeout", "TimeoutError")),
     );
     const meta = await generateMetadata({ params: Promise.resolve({ id: "c1" }) });
-    expect(meta.title).toBe("공유된 코스 — CoursePilot");
+    expect(meta.title).toBe("공유된 코스 — 픽앤어스");
   });
 });

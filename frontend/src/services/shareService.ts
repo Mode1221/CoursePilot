@@ -7,7 +7,7 @@ function isKakaoInApp(): boolean {
 }
 
 export const shareService = {
-  async share(url: string, title = "CoursePilot 코스"): Promise<void> {
+  async share(url: string, title = "픽앤어스 코스"): Promise<void> {
     // 카카오 환경: 카카오 SDK 로드 시 공유 카드 폴백 (SDK 미로드면 표준 경로로)
     const kakao = (globalThis as any).Kakao;
     if (isKakaoInApp() && kakao?.Share) {

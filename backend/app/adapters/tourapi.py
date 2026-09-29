@@ -16,7 +16,7 @@ from app.schemas import Place
 _SEARCH_URL = "https://apis.data.go.kr/B551011/KorService2/searchKeyword2"
 _INTRO_URL = "https://apis.data.go.kr/B551011/KorService2/detailIntro2"
 
-_COMMON = {"MobileOS": "ETC", "MobileApp": "CoursePilot", "_type": "json"}
+_COMMON = {"MobileOS": "ETC", "MobileApp": "PickNuS", "_type": "json"}
 
 # 관광타입: 12 관광지, 14 문화시설, 28 레포츠, 38 쇼핑, 39 음식점
 CONTENT_TYPE_INTRO_FIELDS: dict[str, tuple[str, str]] = {

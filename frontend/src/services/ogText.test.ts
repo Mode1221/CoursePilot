@@ -29,7 +29,7 @@ describe("미리보기 문구", () => {
 
   it("토큰이 틀리거나 서버가 안 되면 일반 초대 카드", () => {
     const t = inviteText(null);
-    expect(t.title).toBe("같이 데이트 코스 정하기 — CoursePilot");
+    expect(t.title).toBe("같이 데이트 코스 정하기 — 픽앤어스");
     expect(t.card.headline).not.toMatch(/님이/);
   });
 
@@ -49,11 +49,11 @@ describe("미리보기 문구", () => {
       locked: false,
     } as unknown as Course;
     const t = courseText(course);
-    expect(t.title).toBe("성수 데이트 — CoursePilot");
+    expect(t.title).toBe("성수 데이트 — 픽앤어스");
     expect(t.card.eyebrow).toBe("10월 3일 (토) · 성수동 · 5곳");
     expect(t.card.chips).toEqual(["카페", "전시", "식당", "바"]);
     expect(t.card.sub).toBe("외 1곳");
-    expect(courseText(null).title).toBe("공유된 코스 — CoursePilot");
+    expect(courseText(null).title).toBe("공유된 코스 — 픽앤어스");
   });
 
   it("글꼴에 없는 드문 한글이 있으면 그 문구를 쓰지 않고 일반 문구로 바꾼다", () => {
@@ -63,7 +63,7 @@ describe("미리보기 문구", () => {
     expect(inviteText({ owner_name: "뷁", request_text: "", built: false }).card.headline).toBe("데이트 코스를 같이 정하자는 초대가 왔어요");
     const course = { id: "c", title: "똠얌 코스", region: null, items: [], locked: false } as unknown as Course;
     expect(courseText(course).card.headline).toBe("데이트 코스");
-    expect(courseText(course).title).toBe("똠얌 코스 — CoursePilot"); // 글자 제목은 그대로(이미지만 바꾼다)
+    expect(courseText(course).title).toBe("똠얌 코스 — 픽앤어스"); // 글자 제목은 그대로(이미지만 바꾼다)
   });
 
   it("고정 문구는 모두 글꼴 안의 글자로만 되어 있다", () => {

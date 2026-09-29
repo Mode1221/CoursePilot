@@ -29,7 +29,7 @@ function loadFont(): Promise<ArrayBuffer | null> {
 }
 
 const LATIN_CARD: OgCard = {
-  eyebrow: "CoursePilot",
+  eyebrow: "픽앤어스",
   headline: "Plan a date course together",
   sub: "Answer a 30-second card. No sign-up.",
 };
@@ -62,7 +62,7 @@ export async function renderOgCard(card: OgCard | null | undefined): Promise<Ima
       >
         <div style={{ display: "flex", alignItems: "center", gap: 16 }}>
           <div style={{ width: 20, height: 20, borderRadius: 10, background: ACCENT, display: "flex" }} />
-          <div style={{ fontSize: 30, fontWeight: 700, letterSpacing: -0.5, display: "flex" }}>CoursePilot</div>
+          <div style={{ fontSize: 30, fontWeight: 700, letterSpacing: -0.5, display: "flex" }}>픽앤어스</div>
         </div>
         <div style={{ display: "flex", flexDirection: "column", gap: 22 }}>
           <div style={{ fontSize: 30, color: MUTED, display: "flex" }}>{c.eyebrow}</div>

@@ -26,13 +26,13 @@ describe("같이 정하기 링크 미리보기", () => {
   it("토큰이 틀리면(404) 일반 초대 문구", async () => {
     vi.stubGlobal("fetch", vi.fn().mockResolvedValue({ ok: false, json: async () => ({}) }));
     const meta = await generateMetadata({ params: Promise.resolve({ token: "nope" }) });
-    expect(meta.title).toBe("같이 데이트 코스 정하기 — CoursePilot");
-    expect(meta.openGraph?.title).toBe("같이 데이트 코스 정하기 — CoursePilot");
+    expect(meta.title).toBe("같이 데이트 코스 정하기 — 픽앤어스");
+    expect(meta.openGraph?.title).toBe("같이 데이트 코스 정하기 — 픽앤어스");
   });
 
   it("백엔드가 죽어 있어도 렌더한다", async () => {
     vi.stubGlobal("fetch", vi.fn().mockRejectedValue(new Error("ECONNREFUSED")));
     const meta = await generateMetadata({ params: Promise.resolve({ token: "tok" }) });
-    expect(meta.title).toBe("같이 데이트 코스 정하기 — CoursePilot");
+    expect(meta.title).toBe("같이 데이트 코스 정하기 — 픽앤어스");
   });
 });

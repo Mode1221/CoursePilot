@@ -6,8 +6,8 @@ import { formatPlanDate } from "@/services/courseDate";
 import { summarize } from "@/services/courseSummary";
 import type { Course } from "@/types";
 
-export const SITE_NAME = "CoursePilot";
-export const DEFAULT_TITLE = "CoursePilot — 둘이 같이 정하는 데이트 코스";
+export const SITE_NAME = "픽앤어스";
+export const DEFAULT_TITLE = "픽앤어스 — 둘이 같이 정하는 데이트 코스";
 export const DEFAULT_DESCRIPTION =
   "데이트 계획, 검색 말고 상대에게 먼저 물어보세요. 30초면 둘 다 괜찮은 코스가 나옵니다.";
 
@@ -81,7 +81,7 @@ export const DEFAULT_CARD: OgCard = {
 };
 
 const INVITE_FALLBACK: OgText = {
-  title: "같이 데이트 코스 정하기 — CoursePilot",
+  title: "같이 데이트 코스 정하기 — 픽앤어스",
   description: "30초 카드에 답하면 둘 다 괜찮은 코스가 나와요. 가입 없음.",
   card: {
     eyebrow: "같이 정하기 · 30초 · 가입 없음",
@@ -122,7 +122,7 @@ export function inviteText(p: TogetherPreview | null): OgText {
 }
 
 const COURSE_FALLBACK: OgText = {
-  title: "공유된 코스 — CoursePilot",
+  title: "공유된 코스 — 픽앤어스",
   description: DEFAULT_DESCRIPTION,
   card: { eyebrow: "공유된 데이트 코스", headline: "둘이 같이 정한 데이트 코스", sub: DEFAULT_CARD.sub },
 };

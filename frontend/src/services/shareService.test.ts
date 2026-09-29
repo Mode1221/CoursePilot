@@ -17,7 +17,7 @@ describe("공유 어댑터", () => {
     const share = vi.fn().mockResolvedValue(undefined);
     stubNavigator({ share });
     await shareService.share("https://cp/c1");
-    expect(share).toHaveBeenCalledWith({ title: "CoursePilot 코스", url: "https://cp/c1" });
+    expect(share).toHaveBeenCalledWith({ title: "픽앤어스 코스", url: "https://cp/c1" });
   });
 
   it("공유 시트를 닫아도 조용히 끝난다", async () => {
