@@ -1,0 +1,107 @@
+# claude/* 브랜치는 CI 가 초록이면 사람 손 없이 main 까지 간다(저장소 주인이 2026-09-29 명시적으로 요청).
+#
+#   push(claude/…) → CI → [여기] PR 생성 → squash 머지 → 이미지 빌드(release.yml) → SSH 배포
+#
+# 왜 이렇게: 작업하는 Claude 세션이 GitHub API(PR 생성)를 못 쓰는 환경이 있다. 브랜치 푸시만
+# 되면 나머지는 저장소가 스스로 한다. "언제 PR 을 만들지"는 푸시 + CI 통과가 곧 신호다.
+#
+# 안전장치
+# - CI 가 **이 커밋**에서 통과했을 때만(push 이벤트, head_sha 일치 — 그 사이 새 커밋이 오면 그 커밋의 CI 를 기다린다).
+# - 브랜치가 최신 main 을 품고 있을 때만(CI 가 검사한 코드 = 머지될 코드). 아니면 PR 만 열고 멈춘다.
+# - claude/ 로 시작하는 브랜치만. 사람 브랜치·dependabot 은 건드리지 않는다.
+# - 끄기: 저장소 Variables 에 AUTO_MERGE=false (PR 은 계속 자동으로 열린다).
+#
+# 한 번 설정: Settings → Actions → General → Workflow permissions →
+#   "Read and write permissions" + "Allow GitHub Actions to create and approve pull requests"
+name: Auto merge
+
+on:
+  workflow_run:
+    workflows: ["CI"]
+    types: [completed]
+
+concurrency:
+  group: auto-merge-${{ github.event.workflow_run.head_branch }}
+  cancel-in-progress: false
+
+jobs:
+  merge:
+    if: >-
+      github.event.workflow_run.conclusion == 'success' &&
+      github.event.workflow_run.event == 'push' &&
+      startsWith(github.event.workflow_run.head_branch, 'claude/')
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: write
+      pull-requests: write
+      actions: write  # 머지 뒤 이미지 빌드를 직접 실행한다(GITHUB_TOKEN 머지는 push 워크플로를 깨우지 않는다)
+    env:
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      GH_REPO: ${{ github.repository }}
+      BRANCH: ${{ github.event.workflow_run.head_branch }}
+      SHA: ${{ github.event.workflow_run.head_sha }}
+      AUTO_MERGE: ${{ vars.AUTO_MERGE }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: 검사한 커밋이 아직 브랜치 끝인가
+        id: head
+        run: |
+          set -euo pipefail
+          current="$(git rev-parse "origin/$BRANCH" 2>/dev/null || echo gone)"
+          if [ "$current" != "$SHA" ]; then
+            echo "브랜치가 그새 바뀌었거나 사라졌다($current) — 새 커밋의 CI 결과를 기다린다."
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "skip=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: PR 만들기(이미 있으면 그대로)
+        if: steps.head.outputs.skip == 'false'
+        id: pr
+        run: |
+          set -euo pipefail
+          number="$(gh pr list --head "$BRANCH" --base main --state open --json number --jq '.[0].number // empty')"
+          if [ -z "$number" ]; then
+            title="$(git log -1 --format=%s "$SHA")"
+            {
+              echo "브랜치 \`$BRANCH\` 의 CI 가 통과해 자동으로 연 PR 이에요."
+              echo
+              echo "### 커밋"
+              git log --reverse --format='- %s' "origin/main..$SHA"
+              echo
+              echo "### 본문"
+              git log --reverse --format='#### %s%n%n%b' "origin/main..$SHA"
+              echo
+              echo "🤖 Generated with [Claude Code](https://claude.com/claude-code)"
+            } > /tmp/body.md
+            url="$(gh pr create --base main --head "$BRANCH" --title "$title" --body-file /tmp/body.md)"
+            number="${url##*/}"
+          fi
+          echo "number=$number" >> "$GITHUB_OUTPUT"
+
+      - name: 최신 main 을 품고 있는가
+        if: steps.head.outputs.skip == 'false'
+        id: fresh
+        run: |
+          if [ "${AUTO_MERGE:-true}" = "false" ]; then
+            echo "AUTO_MERGE=false — PR 만 열고 멈춘다."
+            echo "ok=false" >> "$GITHUB_OUTPUT"
+          elif git merge-base --is-ancestor origin/main "$SHA"; then
+            echo "ok=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "ok=false" >> "$GITHUB_OUTPUT"
+            gh pr comment "${{ steps.pr.outputs.number }}" --body \
+              "main 이 이 브랜치보다 앞서 있어 자동 머지를 멈췄어요. 브랜치를 최신 main 위로 다시 올려(rebase) 푸시하면 CI 를 거쳐 다시 시도해요."
+          fi
+
+      - name: squash 머지
+        if: steps.head.outputs.skip == 'false' && steps.fresh.outputs.ok == 'true'
+        run: gh pr merge "${{ steps.pr.outputs.number }}" --squash --delete-branch --match-head-commit "$SHA"
+
+      - name: 이미지 빌드·배포 시작
+        if: steps.head.outputs.skip == 'false' && steps.fresh.outputs.ok == 'true'
+        run: gh workflow run release.yml --ref main

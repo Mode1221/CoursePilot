@@ -13,9 +13,14 @@ NOTIFY="$ROOT/scripts/ops/notify.sh"
 STATE="$ROOT/.deploy"
 mkdir -p "$STATE"
 
-# 겹쳐 돌면 안 된다(배포가 5분을 넘길 수 있다)
+# 겹쳐 돌면 안 된다(배포가 5분을 넘길 수 있다).
+# 크론은 겹치면 그냥 빠지고, GitHub 에서 부른 배포(--wait, deploy_hook.sh)는 앞 배포가 끝날 때까지 기다린다.
 exec 9>"$STATE/lock"
-flock -n 9 || exit 0
+if [ "${1:-}" = "--wait" ]; then
+  flock -w 900 9 || { echo "✗ 앞선 배포가 15분 넘게 끝나지 않음" >&2; exit 1; }
+else
+  flock -n 9 || exit 0
+fi
 
 if [ -f .env ]; then
   AUTO_DEPLOY="$(grep -E '^AUTO_DEPLOY=' .env | tail -1 | cut -d= -f2)"

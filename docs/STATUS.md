@@ -273,6 +273,11 @@
 - ✅ 함께 보는 인원 표시(presence, 5-4 선택 항목) — 2명 이상일 때만 배너 노출
 - 🔑 다중 인스턴스 브로드캐스트 — `REDIS_URL` 설정 시 Redis pub/sub, 미설정 시 단일 프로세스
 
+## 5-1. 배포 자동화 (2026-09-29)
+- ✅ `claude/*` 브랜치: CI 통과 → PR 자동 생성·squash 머지(`auto-merge.yml`) → 이미지 빌드 → SSH 즉시 배포
+  (`release.yml` deploy 잡 → `scripts/ops/deploy_hook.sh`, 배포 전용 키는 명령 하나로 제한). 크론은 백업 경로.
+  끄기: 저장소 변수 `AUTO_MERGE=false`(머지만) / VM `.env` `AUTO_DEPLOY=false`(배포).
+
 ## 6. 회원·과금 (9장)
 - ✅ **체험(로그인 없이 1회) → 로그인** (2026-09-29)
   - 처음 온 사람은 `/start` 에서 부를 이름(선택)·동의만으로 시작한다. 서버가 **체험 계정 + 서명 토큰**을
