@@ -459,11 +459,18 @@ async def _slot_search(constraints: PlanConstraints, map_service: MapService, re
         for kw in FREE_ACTIVITY_QUERIES:
             if ("activity", kw) not in queries:
                 queries.append(("activity", kw))
+    # 질의들은 서로 독립이다 — 차례로 기다리면 질의 수(5~8개)만큼 느려진다. 결과 순서는 질의 순서대로 합친다.
+    results = await asyncio.gather(
+        *(
+            map_service.search_places(region, [kw] if kw else [], limit=CANDIDATES_PER_SLOT * 2)
+            for _slot, kw in queries
+        ),
+        return_exceptions=True,
+    )
+    timing.note("slot_queries", len(queries))
     found: dict[str, Place] = {}
-    for _slot, kw in queries:
-        try:
-            places = await map_service.search_places(region, [kw] if kw else [], limit=CANDIDATES_PER_SLOT * 2)
-        except Exception:  # 한 칸 검색 실패가 전체를 막지 않는다
+    for places in results:
+        if isinstance(places, BaseException):  # 한 칸 검색 실패가 전체를 막지 않는다
             continue
         for p in places:
             found.setdefault(p.id, p)

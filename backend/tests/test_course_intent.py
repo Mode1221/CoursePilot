@@ -109,3 +109,25 @@ async def test_시간이_빠듯하면_완화를_건너뛴다(monkeypatch):
     assert calls["n"] == 1  # 완화 재시도(2번 더) 없이 끝냈다
     assert result.timeline
     assert any(name == "skip_relax_at_ms" for name, _ in timing.snapshot())
+
+
+@pytest.mark.parametrize(
+    "name,category,address",
+    [
+        ("망원한강공원 농구장2", "스포츠,레저 > 농구장", "서울 마포구 마포나루길 467"),
+        ("[한성백제박물관] 주말가족교육", "행사", "한성백제박물관 교육실"),
+        ("2026 문학 속 영화 투어", "행사", "서울시 전역"),
+    ],
+)
+def test_데이트_할거리가_아닌_곳은_뺀다(name, category, address):
+    from app.pipeline.planner import is_unfit_for_date
+
+    assert is_unfit_for_date(Place(id="x", name=name, category=category, address=address, lat=37.5, lng=127.0))
+
+
+def test_한강공원_자체는_할거리():
+    from app.pipeline.planner import is_unfit_for_date
+
+    assert not is_unfit_for_date(
+        Place(id="x", name="망원한강공원", category="여행 > 공원", address="서울 마포구 마포나루길 467", lat=37.55, lng=126.9)
+    )
