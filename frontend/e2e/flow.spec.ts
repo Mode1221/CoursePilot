@@ -206,10 +206,9 @@ test("먼저 상대에게 묻기: 링크 → 상대 카드 → 합친 코스에 
   await partner.getByText("보냈어요").click();
   await expect(partner.getByText(/보냈어요 ✨/)).toBeVisible();
 
-  // 합치기 → 이름으로 된 반영 칩(코스 전체 조건은 요약 줄)
-  await expect(page.getByText(/지은 답함/)).toBeVisible({ timeout: 10_000 });
-  await page.getByText("둘의 카드 합쳐서 코스 만들기").click();
+  // 두 카드가 모이면 버튼 없이 자동으로 합친다 → 이름으로 된 반영 칩(코스 전체 조건은 요약 줄)
   await expect(page.getByRole("list", { name: "코스 전체에 반영된 의견" })).toBeVisible({ timeout: 20_000 });
+  await expect(partner.getByText(/합친 코스가 준비됐어요/)).toBeVisible({ timeout: 15_000 });
   await expect(page.getByLabel(/지은 매운 거/).first()).toBeVisible();
   // 양쪽 반영: 상대의 취향(디저트)도 칸이나 요약 어딘가에 이름으로 드러난다
   await expect(page.getByLabel(/지은 디저트/).first()).toBeVisible();

@@ -17,6 +17,8 @@ export default function TogetherPanel({ courseId }: { courseId: string }) {
   const { userId } = useUserStore();
   const course = useCourseStore((s) => s.course);
   const setCourse = useCourseStore((s) => s.setCourse);
+  // 두 카드가 모이면 서버가 자동으로 합친다 — 그동안(잠금) 버튼을 눌러 한 번 더 합치지 않게
+  const locked = useCourseStore((s) => s.locked);
   const [text, setText] = useState("");
   // 칩이 "👤지은 피곤해"처럼 이름으로 나와야 "내 말 들었네"가 된다 — 나/상대로는 약하다
   const [ownerName, setOwnerName] = useState("");
@@ -254,8 +256,8 @@ export default function TogetherPanel({ courseId }: { courseId: string }) {
             </p>
           )}
           <div style={{ display: "flex", gap: "var(--sp-2)", flexWrap: "wrap" }}>
-            <Button variant="primary" onClick={build} disabled={busy || status.submitted.length === 0}>
-              {busy ? "합치는 중…" : status.built ? "다시 합치기" : partnerSent && mySent ? "둘의 카드 합쳐서 코스 만들기" : "일단 내 기준으로 초안 만들기"}
+            <Button variant="primary" onClick={build} disabled={busy || locked || status.submitted.length === 0}>
+              {busy || (locked && !status.built) ? "합치는 중…" : status.built ? "다시 합치기" : partnerSent && mySent ? "둘의 카드 합쳐서 코스 만들기" : "일단 내 기준으로 초안 만들기"}
             </Button>
             {status.built && (
               <Button onClick={accept} disabled={accepted.includes(status.owner_name)}>
