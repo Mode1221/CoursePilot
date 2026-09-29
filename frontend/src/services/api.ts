@@ -1,3 +1,4 @@
+import { arrivalPayload } from "@/services/acquisition";
 import { readTogetherToken } from "@/services/togetherToken";
 import { storedUserId, storedUserToken, useUserStore } from "@/store/userStore";
 import type { Course } from "@/types";
@@ -22,6 +23,14 @@ export interface TogetherStatus {
   request_text: string;
   cards: { conditions: string[]; cravings: string[]; dislikes: string[]; budget_bands: number[] };
   stale?: boolean;
+  /** 링크로 온 사람이 새로 가입하면 두 사람이 받는 보상(서버 값) */
+  invite_reward?: InviteReward | null;
+}
+
+/** 초대 보상: `days` 일 동안 하루 몫에 `extra` 만큼 더한다(기능별 — course·ai·build). */
+export interface InviteReward {
+  days: number;
+  extra: Record<string, number>;
 }
 
 export interface GenerateResponse {
@@ -59,6 +68,8 @@ export interface LoginResult {
   token?: string;
   kind?: "member";
   moved_courses?: number;
+  /** 같이 정하기 링크로 와서 새로 가입했으면 받은 보상 */
+  invite_reward?: InviteReward | null;
 }
 
 interface RequestOptions {
@@ -235,17 +246,18 @@ export const api = {
       body: { phone, code },
     }),
 
+  // 첫 방문 출처·초대 토큰을 함께 보낸다(새 계정일 때만 서버가 쓴다)
   signup: (phone: string) =>
     request<LoginResult & { credits_left: number }>("/signup", {
       method: "POST",
-      body: { phone },
+      body: { phone, ...arrivalPayload() },
     }),
 
   // 로그인 없이 한 번 써 보기 — 서버가 체험 계정과 서명 토큰을 준다
   startGuest: (nickname: string | null, agreed: boolean) =>
     request<{ user_id: string; token?: string; kind: "guest" }>("/auth/guest", {
       method: "POST",
-      body: { nickname, agreed },
+      body: { nickname, agreed, ...arrivalPayload() },
     }),
 
   // 지금 신원과 남은 횟수(체험 중 안내용)
@@ -256,11 +268,16 @@ export const api = {
       nickname?: string | null;
       remaining?: Record<string, number>;
       limits?: Record<string, number>;
+      /** 초대 보상 기간이면 끝나는 시각(UTC ISO)과 하루에 더해지는 몫 */
+      invite_bonus?: { until: string; extra: Record<string, number> } | null;
     }>("/me"),
 
   // 카카오 인가 코드로 로그인. 체험 중이었으면 그 코스가 이 계정으로 옮겨진다
   kakaoLogin: (code: string, redirectUri: string) =>
-    request<LoginResult>("/auth/kakao", { method: "POST", body: { code, redirect_uri: redirectUri } }),
+    request<LoginResult>("/auth/kakao", {
+      method: "POST",
+      body: { code, redirect_uri: redirectUri, ...arrivalPayload() },
+    }),
 
   reorder: (id: string, placeIds: string[]) =>
     request<Course>(`/courses/${id}/reorder`, { method: "POST", body: { place_ids: placeIds } }),

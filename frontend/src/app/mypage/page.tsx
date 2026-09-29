@@ -18,6 +18,7 @@ export default function MyPage() {
   const [loadError, setLoadError] = useState(false);
   const [prefs, setPrefs] = useState<string[]>([]);
   const [deleting, setDeleting] = useState(false);
+  const [bonus, setBonus] = useState<{ until: string; extra: Record<string, number> } | null>(null);
 
   useEffect(() => {
     load();
@@ -56,6 +57,21 @@ export default function MyPage() {
     };
   }, [userId]);
 
+  // 초대 보상(같이 정하기 링크로 온 사람이 새로 가입) 기간이면 남은 기간과 늘어난 몫을 보여 준다
+  useEffect(() => {
+    if (!userId || kind !== "member") return;
+    let cancelled = false;
+    api
+      .me()
+      .then((m) => {
+        if (!cancelled) setBonus(m.invite_bonus ?? null);
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, [userId, kind]);
+
   if (!userId) {
     return (
       <main style={{ padding: "var(--sp-12) var(--sp-4)", maxWidth: 640, margin: "0 auto" }}>
@@ -91,6 +107,28 @@ export default function MyPage() {
           <Link href="/login?next=/mypage" style={{ color: "var(--brand-strong)", fontWeight: 600 }}>
             로그인하고 이어가기
           </Link>
+        </p>
+      )}
+
+      {bonus && (
+        <p
+          role="note"
+          style={{
+            padding: "var(--sp-3)",
+            border: "1px solid var(--border)",
+            borderRadius: "var(--r-md)",
+            fontSize: "var(--fs-sm)",
+            color: "var(--text-muted)",
+          }}
+        >
+          초대 보상 적용 중 · {bonusUntil(bonus.until)}까지 하루{" "}
+          {[
+            bonus.extra.course ? `코스 +${bonus.extra.course}개` : null,
+            bonus.extra.ai ? `AI 수정 +${bonus.extra.ai}번` : null,
+            bonus.extra.build ? `합치기 +${bonus.extra.build}번` : null,
+          ]
+            .filter(Boolean)
+            .join(" · ")}
         </p>
       )}
 
@@ -273,4 +311,11 @@ function summaryLine(course: Course): string {
   parts.push(`${places}곳`);
   if (totalMin > 0) parts.push(`총 ${formatDuration(totalMin)}`);
   return parts.join(" · ");
+}
+
+/** "10월 6일" — 보상 끝나는 날(기기 시간대). */
+function bonusUntil(iso: string): string {
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return "";
+  return `${d.getMonth() + 1}월 ${d.getDate()}일`;
 }

@@ -53,6 +53,25 @@ async def admin_together(days: int = 90, x_admin_token: str | None = Header(defa
     return summarize(funnel_store.events(since=datetime.now() - timedelta(days=days)))
 
 
+@admin_router.get("/growth")
+async def admin_growth(x_admin_token: str | None = Header(default=None)) -> dict:
+    """유입·초대: 최근 7·30일 체험·가입의 첫 방문 출처별 수, 보낸 초대(같이 정하기 링크),
+    초대로 온 가입, 준 초대 보상. 운영 자동 QA 는 처음부터 기록하지 않는다. 개인정보 없음."""
+    _require_admin(x_admin_token)
+    from app.referrals import INVITE_REWARD_CAP, INVITE_REWARD_WINDOW_DAYS, growth_stats
+    from app.usage import INVITE_BONUS, INVITE_BONUS_DAYS
+
+    return {
+        "windows": growth_stats(),
+        "reward_rule": {
+            "bonus_per_day": INVITE_BONUS,
+            "days": INVITE_BONUS_DAYS,
+            "cap_per_inviter": INVITE_REWARD_CAP,
+            "cap_window_days": INVITE_REWARD_WINDOW_DAYS,
+        },
+    }
+
+
 @admin_router.get("/metrics")
 async def admin_metrics(x_admin_token: str | None = Header(default=None)) -> dict:
     """엔드포인트별 요청 수·에러·지연(p50/p95). 인메모리, 인스턴스 단위."""

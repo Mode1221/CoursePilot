@@ -46,6 +46,8 @@ CLAUDE.md, docs/ARCHITECTURE.md, docs/DATA_STRATEGY.md, docs/REVIEW_DATA_SOURCES
 - DB 준비 여부는 `db.is_ready()` 단일 소스. 모든 스토어는 DB 불가 시 **인메모리 폴백**(`_mem`)을 가진다.
 - `create_all` 은 **기존 테이블에 컬럼을 추가하지 않는다.** 운영 Postgres 에 컬럼·인덱스를 더할 때는
   `db.py` 의 기존 보정 방식(`EXPRESSION_INDEXES` 처럼 기동 시 `IF NOT EXISTS` 문 실행)을 따라 기존 DB 에서도 적용되게 하고, 그 경로를 테스트한다.
+  가능하면 기존 표에 칸을 더하지 말고 **새 테이블**로 둔다(예: 유입·초대의 `user_acquisition`·`invite_rewards` — `create_all` 만으로 생긴다,
+  `test_referrals.py` 의 기존 DB 테스트 참고).
 - 학습 스토어의 `bump*` 는 맨 앞에서 `if not learning_on(): return` 을 지킨다(QA 요청 제외).
 - 테스트 격리: 전역 싱글턴이라 `conftest.py` 의 초기화와 각 스토어 `_mem.clear()` 를 따른다.
 

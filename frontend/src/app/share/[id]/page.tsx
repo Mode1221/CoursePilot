@@ -1,47 +1,24 @@
 import type { Metadata } from "next";
 
 import ShareView from "@/components/ShareView";
-import { serverApiBase } from "@/services/apiBase";
-import { summarize } from "@/services/courseSummary";
-import type { Course } from "@/types";
+import { fetchCourse } from "@/services/ogData";
+import { SITE_NAME, courseText } from "@/services/ogText";
+import { requestOrigin } from "@/services/siteUrl";
 
 // 공유 링크는 메신저에 그대로 붙는다 → 서버에서 코스를 읽어 OG 미리보기를 채운다.
-// SSR 은 컨테이너 내부 주소로 곧장 부른다(런타임 환경변수).
-
-// 미리보기 하나 때문에 공유 페이지 렌더가 멈추면 안 된다 — 늦으면 기본 메타로 간다
-const OG_TIMEOUT_MS = 5_000;
-
-async function fetchCourse(id: string): Promise<Course | null> {
-  try {
-    const res = await fetch(`${serverApiBase()}/courses/${id}`, {
-      next: { revalidate: 60 },
-      signal: AbortSignal.timeout(OG_TIMEOUT_MS),
-    });
-    if (!res.ok) return null;
-    return (await res.json()) as Course;
-  } catch {
-    return null; // 백엔드 미가동/네트워크 실패 시 기본 메타데이터로 폴백
-  }
-}
-
+// SSR 은 컨테이너 내부 주소로 곧장 부르고(ogData.ts), 늦거나 실패하면 기본 메타로 간다.
+// 이미지는 같은 폴더의 opengraph-image.tsx 가 그린다.
 export async function generateMetadata({ params }: { params: Promise<{ id: string }> }): Promise<Metadata> {
   const { id } = await params;
   const course = await fetchCourse(id);
-  if (!course) {
-    return { title: "공유된 코스 — CoursePilot" };
-  }
-  const title = `${course.title} — CoursePilot`;
-  const description = summarize(course);
+  // 코스를 못 읽으면(없는 id·서버 장애) 일반 문구와 일반 카드 — 무엇이 없는지 드러내지 않는다
+  const { title, description } = courseText(course);
   return {
+    metadataBase: await requestOrigin(),
     title,
     description,
-    openGraph: {
-      title,
-      description,
-      type: "article",
-      siteName: "CoursePilot",
-    },
-    twitter: { card: "summary", title, description },
+    openGraph: { title, description, type: "article", siteName: SITE_NAME, locale: "ko_KR" },
+    twitter: { card: "summary_large_image", title, description },
   };
 }
 

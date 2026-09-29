@@ -121,6 +121,7 @@ def merge_guest(guest_id: str, member_id: str) -> int:
     from app.behavior import behavior_store
     from app.bookmarks import bookmark_store
     from app.couples import couple_store
+    from app.referrals import referral_store
     from app.store import store
     from app.usage import forget_subject
 
@@ -146,6 +147,8 @@ def merge_guest(guest_id: str, member_id: str) -> int:
     member = user_store.get(member_id)
     if member is not None and not _has_prefs(member) and _has_prefs(guest):
         user_store.set_preferences(member_id, guest.preferences)
+    # 첫 방문 출처·초대 정보(와 초대자로서 받은 보상)도 잇는다 — 가입이 "새 유입"으로 둔갑하지 않게
+    referral_store.move(guest_id, member_id)
     user_store.delete(guest_id)
     forget_subject(guest_id)
     return moved
@@ -175,6 +178,7 @@ def purge_guests(older_than_days: int = 30) -> dict:
     from app.couples import couple_store
     from app.db import SessionLocal, is_ready
     from app.models import UserModel
+    from app.referrals import referral_store
     from app.store import store
     from app.usage import counters, forget_subject
 
@@ -200,6 +204,7 @@ def purge_guests(older_than_days: int = 30) -> dict:
         couple_store.delete_owner(uid)
         behavior_store.delete_user(uid)
         forget_subject(uid)
+        referral_store.forget(uid)
         user_store.delete(uid)
     pruned = counters.prune()
     return {"guests": len(ids), "courses": courses, "counters": pruned}

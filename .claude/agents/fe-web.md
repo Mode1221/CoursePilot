@@ -2,7 +2,7 @@
 name: fe-web
 description: >
   frontend/ 의 Next.js(App Router)·TypeScript·Zustand 화면 작업을 담당한다.
-  페이지(app/ — 홈, start 온보딩, plan/[id] 코스 편집, together/[token] 상대 카드, share/[id] 공유, login·auth/kakao, mypage, 약관),
+  페이지(app/ — 홈((home) 그룹), start 온보딩, plan/[id] 코스 편집, together/[token] 상대 카드, share/[id] 공유, login·auth/kakao, mypage, 약관),
   컴포넌트(components/), 상태(store/), API·소켓·지도 서비스(services/), 디자인 토큰(globals.css) 수정 시 사용한다.
   모바일 우선 레이아웃, 접근성, 한도 초과 안내(체험→로그인) UX 가 여기 속한다.
 tools: Read, Edit, Write, Grep, Glob, Bash
@@ -36,6 +36,15 @@ CLAUDE.md 를 따른다. 아래는 프론트 보충사항이다.
   낙관적 갱신을 하면 되돌리기(undo) 경로(`courseStore.undo.test.ts`)를 깨지 않는지 확인한다.
 - 세션은 `store/userStore.ts`. 토큰은 localStorage 에 있으므로 XSS 로 번질 수 있는 `dangerouslySetInnerHTML` 을 쓰지 않는다.
 - localStorage 접근은 try/catch 로 감싼다(사파리 사생활 보호 모드).
+- 첫 방문 출처·초대 토큰은 `services/acquisition.ts` 만 읽고 쓴다(`api.ts` 가 체험·가입·카카오 로그인 요청에 붙인다).
+
+### 공유 미리보기(OG)
+
+- 미리보기 문구는 `services/ogText.ts`, 이미지는 `services/ogImage.tsx`(next/og) + 각 폴더 `opengraph-image.tsx`.
+  링크를 가진 사람이 화면에서 보는 것 이상은 싣지 않고, 조회 실패·틀린 토큰이면 일반 카드로 간다.
+- `metadataBase` 는 `services/siteUrl.ts` `requestOrigin()`(요청 호스트)으로 — 헤더를 읽으면 그 화면이 동적 렌더가 되므로
+  **루트 레이아웃에서 부르지 않는다**(약관·로그인 등 정적 화면을 지킨다).
+- 이미지 글자는 `ogSafe` 를 거친다(글꼴 부분집합 `public/fonts/og-sans-kr-bold.woff` 에 없는 글자는 외부 글꼴을 부른다).
 
 ### 디자인
 

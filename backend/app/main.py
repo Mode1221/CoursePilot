@@ -376,6 +376,9 @@ async def delete_account(
         store.delete(course.id)
         chat_store.clear(course.id)
     bookmark_store.remove_all(user_id)
+    from app.referrals import referral_store
+
+    referral_store.forget(user_id)  # 유입 기록. 보상 기록(로그인 수단 해시)은 재가입 재보상 방지로 남는다
     user_store.delete(user_id)
     return {"ok": True, "deleted_courses": len(my_courses)}
 

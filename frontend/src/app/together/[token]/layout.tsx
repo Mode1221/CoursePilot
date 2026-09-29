@@ -1,34 +1,23 @@
 import type { Metadata } from "next";
 
-import { serverApiBase } from "@/services/apiBase";
+import { fetchTogetherPreview } from "@/services/ogData";
+import { SITE_NAME, inviteText } from "@/services/ogText";
+import { requestOrigin } from "@/services/siteUrl";
 
-// 상대에게 카톡으로 가는 링크 — 미리보기에 "○○님이 같이 정하재요 · 30초 · 가입 없음"이 떠야 연다.
-const OG_TIMEOUT_MS = 5_000;
-
+// 상대에게 카톡으로 가는 링크 — 미리보기에 "○○님이 데이트 코스를 같이 정하자고 해요"가 떠야 연다.
+// 이미지는 같은 폴더의 opengraph-image.tsx 가 그린다.
 export async function generateMetadata({ params }: { params: Promise<{ token: string }> }): Promise<Metadata> {
   const { token } = await params;
-  const fallback: Metadata = {
-    title: "같이 데이트 코스 정하기 — CoursePilot",
-    description: "30초 카드에 답하면 둘 다 괜찮은 코스가 나와요. 가입 없음.",
+  const { title, description } = inviteText(await fetchTogetherPreview(token));
+  return {
+    metadataBase: await requestOrigin(),
+    title,
+    description,
+    // 초대 링크는 검색에 걸릴 이유가 없다(토큰을 가진 사람만 보는 화면)
+    robots: { index: false, follow: false },
+    openGraph: { title, description, type: "website", siteName: SITE_NAME, locale: "ko_KR" },
+    twitter: { card: "summary_large_image", title, description },
   };
-  try {
-    const res = await fetch(`${serverApiBase()}/together/${token}`, {
-      cache: "no-store",
-      signal: AbortSignal.timeout(OG_TIMEOUT_MS),
-    });
-    if (!res.ok) return fallback;
-    const s = (await res.json()) as { owner_name: string; request_text: string };
-    const title = `${s.owner_name}님이 같이 정하재요 · 30초 · 가입 없음`;
-    const description = `${s.request_text} — 컨디션·땡기는 것·싫은 것만 탭하면 둘 다 괜찮은 코스가 나와요.`;
-    return {
-      title,
-      description,
-      openGraph: { title, description, type: "website", siteName: "CoursePilot" },
-      twitter: { card: "summary", title, description },
-    };
-  } catch {
-    return fallback;
-  }
 }
 
 export default function TogetherLayout({ children }: { children: React.ReactNode }) {

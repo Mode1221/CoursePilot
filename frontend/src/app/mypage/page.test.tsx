@@ -14,6 +14,7 @@ vi.mock("@/services/api", () => ({
     deleteCourse: vi.fn(),
     getPreferences: vi.fn(),
     deleteAccount: vi.fn(),
+    me: vi.fn(),
   },
 }));
 
@@ -36,10 +37,30 @@ describe("마이페이지", () => {
       id: "c2",
       title: "성수 코스 (사본)",
     } as never);
-    useUserStore.setState({ userId: "u1" } as never);
+    vi.mocked(api.me).mockResolvedValue({ kind: "member", invite_bonus: null });
+    useUserStore.setState({ userId: "u1", kind: null } as never);
   });
 
   afterEach(cleanup);
+
+  it("초대 보상 기간이면 늘어난 몫과 끝나는 날을 보여 준다", async () => {
+    vi.mocked(api.me).mockResolvedValue({
+      kind: "member",
+      invite_bonus: { until: "2026-10-06T12:00:00+00:00", extra: { course: 5, ai: 20 } },
+    });
+    useUserStore.setState({ userId: "u1", kind: "member" } as never);
+    render(<MyPage />);
+    expect(await screen.findByText(/초대 보상 적용 중/)).toBeDefined();
+    expect(screen.getByText(/코스 \+5개 · AI 수정 \+20번/)).toBeDefined();
+  });
+
+  it("체험 중이면 보상을 묻지 않는다", async () => {
+    vi.mocked(api.me).mockClear();
+    useUserStore.setState({ userId: "u1", kind: "guest" } as never);
+    render(<MyPage />);
+    await waitFor(() => expect(api.myCourses).toHaveBeenCalled());
+    expect(api.me).not.toHaveBeenCalled();
+  });
 
   it("로그인 상태면 내 코스를 사용자 헤더와 함께 불러온다", async () => {
     render(<MyPage />);

@@ -5,6 +5,8 @@
 """
 from __future__ import annotations
 
+from datetime import UTC
+
 from fastapi import APIRouter, Header, HTTPException, Request
 from pydantic import BaseModel, Field, field_validator
 
@@ -29,12 +31,26 @@ class _PhoneBody(BaseModel):
         return normalize_phone(v)
 
 
-class SignupRequest(_PhoneBody):
+class _ArrivalBody(BaseModel):
+    """첫 방문 출처(프론트가 기억해 둔 값)와 같이 정하기 링크 토큰. 전부 선택.
+
+    출처는 서버가 다시 정리한다(`referrals.clean_source`). 초대자는 여기서 받지 않는다 —
+    링크 토큰으로 코스를 찾아 그 주인을 초대자로 본다(남의 id 를 적어 보상을 가로채지 못하게).
+    """
+
+    source: str | None = Field(default=None, max_length=64)
+    campaign: str | None = Field(default=None, max_length=64)
+    invite: str | None = Field(default=None, max_length=64)
+
+    def arrival(self):
+        from app.referrals import Arrival
+
+        return Arrival(source=self.source, campaign=self.campaign, invite=self.invite)
+
+
+class SignupRequest(_PhoneBody, _ArrivalBody):
     # 전화번호 인증은 별도 프로세스 가정, 여기선 인증 완료 후 호출
-    referrer_id: str | None = Field(default=None, max_length=64)  # 9-4 레퍼럴
-
-
-REFERRAL_BONUS = 1
+    pass
 
 
 class SmsRequestBody(_PhoneBody):
@@ -112,14 +128,7 @@ async def signup(
         # 이미 가입한 번호면 그 계정으로 다시 들어온다(재가입 크레딧 어뷰징 차단)
         return _logged_in(existing.id, guest_id)
     user = user_store.create(req.phone)
-    # 신규 가입 시 초대자에게 보너스 크레딧. 자기추천 방지 + 실존 초대자만.
-    if (
-        req.referrer_id
-        and req.referrer_id != user.id
-        and user_store.get(req.referrer_id) is not None
-    ):
-        user_store.grant_referral_bonus(req.referrer_id, REFERRAL_BONUS)
-    return _logged_in(user.id, guest_id)
+    return _logged_in(user.id, guest_id, new_member=True, arrival=req.arrival())
 
 
 def _guest_of(user_id: str | None, token: str | None) -> str | None:
@@ -133,12 +142,20 @@ def _guest_of(user_id: str | None, token: str | None) -> str | None:
     return caller.user_id if caller and caller.guest else None
 
 
-def _logged_in(user_id: str, guest_id: str | None) -> dict:
-    """로그인 성공 응답. 체험 계정이 있었으면 그 코스·기록을 이 계정으로 옮긴다."""
+def _logged_in(user_id: str, guest_id: str | None, *, new_member: bool = False, arrival=None) -> dict:
+    """로그인 성공 응답. 체험 계정이 있었으면 그 코스·기록을 이 계정으로 옮긴다.
+
+    방금 만든 계정(new_member)이면 유입 경로를 남기고, 같이 정하기 링크로 왔으면 초대 보상을 준다.
+    이미 있던 계정의 로그인은 보상 대상이 아니다.
+    """
     from app.identity import merge_guest
+    from app.referrals import Arrival, on_new_member
 
     moved = merge_guest(guest_id, user_id) if guest_id else 0
     user = user_store.get(user_id)
+    reward = None
+    if new_member and user is not None:
+        reward = on_new_member(user_id, user.phone, arrival or Arrival(), merged_guest_id=guest_id)
     return {
         "verified": True,
         "user_id": user_id,
@@ -146,10 +163,12 @@ def _logged_in(user_id: str, guest_id: str | None) -> dict:
         "kind": "member",
         "credits_left": user.credits_left if user else 0,
         "moved_courses": moved,
+        # 초대 보상을 받았으면 {"days": 7, "extra": {"course": 5, ...}} — 로그인 직후 알림용
+        "invite_reward": reward,
     }
 
 
-class GuestRequest(BaseModel):
+class GuestRequest(_ArrivalBody):
     nickname: str | None = Field(default=None, max_length=20)
     # 체험도 약관·개인정보처리방침·AI 처리 고지·만 14세 이상 동의가 있어야 시작한다
     agreed: bool
@@ -168,8 +187,11 @@ async def start_guest(req: GuestRequest, request: Request) -> dict:
             status_code=429,
             detail="오늘은 이 네트워크에서 체험을 더 시작할 수 없어요. 로그인하면 바로 쓸 수 있어요.",
         )
+    from app.referrals import record_guest
+
     nickname = (req.nickname or "").strip() or None
     user = create_guest(nickname)
+    record_guest(user.id, req.arrival())
     return {"user_id": user.id, "token": issue(user.id), "kind": "guest"}
 
 
@@ -180,23 +202,32 @@ async def me(
 ) -> dict:
     """지금 신원과 남은 횟수. 체험 중이면 무엇이 몇 번 남았는지 보여 주려고."""
     from app.identity import resolve_caller
-    from app.usage import LIMITS, remaining
+    from app.usage import INVITE_BONUS, LIMITS, invite_bonus_until, member_limit, remaining
 
     caller = resolve_caller(x_user_id, x_user_token)
     if caller is None:
         return {"kind": None}
     user = user_store.get(caller.user_id)
     left = {f: remaining(f, subject=caller.user_id, guest=caller.guest) for f in LIMITS}
+    until = None if caller.guest else invite_bonus_until(caller.user_id)
     return {
         "kind": caller.kind,
         "user_id": caller.user_id,
         "nickname": user.preferences.nickname if user else None,
         "remaining": left,
-        "limits": {f: (lim.guest if caller.guest else lim.member) for f, lim in LIMITS.items()},
+        "limits": {
+            f: (lim.guest if caller.guest else member_limit(f, caller.user_id)) for f, lim in LIMITS.items()
+        },
+        # 초대 보상 기간이면 끝나는 시각(UTC)과 하루에 더해지는 몫. 아니면 null
+        "invite_bonus": (
+            {"until": until.replace(tzinfo=UTC).isoformat(), "extra": dict(INVITE_BONUS)}
+            if until
+            else None
+        ),
     }
 
 
-class KakaoLoginRequest(BaseModel):
+class KakaoLoginRequest(_ArrivalBody):
     code: str = Field(min_length=1, max_length=512)
     redirect_uri: str = Field(min_length=1, max_length=300)
 
@@ -234,8 +265,13 @@ async def kakao_login(
             status_code=400, detail="카카오 로그인에 실패했어요. 다시 시도해 주세요."
         ) from None
     identity = f"{KAKAO_PREFIX}{kid}"
-    user = user_store.find_by_phone(identity) or user_store.create(identity)
-    return _logged_in(user.id, _guest_of(x_user_id, x_user_token))
+    user = user_store.find_by_phone(identity)
+    new_member = user is None
+    if user is None:
+        user = user_store.create(identity)
+    return _logged_in(
+        user.id, _guest_of(x_user_id, x_user_token), new_member=new_member, arrival=req.arrival()
+    )
 
 
 def _require_self(

@@ -16,7 +16,7 @@ def test_대시보드_HTML을_준다():
 
 def test_필요한_항목이_모두_들어_있다():
     html = client.get("/admin/dashboard").text
-    for section in ("유료 API", "폴백률", "알림", "학습 신호", "온보딩"):
+    for section in ("유료 API", "폴백률", "알림", "학습 신호", "온보딩", "유입·초대"):
         assert section in html
 
 
