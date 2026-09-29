@@ -70,3 +70,18 @@ def test_QA_요청은_사람_몫에_걸리지_않지만_서비스_상한은_센�
     # 토큰 없이 같은 계정이면 회원 몫(1개)에 걸린다
     assert client.post("/courses", headers={"X-User-Id": qa["user_id"]}).status_code == 200
     assert client.post("/courses", headers={"X-User-Id": qa["user_id"]}).status_code == 429
+
+
+def test_QA_요청에만_단계별_소요를_싣는다(client):
+    qa = client.post("/admin/qa-session", headers={"X-QA-Token": QA}).json()
+    h = {"X-User-Id": qa["user_id"], "X-QA-Token": QA}
+    cid = client.post("/courses", headers=h).json()["id"]
+    res = client.post(f"/courses/{cid}/generate", json={"text": "성수동 저녁 데이트"}, headers=h).json()
+    names = [name for name, _ in res["debug"]]
+    assert "decompose" in names and "attempt" in names
+
+    member = client.post("/signup", json={"phone": "010-2020-3030"}).json()
+    mh = {"X-User-Id": member["user_id"]}
+    cid2 = client.post("/courses", headers=mh).json()["id"]
+    plain = client.post(f"/courses/{cid2}/generate", json={"text": "성수동 저녁 데이트"}, headers=mh).json()
+    assert plain.get("debug") is None

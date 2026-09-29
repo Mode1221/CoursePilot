@@ -450,6 +450,11 @@ docker compose -f docker-compose.prod.yml exec backend python scripts/eval_conse
 ```
 카카오 로컬·네이버 경로만 쓴다(Google·LLM 폴백은 스크립트가 끈다). 48개 시나리오 기준 몇 분. 출력의 "요약"과 "실패 상세"를 보고 고친다.
 
+## 코스 품질 즉석 점검 (`.github/workflows/probe.yml`)
+`probe/<이름>` 브랜치를 푸시하거나 Actions → Course probe → Run workflow. 운영 API 로 `scripts/probe/course_probe.py` 의
+예시 문장(기본 서울 10개)을 QA 계정으로 만들어 보고 지운다. 결과 표(장소·영업·이동·단계별 ms)는 "코스 품질 점검"
+이슈 댓글과 작업 요약에 남는다. 코스당 LLM 1회 안팎이 서비스 하루 상한에서 차감된다.
+
 ## 운영 자동 QA (`.github/workflows/qa.yml`)
 3시간마다, 그리고 이미지 빌드·배포가 끝날 때마다 GitHub 러너가 운영 사이트를 모바일 크롬으로 점검한다
 (`frontend/e2e-prod/`). 실패하면 `qa-failure` 라벨 이슈가 열리고(저장소 주인에게 메일), 통과하면 닫힌다.

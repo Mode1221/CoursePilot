@@ -61,6 +61,8 @@ class GenerateResponse(BaseModel):
     course: Course
     relaxed: bool  # 조건이 완화되었는지
     needs_confirmation: bool  # 완화로도 부족 → 사용자 확인 필요 (7-4)
+    # 운영 점검(QA 요청)에서만: 단계별 소요 ms 등. 일반 사용자 응답에는 없다.
+    debug: list[tuple[str, int]] | None = None
 
 
 def _charge_ai(actor_id: str, request: Request):
@@ -251,6 +253,11 @@ async def generate(
     refund = _refunder(x_user_id, ticket)
 
     async def action() -> GenerateResponse:
+        from app.pipeline import timing
+        from app.qa import learning_on
+
+        if not learning_on():
+            timing.begin()  # QA 요청: 단계별 소요를 응답에 싣는다
         # 최신 상태를 lock 안에서 재조회 → 동시 요청 간 lost update 방지
         course = store.get(course_id)
         if course is None:
@@ -534,7 +541,10 @@ async def generate(
         await broadcast_message(course_id, "ai", ai_text)
         await broadcast_lock(course_id, False)
         return GenerateResponse(
-            course=course, relaxed=relaxed, needs_confirmation=needs_confirmation
+            course=course,
+            relaxed=relaxed,
+            needs_confirmation=needs_confirmation,
+            debug=timing.snapshot(),
         )
 
     if ticket is None:

@@ -5,18 +5,26 @@ Decomposition → Tool-Use → Validation → 조건 완화 재시도 → Final.
 from __future__ import annotations
 
 import asyncio
+import time as clock
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
 from datetime import UTC, date, datetime, time
 
 from app.adapters.map_service import MapService
 from app.constants import DEFAULT_REGION
+from app.pipeline import timing
 from app.pipeline.llm import decompose
 from app.pipeline.planner import desired_slots, plan_course
 from app.schemas import Place, PlanConstraints, TimelineItem
 
 MIN_VALID = 3  # 유효 후보가 이 개수 미만이면 조건 완화
 MIN_USABLE = 2  # 이 정도면 "코스"로 쓸 만하다 — 더 물어보지 않는다
+# 시간 예산(초). 큐가 60초에 끊으므로(504) 뒤 단계일수록 먼저 포기한다. 운영 점검에서 한 코스 38~78초였다.
+RELAX_BUDGET_SEC = 18.0  # 이보다 오래 걸렸으면 완화 재시도를 하지 않는다
+HOURS_FALLBACK_BUDGET_SEC = 25.0  # 영업시간 웹검색(한 번에 10초 이상 걸린다)
+HOURS_FALLBACK_TIMEOUT_SEC = 12.0
+REFILL_BUDGET_SEC = 32.0  # 폐업·휴무로 빠진 자리 되채우기
+ALTERNATIVES_BUDGET_SEC = 40.0  # 칸별 대안(부가 기능)
 
 
 def _min_valid(constraints: PlanConstraints) -> int:
@@ -24,9 +32,12 @@ def _min_valid(constraints: PlanConstraints) -> int:
 
     사용자가 "2차까지"처럼 개수를 직접 말했으면 그 수를 넘길 이유가 없다.
     """
+    from app.pipeline.planner import desired_slots
+
+    wanted = len(desired_slots(constraints))  # 칸을 다 채웠으면 완화(검색 2~3배)를 돌 이유가 없다
     if constraints.stop_count:
-        return max(1, min(MIN_VALID, constraints.stop_count))
-    return MIN_VALID
+        return max(1, min(MIN_VALID, constraints.stop_count, wanted))
+    return max(1, min(MIN_VALID, wanted))
 
 
 def _min_usable(constraints: PlanConstraints) -> int:
@@ -81,9 +92,19 @@ async def generate_course(
     만든 코스의 칸마다 반영 이유를 붙인다.
     """
     progress = on_progress or _noop
+    started = clock.monotonic()
+
+    def elapsed() -> float:
+        return clock.monotonic() - started
 
     await progress("decomposition")  # 문장 분해
-    constraints = await decompose(text)
+    with timing.stage("decompose"):
+        constraints = await decompose(text)
+    if not consensus_inputs:
+        # 문장에 나온 순서대로 칸·칸별 검색어("파스타 먹고 와인바" → 식사 → 술)
+        from app.pipeline import intent
+
+        intent.apply(constraints, text)
     if preferences:
         _apply_preferences(constraints, preferences)
     _apply_large_party(constraints)
@@ -97,24 +118,35 @@ async def generate_course(
     await progress("search")  # 후보 수집
     # 출발지 좌표는 재시도마다 바뀌지 않으므로 한 번만 조회한다(외부 호출 절약)
     origin = await _resolve_origin(constraints, map_service)
-    timeline = await _attempt(constraints, map_service, origin, exclude_place_ids)
+    with timing.stage("attempt"):
+        timeline = await _attempt(constraints, map_service, origin, exclude_place_ids)
     await progress("validation")  # 물리 제약 검증
 
     enough = _min_valid(constraints)
-    if len(timeline) >= enough and not force_relax:
+    # 시간 예산: 큐가 60초에 끊는다. 첫 시도만으로 이미 오래 걸렸으면 완화(검색 2번 더)를 하지 않고
+    # 지금 결과로 끝낸다 — 504(아무것도 못 받음)보다 한 곳 적은 코스가 낫다.
+    out_of_time = elapsed() > RELAX_BUDGET_SEC and bool(timeline)
+    if out_of_time:
+        timing.note("skip_relax_at_ms", int(elapsed() * 1000))
+    if (len(timeline) >= enough or out_of_time) and not force_relax:
         await progress("done")
         before_ids = {item.place.id for item in timeline}
         before = len(timeline)
-        timeline = await _verify_hours(timeline, constraints, map_service)
-        timeline = await _refill(
-            timeline, before_ids, constraints, map_service, origin, exclude_place_ids
-        )
+        with timing.stage("verify_hours"):
+            timeline = await _verify_hours(timeline, constraints, map_service, elapsed)
+        if elapsed() < REFILL_BUDGET_SEC:
+            with timing.stage("refill"):
+                timeline = await _refill(
+                    timeline, before_ids, constraints, map_service, origin, exclude_place_ids
+                )
         # 개수를 직접 말한 요청("5곳")에 못 미치면, 완화 없이 끝내더라도
         # 그 사실을 알리고 완화 여부를 물어본다(조용히 4곳만 주지 않는다).
         # 폐업·휴무로 빠진 뒤의 개수로 판단해야 한다 — 빼기 전 개수로 재면
         # 2곳짜리 코스를 "충분하다"고 넘긴다.
         _attach(timeline, consensus)
-        await _attach_alternatives(timeline, constraints, map_service, preferences, exclude_place_ids)
+        if elapsed() < ALTERNATIVES_BUDGET_SEC:
+            with timing.stage("alternatives"):
+                await _attach_alternatives(timeline, constraints, map_service, preferences, exclude_place_ids)
         return PlanResult(
             constraints,
             timeline,
@@ -137,14 +169,16 @@ async def generate_course(
     relaxed_c = constraints.model_copy(deep=True)
     if relaxed_c.max_travel_min is not None:
         relaxed_c.max_travel_min = int(relaxed_c.max_travel_min * factor)
-    timeline = await _attempt(relaxed_c, map_service, origin, exclude_place_ids)
+    with timing.stage("relax_travel"):
+        timeline = await _attempt(relaxed_c, map_service, origin, exclude_place_ids)
     if len(timeline) > len(best):
         best = timeline
 
     # 그래도 부족하면 소프트 키워드 제약을 완화(다이어트 등 하드성 키워드는 유지)
-    if (len(best) < enough or force_relax) and relaxed_c.keywords:
+    if (len(best) < enough or force_relax) and relaxed_c.keywords and elapsed() < RELAX_BUDGET_SEC * 1.5:
         relaxed_c.keywords = [k for k in relaxed_c.keywords if k in _HARD_KEYWORDS]
-        timeline = await _attempt(relaxed_c, map_service, origin, exclude_place_ids)
+        with timing.stage("relax_keywords"):
+            timeline = await _attempt(relaxed_c, map_service, origin, exclude_place_ids)
         if len(timeline) > len(best):
             best = timeline
 
@@ -156,14 +190,19 @@ async def generate_course(
     before_ids = {item.place.id for item in timeline}
     before = len(timeline)
     final_c = relaxed_c if relaxed else constraints
-    timeline = await _verify_hours(timeline, final_c, map_service)
-    timeline = await _refill(
-        timeline, before_ids, final_c, map_service, origin, exclude_place_ids
-    )
+    with timing.stage("verify_hours"):
+        timeline = await _verify_hours(timeline, final_c, map_service, elapsed)
+    if elapsed() < REFILL_BUDGET_SEC:
+        with timing.stage("refill"):
+            timeline = await _refill(
+                timeline, before_ids, final_c, map_service, origin, exclude_place_ids
+            )
     _attach(timeline, consensus)
-    await _attach_alternatives(
-        timeline, relaxed_c if relaxed else constraints, map_service, preferences, exclude_place_ids
-    )
+    if elapsed() < ALTERNATIVES_BUDGET_SEC:
+        with timing.stage("alternatives"):
+            await _attach_alternatives(
+                timeline, relaxed_c if relaxed else constraints, map_service, preferences, exclude_place_ids
+            )
     return PlanResult(
         relaxed_c if relaxed else constraints,
         timeline,
@@ -214,6 +253,7 @@ async def _verify_hours(
     timeline: list[TimelineItem],
     constraints: PlanConstraints | None = None,
     map_service: MapService | None = None,
+    elapsed: Callable[[], float] | None = None,
 ) -> list[TimelineItem]:
     """확정된 장소의 영업시간만 TTL 확인 후 갱신한다.
 
@@ -246,13 +286,15 @@ async def _verify_hours(
                 )
     except Exception:
         pass
-    # 그래도 없으면 마지막 폴백: LLM 웹검색(느리고 비싸다 → 코스당 2건 상한).
-    try:
-        from app.adapters.hours_fallback import fill_missing_hours
+    # 그래도 없으면 마지막 폴백: LLM 웹검색(느리고 비싸다 → 코스당 2건 상한). 시간이 빠듯하면 건너뛴다.
+    if elapsed is None or elapsed() < HOURS_FALLBACK_BUDGET_SEC:
+        try:
+            from app.adapters.hours_fallback import fill_missing_hours
 
-        await fill_missing_hours(places)
-    except Exception:
-        pass
+            with timing.stage("hours_web_search"):
+                await asyncio.wait_for(fill_missing_hours(places), timeout=HOURS_FALLBACK_TIMEOUT_SEC)
+        except Exception:
+            pass
     await _drop_finished_shows(timeline, constraints)
     return await _drop_closed(timeline, constraints, map_service)
 
@@ -363,7 +405,7 @@ def _apply_preferences(constraints: PlanConstraints, prefs: dict) -> None:
         constraints.travel_mode = TravelMode.CAR
 
 
-from app.pipeline.stored_pool import MAX_POOL, stored_candidates  # noqa: E402
+from app.pipeline.stored_pool import MAX_POOL, keep_near, stored_candidates  # noqa: E402
 
 MAX_QUERY_KEYWORDS = 3  # 지역 + 키워드 3개까지만 검색 질의로 전달
 CANDIDATES_PER_SLOT = 6  # 칸마다 이 정도 후보가 있어야 카테고리·영업시간 필터를 견딘다
@@ -434,9 +476,12 @@ async def _attempt(
     origin: Place | None = None,
     exclude_place_ids: set[str] | None = None,
 ) -> list[TimelineItem]:
-    candidates = await _candidates(constraints, map_service, exclude_place_ids)
+    with timing.stage("candidates"):
+        candidates = await _candidates(constraints, map_service, exclude_place_ids)
+    timing.note("candidate_count", len(candidates))
     # 스코어링·카테고리 템플릿·동선·Best-of-N 으로 최적 코스 선택
-    return await plan_course(candidates, constraints, map_service, origin=origin)
+    with timing.stage("plan"):
+        return await plan_course(candidates, constraints, map_service, origin=origin)
 
 
 async def _candidates(
@@ -459,6 +504,7 @@ async def _candidates(
         if not any(s == slot for s, _ in slot_kw):
             slot_kw.append((slot, joined))
     candidates = (candidates + stored_candidates(region, slot_kw, candidates))[:MAX_POOL]
+    candidates = keep_near(candidates, region)  # "삼청동"인데 인사동·종로3가가 섞이지 않게
     candidates = _with_active_popups(candidates, constraints, region)
     if exclude_place_ids:
         # "전부 다른 곳으로" — 지금 코스에 있는 장소는 후보에서 뺀다

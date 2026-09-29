@@ -81,6 +81,7 @@ jobs:
       cancel-in-progress: false  # 배포 도중에 끊으면 반쯤 올라간 상태가 된다
     permissions:
       contents: read
+      actions: write  # 배포 뒤 운영 QA 를 직접 실행한다(자동 머지가 연 실행은 workflow_run 을 깨우지 않는다)
     steps:
       - name: VM 에 배포
         env:
@@ -100,3 +101,9 @@ jobs:
           # 강제 명령이라 보내는 문자열은 "deploy <sha>" 형식 검사에만 쓰인다
           ssh -i ~/.ssh/deploy -o StrictHostKeyChecking=yes -o BatchMode=yes -o ConnectTimeout=20 \
             "${USER_:-ubuntu}@$HOST" "deploy $GITHUB_SHA"
+
+      - name: 운영 QA 실행
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_REPO: ${{ github.repository }}
+        run: gh workflow run qa.yml --ref main || echo "운영 QA 실행 요청 실패(3시간 주기 점검이 대신 돈다)"
