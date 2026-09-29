@@ -48,7 +48,7 @@ def test_생성된_코스엔_대안이_있고_교체하면_원래_장소가_대�
     assert first["alternatives"], "대안이 비어 있다"
     alt = first["alternatives"][0]
     ids = [alt["id"], *[it["place"]["id"] for it in course["items"][1:]]]
-    swapped = client.post(f"/courses/{cid}/items", json={"place_ids": ids}).json()
+    swapped = client.post(f"/courses/{cid}/items", headers=h, json={"place_ids": ids}).json()
     new_first = swapped["items"][0]
     assert new_first["place"]["id"] == alt["id"]
     assert first["place"]["id"] in [a["id"] for a in new_first["alternatives"]]  # 되돌아갈 수 있다

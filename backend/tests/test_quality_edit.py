@@ -48,7 +48,7 @@ def test_되물을_때는_코스도_크레딧도_그대로():
         json={"text": "더 저렴한 곳으로 바꿔"},
     )
 
-    assert "어느 자리를" in client.get(f"/courses/{cid}/messages").json()[-1]["text"]
+    assert "어느 자리를" in client.get(f"/courses/{cid}/messages", headers={"X-User-Id": uid}).json()[-1]["text"]
     assert client.get(f"/courses/{cid}").json()["items"] == items
     assert (
         client.get(f"/users/{uid}/credits", headers={"X-User-Id": uid}).json()[

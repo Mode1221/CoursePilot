@@ -37,10 +37,28 @@ CoursePilot는 키 없이도 Mock/폴백으로 완전히 동작한다. 실서비
 - **LLM**: Anthropic(console.anthropic.com) — `ANTHROPIC_API_KEY`. (대안: OpenAI)
 - **지도 렌더/장소/길찾기**: 네이버 클라우드 플랫폼 → Maps + 지역검색(Application 등록). 지도 렌더용 `NEXT_PUBLIC_NAVER_MAP_CLIENT_ID`는 서비스 URL 등록 필요.
 - **평점**: Google Cloud → Places API(`GOOGLE_MAPS_API_KEY`). 요약 아님·숫자만(약관 안전), attribution 준수.
+- **로그인**: 카카오 디벨로퍼스 — 아래 "카카오 로그인 설정". 운영에서 SMS 키가 없으면 로그인 수단은 카카오뿐이다.
 - **SMS**: NHN Cloud → SMS(발신번호 사전 등록).
 - **결제**: 포트원(아임포트) → v1 REST API 키/시크릿.
 
 > 키는 배포 직전 주입 권장(개발 중엔 폴백으로 충분). 시크릿은 소스에 커밋하지 말 것(`.env`는 gitignore).
+
+## 카카오 로그인 설정 (체험 1회 뒤 로그인)
+장소 검색에 쓰는 카카오 앱과 **다른 앱**을 하나 더 만든다. 로그인의 client_id(REST API 키)는 브라우저 주소창에
+그대로 보이는 값이라, 검색 키와 같으면 남이 우리 장소 검색 한도를 쓸 수 있다.
+
+1. [카카오 디벨로퍼스](https://developers.kakao.com/console/app) → 애플리케이션 추가(예: `CoursePilot 로그인`).
+2. **[앱] > [플랫폼 키] > [REST API 키]** 에서
+   - 키 값을 `.env` 의 `KAKAO_LOGIN_CLIENT_ID` 에,
+   - **[리다이렉트 URI]** 에 `https://<도메인>/auth/kakao` 등록(예: `https://coursepilot-kr.duckdns.org/auth/kakao`),
+   - **[클라이언트 시크릿]** 값을 `KAKAO_LOGIN_CLIENT_SECRET` 에(켜져 있으면 필수 — 없으면 토큰 교환이 실패한다).
+3. **[카카오 로그인] > [사용 설정]** 의 상태를 ON.
+4. 동의항목은 켜지 않아도 된다(회원번호만 쓴다).
+5. `./deploy.sh` 후 `/login` 에 "카카오로 계속하기" 버튼이 보이면 끝. 백엔드는 돌아올 주소가
+   `CORS_ORIGINS` 의 도메인 + `/auth/kakao` 일 때만 받는다.
+
+체험 한도(IP 당 체험 시작·체험 코스)는 `TRIAL_GUESTS_PER_IP_DAY`(3)·`TRIAL_COURSES_PER_IP_DAY`(1)로 조절한다.
+사람·서비스 단위 한도 값은 `backend/app/usage.py` 의 `LIMITS`·`GLOBAL_DAILY`.
 
 ## 호스팅 추천 (소규모 베타)
 비용·효율 기준. 단일 VM 1대면 앱+DB가 한 번에 뜬다(별도 관리형 DB 불필요).

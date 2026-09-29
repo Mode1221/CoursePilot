@@ -16,6 +16,10 @@ async def test_join_은_room_에_넣는다(monkeypatch):
 
     monkeypatch.setattr(realtime.sio, "enter_room", _enter)
     monkeypatch.setattr(realtime.sio, "emit", _emit)
+    from app.schemas import Course
+    from app.store import store
+
+    store.save(Course(id="c1"))
 
     await realtime.join("sid1", {"course_id": "c1"})
     assert entered == [("sid1", "c1")]
@@ -37,7 +41,7 @@ async def test_leave_는_room_에서_뺀다(monkeypatch):
     monkeypatch.setattr(realtime.sio, "emit", _emit)
 
     await realtime.leave("sid1", {"course_id": "c1"})
-    assert left == [("sid1", "c1")]
+    assert left == [("sid1", "c1"), ("sid1", "c1#chat")]  # 대화 방도 함께 나간다
     assert emitted == ["left", "presence"]
 
 
@@ -74,3 +78,16 @@ async def test_인원수를_room_에_알린다(monkeypatch):
     sent.clear()
     await realtime.broadcast_presence("c1", exclude="sid2")
     assert sent == [("presence", {"count": 1})]
+
+
+async def test_없는_코스_방에는_들어가지_않는다(monkeypatch):
+    entered: list[tuple[str, str]] = []
+
+    async def _enter(sid, room):
+        entered.append((sid, room))
+
+    monkeypatch.setattr(realtime.sio, "enter_room", _enter)
+    await realtime.join("sid9", {"course_id": "no-such-course"})
+    await realtime.join("sid9", {"course_id": 123})
+    await realtime.join("sid9", "garbage")
+    assert entered == []

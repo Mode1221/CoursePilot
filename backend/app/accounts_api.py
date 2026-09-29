@@ -74,39 +74,43 @@ async def sms_request(req: SmsRequestBody, request: Request) -> dict:
 
 
 @accounts_router.post("/auth/sms/verify")
-async def sms_verify(req: SmsVerifyBody) -> dict:
-    from app.auth import verification_store
+async def sms_verify(
+    req: SmsVerifyBody,
+    x_user_id: str | None = Header(default=None),
+    x_user_token: str | None = Header(default=None),
+) -> dict:
+    from app.auth import can_resume_existing, verification_store
 
     ok = verification_store.verify(req.phone, req.code)
     if not ok:
         raise HTTPException(status_code=400, detail="인증번호가 올바르지 않거나 만료되었습니다")
     # 이미 가입한 번호면 토큰을 새로 끊어 준다 — 만료(90일)로 돌아온 사용자가
-    # 인증만 다시 하면 바로 쓰던 계정으로 이어지게 한다.
+    # 인증만 다시 하면 바로 쓰던 계정으로 이어지게 한다(진짜 SMS 일 때만).
     existing = user_store.find_by_phone(req.phone)
-    if existing is not None:
-        return {
-            "verified": True,
-            "user_id": existing.id,
-            "token": issue(existing.id),
-        }
+    if existing is not None and can_resume_existing():
+        return _logged_in(existing.id, _guest_of(x_user_id, x_user_token))
     return {"verified": True}
 
 
 @accounts_router.post("/signup")
-async def signup(req: SignupRequest) -> dict:
-    from app.auth import require_verified, verification_store
+async def signup(
+    req: SignupRequest,
+    x_user_id: str | None = Header(default=None),
+    x_user_token: str | None = Header(default=None),
+) -> dict:
+    from app.auth import can_resume_existing, require_verified, verification_store
 
     if not require_verified(req.phone):
         raise HTTPException(status_code=403, detail="전화번호 인증이 필요합니다")
     verification_store.consume_verified(req.phone)  # 1회성 소비
+    guest_id = _guest_of(x_user_id, x_user_token)
     existing = user_store.find_by_phone(req.phone)
     if existing is not None:
+        if not can_resume_existing():
+            # 인증번호가 화면에 보이는 폴백으로는 남의 기존 계정에 들어갈 수 없다
+            raise HTTPException(status_code=409, detail="이미 가입된 번호예요. 다른 방법으로 로그인해 주세요.")
         # 이미 가입한 번호면 그 계정으로 다시 들어온다(재가입 크레딧 어뷰징 차단)
-        return {
-            "user_id": existing.id,
-            "credits_left": existing.credits_left,
-            "token": issue(existing.id),
-        }
+        return _logged_in(existing.id, guest_id)
     user = user_store.create(req.phone)
     # 신규 가입 시 초대자에게 보너스 크레딧. 자기추천 방지 + 실존 초대자만.
     if (
@@ -115,7 +119,123 @@ async def signup(req: SignupRequest) -> dict:
         and user_store.get(req.referrer_id) is not None
     ):
         user_store.grant_referral_bonus(req.referrer_id, REFERRAL_BONUS)
-    return {"user_id": user.id, "credits_left": user.credits_left, "token": issue(user.id)}
+    return _logged_in(user.id, guest_id)
+
+
+def _guest_of(user_id: str | None, token: str | None) -> str | None:
+    """로그인 요청에 함께 온 체험 계정 id(서명이 맞을 때만). 없거나 회원이면 None."""
+    from app.identity import resolve_caller
+
+    try:
+        caller = resolve_caller(user_id, token)
+    except HTTPException:
+        return None
+    return caller.user_id if caller and caller.guest else None
+
+
+def _logged_in(user_id: str, guest_id: str | None) -> dict:
+    """로그인 성공 응답. 체험 계정이 있었으면 그 코스·기록을 이 계정으로 옮긴다."""
+    from app.identity import merge_guest
+
+    moved = merge_guest(guest_id, user_id) if guest_id else 0
+    user = user_store.get(user_id)
+    return {
+        "verified": True,
+        "user_id": user_id,
+        "token": issue(user_id),
+        "kind": "member",
+        "credits_left": user.credits_left if user else 0,
+        "moved_courses": moved,
+    }
+
+
+class GuestRequest(BaseModel):
+    nickname: str | None = Field(default=None, max_length=20)
+    # 체험도 약관·개인정보처리방침·AI 처리 고지·만 14세 이상 동의가 있어야 시작한다
+    agreed: bool
+
+
+@accounts_router.post("/auth/guest")
+async def start_guest(req: GuestRequest, request: Request) -> dict:
+    """로그인 없이 한 번 써 보기. 서버가 체험 계정을 만들고 서명 토큰을 준다."""
+    from app.identity import create_guest
+    from app.usage import allow_new_guest
+
+    if not req.agreed:
+        raise HTTPException(status_code=400, detail="약관과 개인정보처리방침에 동의해 주세요")
+    if not allow_new_guest(client_ip(request)):
+        raise HTTPException(
+            status_code=429,
+            detail="오늘은 이 네트워크에서 체험을 더 시작할 수 없어요. 로그인하면 바로 쓸 수 있어요.",
+        )
+    nickname = (req.nickname or "").strip() or None
+    user = create_guest(nickname)
+    return {"user_id": user.id, "token": issue(user.id), "kind": "guest"}
+
+
+@accounts_router.get("/me")
+async def me(
+    x_user_id: str | None = Header(default=None),
+    x_user_token: str | None = Header(default=None),
+) -> dict:
+    """지금 신원과 남은 횟수. 체험 중이면 무엇이 몇 번 남았는지 보여 주려고."""
+    from app.identity import resolve_caller
+    from app.usage import LIMITS, remaining
+
+    caller = resolve_caller(x_user_id, x_user_token)
+    if caller is None:
+        return {"kind": None}
+    user = user_store.get(caller.user_id)
+    left = {f: remaining(f, subject=caller.user_id, guest=caller.guest) for f in LIMITS}
+    return {
+        "kind": caller.kind,
+        "user_id": caller.user_id,
+        "nickname": user.preferences.nickname if user else None,
+        "remaining": left,
+        "limits": {f: (lim.guest if caller.guest else lim.member) for f, lim in LIMITS.items()},
+    }
+
+
+class KakaoLoginRequest(BaseModel):
+    code: str = Field(min_length=1, max_length=512)
+    redirect_uri: str = Field(min_length=1, max_length=300)
+
+
+KAKAO_CALLBACK_PATH = "/auth/kakao"
+
+
+def _allowed_redirect(uri: str) -> bool:
+    """돌아올 주소는 우리 사이트의 콜백 경로뿐. 카카오 콘솔에도 같은 주소만 등록한다."""
+    from urllib.parse import urlsplit
+
+    parts = urlsplit(uri)
+    origin = f"{parts.scheme}://{parts.netloc}"
+    return parts.path == KAKAO_CALLBACK_PATH and origin in settings.cors_origins and not parts.query
+
+
+@accounts_router.post("/auth/kakao")
+async def kakao_login(
+    req: KakaoLoginRequest,
+    x_user_id: str | None = Header(default=None),
+    x_user_token: str | None = Header(default=None),
+) -> dict:
+    """카카오 인가 코드로 로그인. 처음이면 계정을 만들고, 체험 중이었으면 그 기록을 옮긴다."""
+    from app.adapters import kakao_auth
+    from app.identity import KAKAO_PREFIX
+
+    if not kakao_auth.enabled():
+        raise HTTPException(status_code=503, detail="카카오 로그인을 아직 쓸 수 없어요")
+    if not _allowed_redirect(req.redirect_uri):
+        raise HTTPException(status_code=400, detail="잘못된 로그인 주소예요")
+    try:
+        kid = await kakao_auth.kakao_user_id(req.code, req.redirect_uri)
+    except kakao_auth.KakaoLoginError:
+        raise HTTPException(
+            status_code=400, detail="카카오 로그인에 실패했어요. 다시 시도해 주세요."
+        ) from None
+    identity = f"{KAKAO_PREFIX}{kid}"
+    user = user_store.find_by_phone(identity) or user_store.create(identity)
+    return _logged_in(user.id, _guest_of(x_user_id, x_user_token))
 
 
 def _require_self(

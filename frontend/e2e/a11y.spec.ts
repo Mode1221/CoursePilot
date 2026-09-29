@@ -30,7 +30,7 @@ async function member(page: import("@playwright/test").Page) {
 }
 
 for (const scheme of ["light", "dark"] as const) {
-  for (const path of ["/", "/onboarding", "/terms", "/privacy", "/mypage"]) {
+  for (const path of ["/", "/start", "/login", "/onboarding", "/terms", "/privacy", "/mypage"]) {
     test(`접근성(${scheme}): ${path}`, async ({ page }) => {
       await page.emulateMedia({ colorScheme: scheme });
       await member(page);

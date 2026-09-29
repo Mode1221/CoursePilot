@@ -28,7 +28,7 @@ def test_없는_순번을_지목하면_안내한다():
     client.post(
         f"/courses/{cid}/generate", headers={"X-User-Id": uid}, json={"text": "9번째 삭제해줘"}
     )
-    messages = client.get(f"/courses/{cid}/messages").json()
+    messages = client.get(f"/courses/{cid}/messages", headers={"X-User-Id": uid}).json()
     assert "찾지 못했어요" in messages[-1]["text"]
     assert client.get(f"/courses/{cid}").json()["items"] == before
 
@@ -38,7 +38,7 @@ def test_정상_편집은_안내하지_않는다():
     client.post(
         f"/courses/{cid}/generate", headers={"X-User-Id": uid}, json={"text": "1번째 삭제해줘"}
     )
-    messages = client.get(f"/courses/{cid}/messages").json()
+    messages = client.get(f"/courses/{cid}/messages", headers={"X-User-Id": uid}).json()
     assert "찾지 못했어요" not in messages[-1]["text"]
 
 

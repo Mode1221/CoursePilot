@@ -32,7 +32,7 @@ def test_되묻고_코스를_만들지_않는다():
     )
     assert res.status_code == 200
     assert res.json()["course"]["items"] == []
-    assert "어떤 모임인지" in client.get(f"/courses/{cid}/messages").json()[-1]["text"]
+    assert "어떤 모임인지" in client.get(f"/courses/{cid}/messages", headers={"X-User-Id": uid}).json()[-1]["text"]
 
 
 def test_크레딧을_소모하지_않는다():

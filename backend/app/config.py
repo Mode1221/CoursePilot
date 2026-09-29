@@ -48,6 +48,18 @@ class Settings(BaseSettings):
     # 장소 발견 주 원천: 카카오 로컬 REST API(무료). 미설정 시 네이버/Mock 폴백.
     kakao_rest_api_key: str = ""
 
+    # 카카오 로그인(두 번째 이용부터의 인증). 장소 검색용 REST 키와 **다른 앱**의 키를 쓴다 —
+    # 로그인 client_id 는 브라우저 주소창에 그대로 보이는 값이라, 같은 키면 남이 우리 장소 검색
+    # 한도를 대신 써 버릴 수 있다. 비우면 카카오 로그인 버튼이 숨겨진다.
+    kakao_login_client_id: str = ""
+    # 카카오 로그인 → 보안 → Client Secret. 켜 두면 인가 코드를 가로채도 토큰으로 못 바꾼다.
+    kakao_login_client_secret: str = ""
+
+    # 체험(게스트) 코스를 한 IP 에서 하루에 몇 개까지 만들 수 있는지. E2E 는 한 IP 라 올려 잡는다.
+    trial_courses_per_ip_day: int = 1
+    # 한 IP 에서 하루에 새로 시작할 수 있는 체험 계정 수(저장소를 지워 가며 체험을 반복하지 못하게)
+    trial_guests_per_ip_day: int = 3
+
     # 폐업·업력 원천: LOCALDATA(지방행정 인허가) CSV 디렉터리.
     # 무료·무인증이며 시군구 단위 파일을 주 1회 갱신한다. 비우면 필터 미적용.
     localdata_csv_dir: str = ""

@@ -7,8 +7,10 @@ client = TestClient(app)
 
 
 def test_라우트_템플릿으로_집계된다():
+    from tests.helpers import owned_course
+
     metrics_store.clear()
-    cid = client.post("/courses").json()["id"]
+    _, cid = owned_course(client)
     client.get(f"/courses/{cid}")
     client.get(f"/courses/{cid}")
 

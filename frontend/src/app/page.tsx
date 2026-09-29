@@ -7,11 +7,11 @@ import { useEffect, useState } from "react";
 import SiteFooter from "@/components/SiteFooter";
 import AttributionChips from "@/components/AttributionChips";
 import { Button } from "@/components/ui";
-import { api } from "@/services/api";
-import { toast } from "@/store/toastStore";
+import { createCourseUrl } from "@/services/newCourse";
+import { NEW_COURSE } from "@/services/nextPath";
 import { storedUserId, useUserStore } from "@/store/userStore";
 
-// 랜딩: 가치 제안 + 예시 프롬프트로 바로 시작(예시 클릭 시 해당 조건으로 코스 생성).
+// 랜딩: 가치 제안 + 예시 프롬프트로 바로 시작. 처음 온 사람은 가입 없이 체험으로 시작한다.
 const EXAMPLES = [
   { label: "토요일 3시 성수", hint: "둘이 5만원 · 도보 10분 이내" },
   { label: "○○카페 들렀다가 저녁까지", hint: "정해둔 한 곳 기준으로 앞뒤 채우기" },
@@ -29,17 +29,16 @@ export default function Home() {
   }, [load]);
 
   async function start(seed?: string) {
-    setLoading(true);
-    try {
-      // 첫 렌더 직후 클릭하면 세션 로드가 끝나기 전일 수 있다 → 저장된 id 를 직접 읽는다
-      const ownerId = userId ?? storedUserId() ?? undefined;
-      const course = await api.createCourse(ownerId);
-      const q = seed ? `?seed=${encodeURIComponent(seed)}` : "";
-      router.push(`/plan/${course.id}${q}`);
-    } catch {
-      toast("코스를 만들지 못했어요. 잠시 후 다시 시도해주세요.", "error");
-      setLoading(false);
+    // 첫 렌더 직후 클릭하면 세션 로드가 끝나기 전일 수 있다 → 저장된 id 를 직접 읽는다
+    if (!(userId ?? storedUserId())) {
+      const q = seed ? `&seed=${encodeURIComponent(seed)}` : "";
+      router.push(`/start?next=${NEW_COURSE}${q}`);
+      return;
     }
+    setLoading(true);
+    const url = await createCourseUrl(seed);
+    if (url) router.push(url);
+    else setLoading(false);
   }
 
   return (
@@ -70,9 +69,9 @@ export default function Home() {
 
       {!userId && (
         <p style={{ marginTop: "var(--sp-3)", fontSize: "var(--fs-sm)", color: "var(--text-muted)" }}>
-          AI에게 조건을 말하려면 가입이 필요해요.{" "}
-          <Link href="/onboarding" style={{ color: "var(--brand-strong)", fontWeight: 600 }}>
-            30초 가입하기
+          가입 없이 한 번 써 볼 수 있어요. 이미 써 봤다면{" "}
+          <Link href="/login" style={{ color: "var(--brand-strong)", fontWeight: 600 }}>
+            로그인
           </Link>
         </p>
       )}

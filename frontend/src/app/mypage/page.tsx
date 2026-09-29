@@ -12,7 +12,7 @@ import type { Course } from "@/types";
 
 // 마이페이지: 내가 만든 코스 히스토리 + 북마크 (9-4).
 export default function MyPage() {
-  const { userId, load, clearUser } = useUserStore();
+  const { userId, kind, load, clearUser } = useUserStore();
   const [courses, setCourses] = useState<Course[]>([]);
   const [bookmarks, setBookmarks] = useState<Course[]>([]);
   const [loadError, setLoadError] = useState(false);
@@ -61,10 +61,10 @@ export default function MyPage() {
       <main style={{ padding: "var(--sp-12) var(--sp-4)", maxWidth: 640, margin: "0 auto" }}>
         <EmptyState
           title="로그인이 필요해요"
-          description="가입하면 만든 코스와 북마크를 저장할 수 있어요."
+          description="로그인하면 만든 코스와 북마크를 저장할 수 있어요."
           action={
-            <Link href="/onboarding" style={{ textDecoration: "none" }}>
-              <Button variant="primary" style={{ marginTop: "var(--sp-4)" }}>가입 · 설정하기</Button>
+            <Link href="/login?next=/mypage" style={{ textDecoration: "none" }}>
+              <Button variant="primary" style={{ marginTop: "var(--sp-4)" }}>로그인</Button>
             </Link>
           }
         />
@@ -75,6 +75,24 @@ export default function MyPage() {
   return (
     <main style={{ padding: "var(--sp-8) var(--sp-4)", maxWidth: 640, margin: "0 auto" }}>
       <h1>마이페이지</h1>
+
+      {kind === "guest" && (
+        <p
+          role="note"
+          style={{
+            padding: "var(--sp-3)",
+            border: "1px solid var(--border)",
+            borderRadius: "var(--r-md)",
+            fontSize: "var(--fs-sm)",
+            color: "var(--text-muted)",
+          }}
+        >
+          체험 중이에요. 로그인하지 않으면 30일 뒤 기록이 지워져요.{" "}
+          <Link href="/login?next=/mypage" style={{ color: "var(--brand-strong)", fontWeight: 600 }}>
+            로그인하고 이어가기
+          </Link>
+        </p>
+      )}
 
       {loadError && (
         <p role="alert" style={{ color: "var(--danger)", fontSize: "var(--fs-sm)" }}>
@@ -155,7 +173,8 @@ export default function MyPage() {
           disabled={deleting}
           onClick={async () => {
             if (!userId) return;
-            if (!window.confirm("계정과 내 코스·북마크가 모두 삭제돼요. 계속할까요?")) return;
+            const what = kind === "guest" ? "체험 기록" : "계정과 내 코스·북마크";
+            if (!window.confirm(`${what}이 모두 삭제돼요. 계속할까요?`)) return;
             setDeleting(true);
             try {
               await api.deleteAccount(userId);
@@ -169,7 +188,7 @@ export default function MyPage() {
           }}
           style={{ color: "var(--danger)" }}
         >
-          {deleting ? "삭제 중…" : "회원 탈퇴"}
+          {deleting ? "삭제 중…" : kind === "guest" ? "체험 기록 지우기" : "회원 탈퇴"}
         </Button>
       </section>
     </main>

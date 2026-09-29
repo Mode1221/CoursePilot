@@ -46,7 +46,7 @@ def test_질문에는_코스를_바꾸지_않고_답한다():
     )
 
     after = client.get(f"/courses/{cid}").json()["items"]
-    text = client.get(f"/courses/{cid}/messages").json()[-1]["text"]
+    text = client.get(f"/courses/{cid}/messages", headers={"X-User-Id": uid}).json()[-1]["text"]
     assert [i["place"]["id"] for i in after] == [i["place"]["id"] for i in before]
     # 주차를 물었으면 주차로 답한다(코스 요약을 되풀이하지 않는다)
     assert "주차" in text
@@ -65,4 +65,4 @@ def test_물음표가_붙은_편집_요청은_편집으로_처리한다():
         headers={"X-User-Id": uid},
         json={"text": "2번째 카페로 바꿔줄래?"},
     )
-    assert "바꿨어요" in client.get(f"/courses/{cid}/messages").json()[-1]["text"]
+    assert "바꿨어요" in client.get(f"/courses/{cid}/messages", headers={"X-User-Id": uid}).json()[-1]["text"]

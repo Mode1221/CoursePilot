@@ -62,7 +62,9 @@ def test_특수문자를_이스케이프한다():
 
 
 def test_엔드포인트가_ics를_내려준다():
-    cid = client.post("/courses").json()["id"]
+    from tests.helpers import owned_course
+
+    _, cid = owned_course(client)
     res = client.get(f"/courses/{cid}/calendar.ics")
     assert res.status_code == 200
     assert res.headers["content-type"].startswith("text/calendar")

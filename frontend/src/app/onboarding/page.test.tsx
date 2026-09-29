@@ -14,6 +14,7 @@ vi.mock("@/services/api", () => ({
     getPreferences: vi.fn(),
     requestSmsCode: vi.fn(),
     verifySmsCode: vi.fn(),
+    publicConfig: vi.fn(),
   },
   ApiError: class extends Error {
     constructor(public status: number) {
@@ -39,6 +40,7 @@ describe("온보딩", () => {
     vi.mocked(api.verifySmsCode).mockReset();
     vi.mocked(api.requestSmsCode).mockResolvedValue({ sent: true, dev_code: "123456" });
     vi.mocked(api.verifySmsCode).mockResolvedValue({ verified: true });
+    vi.mocked(api.publicConfig).mockResolvedValue({ naver_map_client_id: "", phone_login: true });
     useUserStore.setState({ userId: null });
     localStorage.clear();
   });
@@ -192,5 +194,12 @@ describe("온보딩", () => {
     fireEvent.click(screen.getByText("저장"));
     expect((await screen.findByRole("alert")).textContent).toContain("동의");
     expect(api.signup).not.toHaveBeenCalled();
+  });
+
+  it("운영에서 문자 인증이 꺼져 있으면 로그인·체험으로 안내한다", async () => {
+    vi.mocked(api.publicConfig).mockResolvedValue({ naver_map_client_id: "", phone_login: false });
+    render(<Onboarding />);
+    expect(await screen.findByText("가입 없이 시작하기")).toBeDefined();
+    expect(screen.queryByPlaceholderText("010-0000-0000")).toBeNull();
   });
 });

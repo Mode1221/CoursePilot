@@ -92,3 +92,45 @@ describe("일시적 실패 복구", () => {
     await expect(api.generate("c1", "성수동")).rejects.toThrow(/응답이 너무 늦어요/);
   });
 });
+
+describe("체험·로그인 신원", () => {
+  afterEach(() => localStorage.clear());
+
+  function okFetch() {
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      status: 200,
+      headers: { get: () => null },
+      text: async () => JSON.stringify({ id: "c1", items: [] }),
+    });
+    vi.stubGlobal("fetch", fetchMock);
+    return fetchMock;
+  }
+
+  it("저장된 신원(체험 포함)은 모든 요청에 붙는다", async () => {
+    localStorage.setItem("coursepilot_user_id", "g1");
+    localStorage.setItem("coursepilot_user_token", "1.sig");
+    const fetchMock = okFetch();
+    await api.setItems("c1", []);
+    const headers = fetchMock.mock.calls[0][1].headers as Record<string, string>;
+    expect(headers["X-User-Id"]).toBe("g1");
+    expect(headers["X-User-Token"]).toBe("1.sig");
+  });
+
+  it("같이 정하는 상대는 그 코스의 링크 토큰으로 고친다", async () => {
+    localStorage.setItem("coursepilot_together_token:c1", "tok");
+    const fetchMock = okFetch();
+    await api.setItems("c1", []);
+    expect((fetchMock.mock.calls[0][1].headers as Record<string, string>)["X-Together-Token"]).toBe("tok");
+    await api.setItems("c2", []);
+    expect((fetchMock.mock.calls[1][1].headers as Record<string, string>)["X-Together-Token"]).toBeUndefined();
+  });
+
+  it("한도 응답의 code 를 담는다", async () => {
+    stubResponse(429, { detail: "오늘 쓸 수 있는 횟수를 다 썼어요.", code: "daily_limit" });
+    const err = await api.createCourse().catch((e) => e);
+    expect(err).toBeInstanceOf(ApiError);
+    expect(err.code).toBe("daily_limit");
+    expect(err.message).toContain("오늘");
+  });
+});

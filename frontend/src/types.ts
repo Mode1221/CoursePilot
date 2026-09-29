@@ -83,6 +83,7 @@ export interface TogetherPublic {
 
 export interface Course {
   id: string;
+  owner_id?: string | null; // 만든 사람(체험 계정 포함). 이 사람과 같이 정하는 상대만 고칠 수 있다
   title: string;
   region?: string | null;
   plan_date?: string | null; // YYYY-MM-DD (모임 날짜)

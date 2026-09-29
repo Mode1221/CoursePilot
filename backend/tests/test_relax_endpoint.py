@@ -1,23 +1,19 @@
 from fastapi.testclient import TestClient
 
 import app.main as main
+from tests.helpers import owned_course
 
 client = TestClient(main.api)
 
 
-def _new_course(user_id: str) -> str:
-    res = client.post("/courses", headers={"X-User-Id": user_id})
-    return res.json()["id"]
-
-
 def test_relax_requires_owner():
-    course_id = _new_course("u1")
+    _, course_id = owned_course(client)
     assert client.post(f"/courses/{course_id}/relax").status_code == 403
 
 
 def test_relax_without_previous_request():
-    course_id = _new_course("u1")
-    res = client.post(f"/courses/{course_id}/relax", headers={"X-User-Id": "u1"})
+    uid, course_id = owned_course(client)
+    res = client.post(f"/courses/{course_id}/relax", headers={"X-User-Id": uid})
     assert res.status_code == 400
 
 

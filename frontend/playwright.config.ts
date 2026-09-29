@@ -25,7 +25,9 @@ export default defineConfig({
   ],
   webServer: [
     {
-      command: "cd ../backend && RATE_LIMIT_PER_MIN=1000 python -m uvicorn app.main:app --port 8000",
+      // 한 IP(127.0.0.1)에서 여러 체험을 연달아 시작하므로 IP 당 체험 상한을 올린다
+      command:
+        "cd ../backend && RATE_LIMIT_PER_MIN=1000 TRIAL_COURSES_PER_IP_DAY=1000 TRIAL_GUESTS_PER_IP_DAY=1000 python -m uvicorn app.main:app --port 8000",
       url: "http://localhost:8000/health",
       reuseExistingServer: !process.env.CI,
       timeout: 60_000,

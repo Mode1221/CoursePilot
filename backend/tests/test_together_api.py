@@ -121,8 +121,10 @@ def test_공개_설정은_지도_키_ID_만(client, monkeypatch):
     monkeypatch.setattr(settings, "naver_map_client_id", "")
     monkeypatch.setattr(settings, "ncp_api_key_id", "key-id")
     monkeypatch.setattr(settings, "ncp_api_key", "SECRET")
+    monkeypatch.setattr(settings, "kakao_login_client_id", "")
     body = client.get("/config/public").json()
-    assert body == {"naver_map_client_id": "key-id"}
+    assert body == {"naver_map_client_id": "key-id", "kakao_login_client_id": None, "phone_login": True}
+    assert "SECRET" not in str(body)
 
 
 def test_상대는_링크_토큰으로_무료_기간에_AI_를_쓸_수_있다(client, monkeypatch):

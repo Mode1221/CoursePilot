@@ -366,9 +366,9 @@ export default function ChatPanel({ courseId, compact = false }: { courseId: str
           {userId == null && partnerToken != null && <span>같이 정하는 중 · AI로 바로 코스를 고쳐 보세요</span>}
           {!canUseAi && (
             <span style={{ display: "flex", alignItems: "center", gap: "var(--sp-2)" }}>
-              참여자는 수동 편집만 가능합니다
-              <Link href="/onboarding" style={{ color: "var(--brand-strong)", fontWeight: 600 }}>
-                가입하고 AI 쓰기
+              이 코스는 만든 사람만 AI로 고칠 수 있어요
+              <Link href="/start?next=new" style={{ color: "var(--brand-strong)", fontWeight: 600 }}>
+                나도 만들어보기
               </Link>
             </span>
           )}
@@ -408,7 +408,7 @@ export default function ChatPanel({ courseId, compact = false }: { courseId: str
             onChange={(e) => setText(e.target.value)}
             onKeyDown={(e) => e.key === "Enter" && !e.nativeEvent.isComposing && send()}
             placeholder={
-              !canUseAi ? "가입하면 AI에게 조건을 말할 수 있어요" : "예: 2번 다른 곳으로, 매운 거 빼줘"
+              !canUseAi ? "내 코스를 만들면 AI에게 조건을 말할 수 있어요" : "예: 2번 다른 곳으로, 매운 거 빼줘"
             }
             disabled={sending || !canUseAi}
             aria-label="조건 입력"

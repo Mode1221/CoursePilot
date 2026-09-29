@@ -41,4 +41,4 @@ def test_비운_뒤_안내문이_나온다():
         f"/courses/{cid}/generate", headers={"X-User-Id": uid}, json={"text": "다 지워"}
     )
     assert client.get(f"/courses/{cid}").json()["items"] == []
-    assert "비웠어요" in client.get(f"/courses/{cid}/messages").json()[-1]["text"]
+    assert "비웠어요" in client.get(f"/courses/{cid}/messages", headers={"X-User-Id": uid}).json()[-1]["text"]
