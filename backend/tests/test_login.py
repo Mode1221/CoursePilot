@@ -207,3 +207,23 @@ def test_가입하지_않은_체험은_30일_뒤_지운다(db):
     assert store.get(course.id) is None
     assert user_store.get(fresh.id) is not None
     assert user_store.get(kept_member.id) is not None
+
+
+def test_이어받기가_회원의_기존_커플_기록을_덮어쓰지_않는다(client, kakao):
+    from app.couples import couple_store
+
+    member_id = client.post("/auth/kakao", json={"code": "c", "redirect_uri": CB}).json()["user_id"]
+    mine = couple_store.get(f"{member_id}:상대")
+    mine.courses = 5
+    couple_store.save(f"{member_id}:상대", mine)
+
+    guest = _guest(client)
+    cid = client.post("/courses", headers={"X-User-Id": guest}).json()["id"]
+    client.post(f"/courses/{cid}/together", json={"text": "토요일 3시 성수"}, headers={"X-User-Id": guest})
+    theirs = couple_store.get(f"{guest}:상대")
+    theirs.courses = 1
+    couple_store.save(f"{guest}:상대", theirs)
+
+    client.post("/auth/kakao", json={"code": "c", "redirect_uri": CB}, headers={"X-User-Id": guest})
+    assert couple_store.get(f"{member_id}:상대").courses == 5
+    assert couple_store.get(f"{guest}:상대").courses == 0  # 원본은 지운다

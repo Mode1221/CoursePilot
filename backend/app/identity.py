@@ -91,13 +91,20 @@ def course_editor(
     코스 id 는 공유 링크로 누구에게나 간다 — id 만 알아서는 고칠 수 없어야 한다.
     """
     if together_token and course.together is not None:
-        if secrets.compare_digest(course.together.token, together_token):
+        if token_matches(course.together.token, together_token):
             return "partner"
     if course.owner_id is not None and user_id == course.owner_id:
         if not verify(course.owner_id, user_token):
             raise HTTPException(status_code=401, detail="다시 로그인해 주세요")
         return "owner"
     raise HTTPException(status_code=403, detail="이 코스를 만든 사람이나 같이 정하는 상대만 고칠 수 있어요")
+
+
+def token_matches(expected: str, given: str | None) -> bool:
+    """상수 시간 비교. 헤더에 비 ASCII 가 오면 str 비교가 TypeError(500)라 바이트로 비교한다."""
+    if not given:
+        return False
+    return secrets.compare_digest(expected.encode(), given.encode("utf-8", "ignore"))
 
 
 def merge_guest(guest_id: str, member_id: str) -> int:
@@ -111,6 +118,7 @@ def merge_guest(guest_id: str, member_id: str) -> int:
     if guest is None or not is_guest(guest):
         return 0
 
+    from app.behavior import behavior_store
     from app.bookmarks import bookmark_store
     from app.couples import couple_store
     from app.store import store
@@ -125,8 +133,12 @@ def merge_guest(guest_id: str, member_id: str) -> int:
         new_key = couple_key_for(course, member_id)
         if old_key and new_key:
             st = couple_store.get(old_key)
-            if st.courses or st.visited or st.ratings:
+            mine = couple_store.get(new_key)
+            # 회원에게 같은 이름의 상대 기록이 이미 있으면 덮어쓰지 않는다(그쪽이 더 오래 쌓인 기록이다)
+            if (st.courses or st.visited or st.ratings) and not (mine.courses or mine.visited or mine.ratings):
                 couple_store.save(new_key, st)
+    couple_store.delete_owner(guest_id)
+    behavior_store.delete_user(guest_id)
     for cid in bookmark_store.list_course_ids(guest_id, limit=1000):
         bookmark_store.add(member_id, cid)
     bookmark_store.remove_all(guest_id)
@@ -157,8 +169,10 @@ def purge_guests(older_than_days: int = 30) -> dict:
 
     from sqlalchemy import select
 
+    from app.behavior import behavior_store
     from app.bookmarks import bookmark_store
     from app.chat import chat_store
+    from app.couples import couple_store
     from app.db import SessionLocal, is_ready
     from app.models import UserModel
     from app.store import store
@@ -183,6 +197,8 @@ def purge_guests(older_than_days: int = 30) -> dict:
             chat_store.clear(course.id)
             courses += 1
         bookmark_store.remove_all(uid)
+        couple_store.delete_owner(uid)
+        behavior_store.delete_user(uid)
         forget_subject(uid)
         user_store.delete(uid)
     pruned = counters.prune()

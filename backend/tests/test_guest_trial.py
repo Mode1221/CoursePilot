@@ -218,3 +218,83 @@ def test_상대는_링크_토큰으로_손_편집을_할_수_있다(client):
     assert client.get(f"/courses/{cid}/messages", headers={"X-Together-Token": token}).status_code == 200
     wrong = client.post(f"/courses/{cid}/items", json={"place_ids": []}, headers={"X-Together-Token": "nope"})
     assert wrong.status_code == 403
+
+
+# ── 독립 검토에서 나온 구멍 ───────────────────────────────────────────────
+def test_질문만_반복해도_LLM_을_끝없이_쓰지_못한다(client, monkeypatch):
+    """질문은 AI 몫을 돌려받지만 대신 '질문' 몫을 쓴다 — 다 쓰면 AI 몫을 쓴 것으로 남는다."""
+    monkeypatch.setitem(usage.LIMITS, "ai", usage.Limit(guest=2, member=30))
+    monkeypatch.setitem(usage.LIMITS, "ask", usage.Limit(guest=2, member=100))
+    uid = _guest(client)
+    cid = client.post("/courses", headers=H(uid)).json()["id"]
+    assert client.post(f"/courses/{cid}/generate", json={"text": "성수동 오후 2시 3시간"}, headers=H(uid)).status_code == 200
+    codes = [
+        client.post(f"/courses/{cid}/generate", json={"text": "여기 주차 되나요?"}, headers=H(uid)).status_code
+        for _ in range(6)
+    ]
+    # 질문 2번은 질문 몫, 3번째는 AI 몫 마지막 1회를 쓰고, 그다음부터는 막힌다
+    assert codes[:3] == [200, 200, 200]
+    assert codes[3:] == [403, 403, 403]
+
+
+def test_리뷰_요약은_서버가_가진_이름만_쓴다(client, monkeypatch):
+    """클라이언트가 보낸 이름으로 다른 가게 리뷰를 이 장소에 심지 못한다."""
+    import app.main as main
+    from app.places import place_repo
+    from app.schemas import Place
+
+    main._summary_cache.clear()
+    seen: list[str] = []
+
+    async def fake_fetch(name, limit=5):
+        seen.append(name)
+        return []
+
+    monkeypatch.setattr("app.reviews.rag.fetch_filtered", fake_fetch)
+    place_repo.upsert_many([Place(id="real-1", name="진짜 가게", lat=37.5, lng=127.0)])
+    client.post("/reviews/summary", json={"place_id": "real-1", "place_name": "다른 가게"}, headers=H(member(client)))
+    assert seen == ["진짜 가게"]
+    # 모르는 장소는 유료 호출도, 횟수 차감도 없다
+    before = usage.counters.used(f"d:{usage.today()}:review:x")
+    res = client.post("/reviews/summary", json={"place_id": "nope", "place_name": "아무 가게"})
+    assert res.json()["count"] == 0 and seen == ["진짜 가게"]
+    assert usage.counters.used(f"d:{usage.today()}:review:x") == before
+
+
+def test_신원_없는_IP_몫은_하루_단위다(client, monkeypatch):
+    monkeypatch.setitem(usage.LIMITS, "search", usage.Limit(guest=1, member=300))
+    assert client.get("/places/search", params={"region": "성수동"}).status_code == 200
+    keys = [k for k in usage.counters._mem if ":search:ip-" in k]
+    assert keys and all(k.startswith(f"d:{usage.today()}:") for k in keys)
+
+
+def test_비ASCII_링크_토큰은_예외가_아니라_불일치():
+    """헤더에 비 ASCII 가 오면 str 상수 시간 비교가 TypeError(500)를 냈다."""
+    from app.identity import token_matches
+
+    assert token_matches("tok-1", "토큰") is False
+    assert token_matches("tok-1", "tok-1") is True
+    assert token_matches("tok-1", None) is False
+
+
+async def test_대화는_편집_권한자만_소켓으로_받는다(monkeypatch):
+    from app import realtime
+    from app.schemas import Course, TogetherState
+    from app.store import store
+
+    entered: list[str] = []
+
+    async def _enter(sid, room):
+        entered.append(room)
+
+    async def _emit(*a, **k):
+        return None
+
+    monkeypatch.setattr(realtime.sio, "enter_room", _enter)
+    monkeypatch.setattr(realtime.sio, "emit", _emit)
+    store.save(Course(id="cc1", owner_id="owner-x", together=TogetherState(token="tok-1", request_text="성수")))
+    await realtime.join("viewer", {"course_id": "cc1"})
+    assert entered == ["cc1"]  # 공유 링크로 보는 사람: 코스 상태만
+    entered.clear()
+    await realtime.join("partner", {"course_id": "cc1", "together_token": "tok-1"})
+    assert entered == ["cc1", "cc1#chat"]

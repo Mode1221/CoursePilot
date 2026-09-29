@@ -98,6 +98,24 @@ class CoupleStore:
         self.save(key, st)
         return st
 
+    def delete_owner(self, owner_id: str) -> int:
+        """한 사람이 시작한 모든 커플 기록을 지운다(체험 정리·이어받기 뒤 원본 정리)."""
+        prefix = f"{owner_id}:"
+        if is_ready():
+            from sqlalchemy import delete
+
+            from app.db import SessionLocal
+            from app.models import CoupleModel
+
+            with SessionLocal() as s:
+                res = s.execute(delete(CoupleModel).where(CoupleModel.key.startswith(prefix)))
+                s.commit()
+                return int(res.rowcount or 0)
+        gone = [k for k in self._mem if k.startswith(prefix)]
+        for k in gone:
+            del self._mem[k]
+        return len(gone)
+
     def reset(self) -> None:  # 테스트용
         self._mem.clear()
 

@@ -48,7 +48,7 @@ def _rooms_of(sid: str) -> list[str]:
         rooms = sio.rooms(sid)
     except Exception:  # pragma: no cover - 매니저 구현에 따라 조회 불가할 수 있다
         return []
-    return [r for r in rooms if r != sid]
+    return [r for r in rooms if r != sid and not r.endswith("#chat")]
 
 
 def _room_size(course_id: str, exclude: str | None = None) -> int:
@@ -78,12 +78,36 @@ async def join(sid, data):
         return
     from app.store import store
 
-    if store.get(course_id) is None:
+    course = store.get(course_id)
+    if course is None:
         return
     if course_id:
         await sio.enter_room(sid, course_id)
+        # 대화는 만든 사람·같이 정하는 상대만 받는다(공유 링크로 보는 사람에게는 코스 상태만)
+        if _can_read_chat(course, data):
+            await sio.enter_room(sid, chat_room(course_id))
         await sio.emit("joined", {"course_id": course_id}, to=sid)
         await broadcast_presence(course_id)
+
+
+def chat_room(course_id: str) -> str:
+    return f"{course_id}#chat"
+
+
+def _can_read_chat(course, data: dict) -> bool:
+    from fastapi import HTTPException
+
+    from app.identity import course_editor
+
+    def _s(key: str) -> str | None:
+        v = data.get(key)
+        return v if isinstance(v, str) and len(v) <= 256 else None
+
+    try:
+        course_editor(course, _s("user_id"), _s("user_token"), _s("together_token"))
+    except HTTPException:
+        return False
+    return True
 
 
 @sio.event
@@ -96,6 +120,7 @@ async def leave(sid, data):
     course_id = data.get("course_id") if isinstance(data, dict) else None
     if isinstance(course_id, str) and course_id:
         await sio.leave_room(sid, course_id)
+        await sio.leave_room(sid, chat_room(course_id))
         await sio.emit("left", {"course_id": course_id}, to=sid)
         await broadcast_presence(course_id)
 
@@ -115,5 +140,5 @@ async def broadcast_progress(course_id: str, stage: str) -> None:
 
 
 async def broadcast_message(course_id: str, role: str, text: str) -> None:
-    """채팅 메시지 실시간 전송 (5-2)."""
-    await sio.emit("message", {"role": role, "text": text}, room=course_id)
+    """채팅 메시지 실시간 전송 (5-2). 대화 방(편집 권한자)에만."""
+    await sio.emit("message", {"role": role, "text": text}, room=chat_room(course_id))

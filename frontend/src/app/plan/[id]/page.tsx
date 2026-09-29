@@ -13,7 +13,7 @@ import PartnerBar from "@/components/PartnerBar";
 import TogetherPanel from "@/components/TogetherPanel";
 import { useIsNarrow } from "@/hooks/useIsNarrow";
 import { api } from "@/services/api";
-import { getSocket } from "@/services/socket";
+import { getSocket, joinPayload } from "@/services/socket";
 import { readTogetherToken } from "@/services/togetherToken";
 import { useCourseStore } from "@/store/courseStore";
 import { useUserStore } from "@/store/userStore";
@@ -74,7 +74,7 @@ export default function PlanPage() {
 
     const socket = getSocket();
     setConnected(socket.connected);
-    socket.emit("join", { course_id: id });
+    socket.emit("join", joinPayload(id));
     socket.on("state", (course: Course) => setCourse(course));
     socket.on("locked", () => setLocked(true));
     socket.on("unlocked", () => {
@@ -86,7 +86,7 @@ export default function PlanPage() {
     socket.on("message", (m: { role: "user" | "ai"; text: string }) => appendMessage(m));
     socket.on("connect", () => {
       setConnected(true);
-      socket.emit("join", { course_id: id });
+      socket.emit("join", joinPayload(id));
       refetch(); // 재연결 시 로컬 캐시 복원 대신 서버 상태로 동기화
     });
     socket.on("disconnect", () => setConnected(false));

@@ -93,15 +93,15 @@ def _ai_actor(course_id: str, user_id: str | None, user_token: str | None, toget
     단 검증 기간 무료(FREE_MODE)일 때만(과금 중엔 크레딧 주인이 생성자라 생성자만). 실행 주체는 생성자로 둔다.
     """
     if together_token:
-        import secrets as _secrets
-
         course = store.get(course_id)
         t = course.together if course else None
+        from app.identity import token_matches
+
         if (
             t is not None
             and course.owner_id is not None
             and settings.free_mode
-            and _secrets.compare_digest(t.token, together_token)
+            and token_matches(t.token, together_token)
         ):
             return course.owner_id
     if user_id is None:
@@ -111,18 +111,38 @@ def _ai_actor(course_id: str, user_id: str | None, user_token: str | None, toget
 
 
 def _refunder(x_user_id: str | None, ticket):
-    """결과를 못 줬거나(실패) 코스를 바꾸지 않은(질문·되묻기) 요청은 크레딧과 AI 몫을 함께 돌려준다."""
+    """결과를 못 줬거나(실패) 코스를 바꾸지 않은(질문·되묻기) 요청의 크레딧을 돌려준다.
+
+    AI 몫은 경우가 다르다. 실패면 그대로 돌려주지만, 질문·되묻기는 그 사이 LLM(편집 해석·답변)을
+    불렀을 수 있다 — 통째로 돌려주면 질문만 반복해 LLM 을 끝없이 쓸 수 있었다. 그래서 AI 몫 대신
+    더 넉넉한 '질문' 몫을 쓰고, 그것도 다 썼으면 AI 몫을 쓴 것으로 둔다.
+    """
     done = False
 
-    def refund() -> None:
+    def refund(failed: bool = False) -> None:
         nonlocal done
         if done:
             return
         done = True
         if x_user_id:
             user_store.refund_credit(x_user_id)
-        if ticket is not None:
+        if ticket is None:
+            return
+        if failed or not x_user_id:
             ticket.release()
+            return
+        from app.identity import is_guest
+        from app.usage import UsageDenied, charge
+
+        user = user_store.get(x_user_id)
+        if user is None:
+            ticket.release()
+            return
+        try:
+            charge("ask", subject=x_user_id, guest=is_guest(user))
+        except UsageDenied:
+            return  # 질문 몫도 없다 — AI 몫을 쓴 것으로 둔다
+        ticket.release()
 
     return refund
 
@@ -431,7 +451,7 @@ async def generate(
         except (Exception, asyncio.CancelledError):
             # 큐 타임아웃은 CancelledError 로 들어온다(BaseException 이라 Exception 에 안 걸린다).
             # 그때도 크레딧은 돌려줘야 한다 — 결과를 못 받았으니까.
-            refund()  # 실패 시 소비 크레딧 되돌림
+            refund(failed=True)  # 실패 시 소비 크레딧·AI 몫 되돌림
             course.locked = False
             await broadcast_lock(course_id, False)
             raise

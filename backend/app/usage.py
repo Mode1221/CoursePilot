@@ -40,6 +40,7 @@ class Limit:
 LIMITS: dict[str, Limit] = {
     "course": Limit(guest=1, member=20),  # 새 코스(빈 코스 포함) 만들기
     "ai": Limit(guest=5, member=30),  # AI 코스 생성·수정·완화(LLM + 장소 검색 다수)
+    "ask": Limit(guest=10, member=100),  # 코스를 바꾸지 않는 질문·되묻기(LLM 답변·해석을 부를 수 있다)
     "build": Limit(guest=3, member=20),  # 두 사람 카드 합치기(장소 검색 6~24회)
     "review": Limit(guest=3, member=30),  # 리뷰 요약(Google 2콜 + LLM)
     "search": Limit(guest=30, member=300),  # 장소 직접 검색(카카오)
@@ -95,6 +96,7 @@ def service_busy() -> UsageDenied:
 _FEATURE_NAMES = {
     "course": "코스 만들기",
     "ai": "AI 수정",
+    "ask": "AI 질문",
     "build": "코스 합치기",
     "review": "리뷰 요약",
     "search": "장소 검색",
@@ -237,8 +239,9 @@ def _db_ready() -> bool:
 
 # ── 키 ────────────────────────────────────────────────────────────────────
 def _person_key(feature: str, subject: str, guest: bool, now: datetime | None = None) -> str:
-    # 게스트 몫은 날짜가 없다(평생 1회분). 회원·IP 몫은 날짜별.
-    if guest:
+    # 게스트 몫은 날짜가 없다(평생 1회분). 회원·IP 몫은 날짜별 — 신원 없는 IP 는 통신사 NAT 뒤에
+    # 여러 사람이 함께 있을 수 있어 평생 몫이면 영영 막힌다(하루 단위로 다시 찬다).
+    if guest and not subject.startswith("ip-"):
         return f"t:{feature}:{subject}"
     return f"d:{today(now)}:{feature}:{subject}"
 

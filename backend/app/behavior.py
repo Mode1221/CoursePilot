@@ -41,6 +41,20 @@ class BehaviorStore:
         ranked = sorted(counts.items(), key=lambda kv: kv[1], reverse=True)
         return [cat for cat, c in ranked[:k] if c >= min_count]
 
+    def delete_user(self, user_id: str) -> None:
+        """사람을 지울 때 그 사람의 행동 프로필도 지운다."""
+        if self._db_ready():
+            from sqlalchemy import delete
+
+            from app.db import SessionLocal
+            from app.models import BehaviorModel
+
+            with SessionLocal() as s:
+                s.execute(delete(BehaviorModel).where(BehaviorModel.user_id == user_id))
+                s.commit()
+            return
+        self._mem.pop(user_id, None)
+
     def _counts(self, user_id: str) -> dict[str, float]:
         if self._db_ready():
             from sqlalchemy import select

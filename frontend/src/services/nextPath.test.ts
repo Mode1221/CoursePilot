@@ -9,5 +9,8 @@ describe("safeNext", () => {
     expect(safeNext("/\\evil.com")).toBe("/");
     expect(safeNext("https://evil.com")).toBe("/");
     expect(safeNext(null, "/mypage")).toBe("/mypage");
+    expect(safeNext("/\t/evil.com")).toBe("/");
+    expect(safeNext("/\n/evil.com")).toBe("/");
+    expect(safeNext("/%2F%2Fevil.com")).toBe("/%2F%2Fevil.com"); // 인코딩된 채로는 경로일 뿐
   });
 });

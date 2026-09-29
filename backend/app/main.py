@@ -496,7 +496,22 @@ async def review_summary(
     cached = _summary_cache_get(cache_key)
     if cached is not None:
         return cached
+    from app.places import place_repo
+
+    # 이름은 서버가 가진 값만 쓴다 — 클라이언트가 보낸 이름으로 다른 가게 리뷰를 이 장소에 심을 수 있었다
+    stored = place_repo.get_many([req.place_id]).get(req.place_id)
+    if stored is None:
+        return {"summary": "", "count": 0, "pros": [], "cons": []}
     ticket = _metered("review", request, x_user_id, x_user_token)
+    try:
+        return await _review_summary(req.place_id, stored, cache_key, ticket)
+    except BaseException:
+        ticket.release()  # 결과를 못 줬다
+        raise
+
+
+async def _review_summary(place_id: str, stored: Place, cache_key: tuple[str, str], ticket) -> dict:
+    query = "분위기 방문 후기"  # 고정 — 질의를 바꿔 가며 유료 호출을 반복하지 못하게
 
     from app.db import is_ready
     from app.reviews.aspects import extract_aspects
@@ -509,25 +524,21 @@ async def review_summary(
 
     db_ready = is_ready()
     if db_ready:
-        found = await retrieve(req.place_id, req.query, db_ready=db_ready)
+        found = await retrieve(place_id, query, db_ready=db_ready)
         if not found:
             # 최초 조회 시 수집 후 재검색
-            await ingest_place_reviews(req.place_id, req.place_name, db_ready)
-            found = await retrieve(req.place_id, req.query, db_ready=db_ready)
+            await ingest_place_reviews(place_id, stored.name, db_ready)
+            found = await retrieve(place_id, query, db_ready=db_ready)
     else:
         # DB 미사용(개발): 수집+협찬 필터만 적용한 리뷰를 바로 요약
-        found = await fetch_filtered(req.place_name)
+        found = await fetch_filtered(stored.name)
     summary = await summarize_reviews(found)
     pros, cons = extract_aspects(found)
     # 배치가 모아 둔 사실 태그(주차·단체석 등)를 함께 얹는다 — 리뷰 소스 키가 없어도
     # 이 정보는 쓸 수 있고, 리뷰에서 뽑은 축과 중복되면 한 번만 보여준다.
-    from app.places import place_repo
-
-    stored = place_repo.get_many([req.place_id]).get(req.place_id)
-    if stored is not None:
-        pros = pros + [t for t in stored.fact_tags if t not in pros]
-        cons = cons + [t for t in stored.caution_tags if t not in cons]
-        pros = [t for t in pros if t not in cons]
+    pros = pros + [t for t in stored.fact_tags if t not in pros]
+    cons = cons + [t for t in stored.caution_tags if t not in cons]
+    pros = [t for t in pros if t not in cons]
     result = {"summary": summary, "count": len(found), "pros": pros, "cons": cons}
     if found:  # 빈 결과는 캐시하지 않는다(수집 전일 수 있음)
         _summary_cache_put(cache_key, result)

@@ -41,7 +41,7 @@ async def test_leave_는_room_에서_뺀다(monkeypatch):
     monkeypatch.setattr(realtime.sio, "emit", _emit)
 
     await realtime.leave("sid1", {"course_id": "c1"})
-    assert left == [("sid1", "c1")]
+    assert left == [("sid1", "c1"), ("sid1", "c1#chat")]  # 대화 방도 함께 나간다
     assert emitted == ["left", "presence"]
 
 
