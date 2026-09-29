@@ -117,8 +117,11 @@ claude/… 푸시 → CI(린트·테스트·E2E·도커) → auto-merge.yml: PR 
    **Read and write permissions** 선택 + **Allow GitHub Actions to create and approve pull requests** 체크 → Save.
 2. VM 에서 배포 키 만들기(한 번):
    ```bash
-   cd /opt/coursepilot && git pull && ./scripts/ops/setup_deploy_key.sh
+   cd /opt/coursepilot && git fetch -q origin && git checkout -q --detach origin/main && ./scripts/ops/setup_deploy_key.sh
    ```
+   VM 저장소는 자동 배포가 커밋 sha 로 체크아웃해 두므로 **브랜치 위에 있지 않다** — `git pull` 은
+   "not currently on a branch" 로 실패한다. 손으로 최신 main 을 배포할 때도 `git pull` 대신
+   `./scripts/ops/auto_deploy.sh` 를 쓴다(최신 main 을 받아 sha 이미지로 배포, 실패하면 되돌림).
    출력되는 값 4개(`DEPLOY_HOST`·`DEPLOY_USER`·`DEPLOY_KNOWN_HOSTS`·`DEPLOY_SSH_KEY`)를
    **Settings → Secrets and variables → Actions → New repository secret** 으로 넣는다.
    이 키는 authorized_keys 에 `command=` 로 묶여 배포 스크립트만 실행된다(셸 접속·포트 포워딩 불가).
