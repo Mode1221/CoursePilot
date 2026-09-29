@@ -36,3 +36,4 @@ frontend/.playwright/
 frontend/pnpm-workspace.yaml
 frontend/pnpm-workspace.yaml
 /.deploy/
+frontend/qa-report.json

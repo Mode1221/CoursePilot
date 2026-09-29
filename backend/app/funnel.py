@@ -54,6 +54,10 @@ class FunnelStore:
         at: datetime | None = None,
     ) -> bool:
         """once=True 면 (name, course_id[, actor]) 가 이미 있으면 기록하지 않는다. 기록했으면 True."""
+        from app.qa import learning_on
+
+        if not learning_on():  # 운영 자동 QA 는 학습 신호를 쌓지 않는다
+            return False
         if name not in EVENTS:
             raise ValueError(name)
         if once and self._exists(name, course_id, actor):

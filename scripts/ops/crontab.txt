@@ -21,6 +21,13 @@ PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
 # 요즘 뜨는 곳(검색 트렌드·리뷰 증가·비협찬 블로그) + 진행 중인 팝업·전시 — 매일 05:30
 30 5 * * * cd {{ROOT}} && docker compose -f docker-compose.prod.yml exec -T backend nice -n 19 python scripts/refresh_hot.py >> {{ROOT}}/logs/refresh_hot.log 2>&1
 
+# 팝업·행사는 며칠짜리가 많아 하루 한 번이면 늦다 — 점심·저녁 전에 한 번씩 더(데이터랩 호출 없음)
+30 12 * * * cd {{ROOT}} && docker compose -f docker-compose.prod.yml exec -T backend nice -n 19 python scripts/refresh_hot.py --only popups >> {{ROOT}}/logs/refresh_hot.log 2>&1
+30 17 * * * cd {{ROOT}} && docker compose -f docker-compose.prod.yml exec -T backend nice -n 19 python scripts/refresh_hot.py --only popups >> {{ROOT}}/logs/refresh_hot.log 2>&1
+
+# 추천 품질 회귀 점검(실데이터 48개 코스 채점) — 매일 06:15, 기준 미달이면 웹훅
+15 6 * * * {{ROOT}}/scripts/ops/quality_check.sh >> {{ROOT}}/logs/quality.log 2>&1
+
 # 가입하지 않은 체험 계정(30일 지남)·지난 사용 한도 카운터 정리 — 매일 05:45
 45 5 * * * cd {{ROOT}} && docker compose -f docker-compose.prod.yml exec -T backend nice -n 19 python scripts/purge_guests.py >> {{ROOT}}/logs/purge_guests.log 2>&1
 

@@ -60,6 +60,10 @@ class Settings(BaseSettings):
     # 한 IP 에서 하루에 새로 시작할 수 있는 체험 계정 수(저장소를 지워 가며 체험을 반복하지 못하게)
     trial_guests_per_ip_day: int = 3
 
+    # 운영 자동 QA(GitHub Actions) 전용 토큰. 비우면 QA 세션 발급·표시가 꺼진다.
+    # QA 요청은 학습 신호를 쌓지 않는다(점검이 추천을 왜곡하지 않게). 32자 이상 무작위 값.
+    qa_token: str = ""
+
     # 폐업·업력 원천: LOCALDATA(지방행정 인허가) CSV 디렉터리.
     # 무료·무인증이며 시군구 단위 파일을 주 1회 갱신한다. 비우면 필터 미적용.
     localdata_csv_dir: str = ""

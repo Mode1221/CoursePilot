@@ -30,6 +30,10 @@ class CooccurrenceStore:
 
     def bump_course(self, place_ids: list[str], weight: float = 1.0) -> None:
         """코스에 함께 담긴 장소 쌍을 모두 가중 누적."""
+        from app.qa import learning_on
+
+        if not learning_on():  # 운영 자동 QA 는 학습 신호를 쌓지 않는다
+            return
         uniq = list(dict.fromkeys(place_ids))  # 중복 제거·순서 유지
         pairs = list(combinations(uniq, 2))
         if not pairs:

@@ -128,6 +128,18 @@ async def queue_overflow(_request: Request, _exc: QueueOverflow) -> JSONResponse
     )
 
 
+@api.middleware("http")
+async def qa_marker(request: Request, call_next):
+    """운영 자동 QA 요청 표시(학습 신호를 쌓지 않게). 토큰이 맞을 때만 켜진다."""
+    from app import qa
+
+    handle = qa.mark(request.headers.get("X-QA-Token"))
+    try:
+        return await call_next(request)
+    finally:
+        qa.reset(handle)
+
+
 @api.exception_handler(UsageDenied)
 async def usage_denied(_request: Request, exc: UsageDenied) -> JSONResponse:
     """한도에 걸림. `code` 로 프론트가 체험 시작·로그인·내일 다시 중 무엇을 권할지 고른다."""

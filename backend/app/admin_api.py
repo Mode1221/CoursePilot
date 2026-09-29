@@ -90,3 +90,19 @@ async def admin_signals(x_admin_token: str | None = Header(default=None)) -> dic
         # 온보딩 설문 응답률·분포(문항 수·문구 조정 근거)
         "preferences": user_store.preference_stats(),
     }
+
+
+@admin_router.post("/qa-session")
+async def qa_session(x_qa_token: str | None = Header(default=None)) -> dict:
+    """운영 자동 QA 가 로그인 흐름을 돌릴 전용 회원 세션. QA_TOKEN 이 없거나 틀리면 없는 척(404).
+
+    체험(게스트)으로 돌리면 IP 당 체험 상한에 걸리고 체험 지표를 흐린다 — 전용 회원을 쓴다.
+    이 세션의 요청도 `X-QA-Token` 을 함께 보내 학습 신호를 쌓지 않는다(app/qa.py).
+    """
+    from app import qa
+    from app.session_token import issue
+
+    if not qa.token_ok(x_qa_token):
+        raise HTTPException(status_code=404, detail="Not Found")
+    user = user_store.find_by_phone(qa.QA_PHONE) or user_store.create(qa.QA_PHONE)
+    return {"user_id": user.id, "token": issue(user.id), "kind": "member"}

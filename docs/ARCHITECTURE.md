@@ -159,7 +159,10 @@
 - `backup.sh` — `pg_dump` → gzip, 7일 보관. pg_dump·gzip·파일 크기를 각각 확인하고
   어느 단계에서 실패하든 웹훅으로 알린다(조용한 실패가 가장 위험하다).
 - `disk_check.sh` — 사용률 임계(기본 85%) 초과 시 알림. `notify.sh` 가 발송을 맡는다.
-- `crontab.txt` + `install_cron.sh` — 배치 3종·백업·디스크 점검을 설치(`deploy.sh` 가 호출).
+- `crontab.txt` + `install_cron.sh` — 배치·백업·디스크 점검·품질 점검·자동 배포를 설치(`deploy.sh` 가 호출).
+- `quality_check.sh` — 컨테이너 안에서 `eval_consensus.py --fail-under` 실행, 미달이면 `notify.sh`.
+- QA 모드(`app/qa.py`) — `X-QA-Token` 이 맞으면 요청 동안 contextvar 를 켠다(미들웨어). 학습 스토어는
+  `learning_on()` 이 거짓이면 기록하지 않고, `usage.charge` 는 서비스 상한만 차감한다. 운영 E2E 는 `frontend/e2e-prod/`.
   사용자의 기존 crontab 항목은 남기고 CoursePilot 블록만 교체한다.
 
 ### 배치 스크립트 (`backend/scripts/`)

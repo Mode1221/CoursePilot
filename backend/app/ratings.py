@@ -15,6 +15,10 @@ class RatingStore:
     def submit(self, place_id: str, stars: int, replaces: int | None = None) -> None:
         """별점 반영. replaces 가 있으면 같은 사람의 이전 별점을 대체한다
         (합만 조정하고 표본 수는 늘리지 않는다 → 반복 제출로 평균을 못 흔든다)."""
+        from app.qa import learning_on
+
+        if not learning_on():  # 운영 자동 QA 는 학습 신호를 쌓지 않는다
+            return
         if replaces is not None:
             self._replace(place_id, stars, replaces)
             return

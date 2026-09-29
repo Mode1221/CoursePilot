@@ -19,6 +19,10 @@ class FeedbackStore:
         self._mem: dict[str, int] = defaultdict(int)
 
     def log(self, course_id: str, kind: str, detail: str = "") -> None:
+        from app.qa import learning_on
+
+        if not learning_on():  # 운영 자동 QA 는 학습 신호를 쌓지 않는다
+            return
         if self._db_ready():
             from app.db import SessionLocal
             from app.models import FeedbackModel

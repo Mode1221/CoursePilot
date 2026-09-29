@@ -24,6 +24,10 @@ class PopularityStore:
         self._mem: dict[str, tuple[float, float]] = defaultdict(lambda: (0.0, 0.0))
 
     def bump(self, place_id: str, weight: float = 1) -> None:
+        from app.qa import learning_on
+
+        if not learning_on():  # 운영 자동 QA 는 학습 신호를 쌓지 않는다
+            return
         now = _time.time()
         if self._db_ready():
             from app.db import SessionLocal
@@ -45,6 +49,10 @@ class PopularityStore:
 
     def bump_many(self, place_ids: list[str], weight: float = 1) -> None:
         """여러 장소를 한 번에 가산. DB 모드에서도 세션·커밋 1회로 처리한다."""
+        from app.qa import learning_on
+
+        if not learning_on():  # 운영 자동 QA 는 학습 신호를 쌓지 않는다
+            return
         if not place_ids:
             return
         if not self._db_ready():

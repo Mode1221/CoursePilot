@@ -91,6 +91,10 @@ def main() -> int:
     ap.add_argument("--regions", default=DEFAULT_REGIONS, help="쉼표로 구분한 상권 이름(districts.py)")
     ap.add_argument("--max-km", type=float, default=2.5, help="상권 중심에서 이 거리를 넘으면 지역 이탈")
     ap.add_argument("--out", default="", help="전체 결과 JSON 경로")
+    ap.add_argument(
+        "--fail-under", type=float, default=None,
+        help="통과율(pass_rate)이 이 값보다 낮거나 오류가 있으면 종료 코드 1(크론 회귀 경보용). 예: 0.95",
+    )
     args = ap.parse_args()
     regions = [r.strip() for r in args.regions.split(",") if r.strip()]
     scores = asyncio.run(run(regions, args.max_km))
@@ -101,6 +105,11 @@ def main() -> int:
             encoding="utf-8",
         )
         print(f"\n전체 결과: {args.out}")
+    if args.fail_under is not None:
+        summary = summarize(scores)
+        if summary["pass_rate"] < args.fail_under or summary["errors"]:
+            print(f"\n✗ 품질 회귀: 통과율 {summary['pass_rate']} (기준 {args.fail_under}), 오류 {summary['errors']}")
+            return 1
     return 0
 
 
