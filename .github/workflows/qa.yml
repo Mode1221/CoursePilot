@@ -94,7 +94,7 @@ jobs:
           fi
           if [ -n "$HOOK" ]; then
             curl -sS -m 10 -X POST -H "Content-Type: application/json" \
-              -d "$(node -e 'console.log(JSON.stringify({text: process.argv[1], kind: "qa", target: "prod"}))' "[CoursePilot] $body")" \
+              -d "$(node -e 'console.log(JSON.stringify({text: process.argv[1], kind: "qa", target: "prod"}))' "[픽앤어스] $body")" \
               "$HOOK" >/dev/null || true
           fi
 

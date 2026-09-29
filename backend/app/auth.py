@@ -136,7 +136,7 @@ async def request_code(phone: str, ip: str = "") -> str | None:
     if sms is None:
         return code  # 개발용: 발송 없이 코드 노출
     try:
-        sent = await sms.send(phone, f"[CoursePilot] 인증번호 {code}")
+        sent = await sms.send(phone, f"[픽앤어스] 인증번호 {code}")
     except Exception as exc:  # 벤더 오류를 500 이 아니라 명확한 실패로 알린다
         metrics_store.record_external("sms.send", ok=False)
         raise SmsSendFailed from exc

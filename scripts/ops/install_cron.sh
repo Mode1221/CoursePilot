@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# crontab.txt 를 현재 사용자 crontab 에 설치한다(기존 CoursePilot 항목은 교체).
+# crontab.txt 를 현재 사용자 crontab 에 설치한다(기존 픽앤어스 항목은 교체).
 # deploy.sh 가 부르지만, 손으로도 돌릴 수 있다.
 set -euo pipefail
 

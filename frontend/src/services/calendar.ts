@@ -8,7 +8,7 @@ export function saveCalendar(courseId: string): void {
   try {
     const a = document.createElement("a");
     a.href = url;
-    a.download = `coursepilot-${courseId}.ics`;
+    a.download = `picknus-${courseId}.ics`;
     document.body.appendChild(a);
     a.click();
     a.remove();

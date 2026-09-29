@@ -1,4 +1,4 @@
-"""CoursePilot 백엔드 진입점.
+"""픽앤어스(PickNuS) 백엔드 진입점.
 
 실행: uvicorn app.main:app --reload
 """
@@ -99,7 +99,7 @@ async def lifespan(_app: FastAPI):
         warm.cancel()
 
 
-api = FastAPI(title="CoursePilot API", lifespan=lifespan)
+api = FastAPI(title="PickNuS API", lifespan=lifespan)
 
 MAX_COURSE_ITEMS = 50  # 코스 1개에 담을 수 있는 장소 상한(동선 재계산 비용·UI 가독성)
 

@@ -5,7 +5,7 @@ set -uo pipefail
 
 msg="${1:-(내용 없음)}"
 host="$(hostname)"
-text="[CoursePilot/${host}] ${msg}"
+text="[픽앤어스/${host}] ${msg}"
 
 if [ -n "${ALERT_WEBHOOK_URL:-}" ]; then
   # 알림 실패가 호출한 쪽을 죽이면 안 된다(백업 실패보다 알림 실패가 덜 급하다)

@@ -3,8 +3,8 @@ import type { Metadata } from "next";
 import LegalPage from "@/components/LegalPage";
 
 export const metadata: Metadata = {
-  title: "이용약관 — CoursePilot",
-  description: "CoursePilot 서비스 이용 조건과 회원·회사의 책임 범위.",
+  title: "이용약관 — 픽앤어스",
+  description: "픽앤어스 서비스 이용 조건과 회원·회사의 책임 범위.",
 };
 
 export default function Terms() {
@@ -12,7 +12,7 @@ export default function Terms() {
     <LegalPage title="이용약관" updatedOn="2026-09-21">
       <h2>제1조 (목적)</h2>
       <p>
-        이 약관은 CoursePilot(이하 &quot;서비스&quot;)이 제공하는 모임 코스 추천 서비스의 이용
+        이 약관은 픽앤어스(PickNuS, 이하 &quot;서비스&quot;)가 제공하는 모임 코스 추천 서비스의 이용
         조건과 회원·회사의 권리·의무를 정한다.
       </p>
 

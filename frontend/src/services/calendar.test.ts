@@ -18,7 +18,7 @@ describe("캘린더 저장", () => {
     saveCalendar("c1");
 
     expect(anchor.href).toMatch(/\/courses\/c1\/calendar\.ics$/);
-    expect(anchor.download).toBe("coursepilot-c1.ics");
+    expect(anchor.download).toBe("picknus-c1.ics");
     expect(click).toHaveBeenCalled();
     expect(document.body.contains(anchor)).toBe(false);
     expect(useToastStore.getState().toasts[0].tone).toBe("success");

@@ -9,7 +9,7 @@ from datetime import date, datetime, timedelta
 
 from app.schemas import Course, TravelMode
 
-PRODID = "-//CoursePilot//KO"
+PRODID = "-//PickNuS//KO"
 ALARM_MINUTES_BEFORE = 30  # 첫 장소 도착 30분 전 알림
 # 구간마다 수단이 다를 수 있으므로(도보/대중교통 혼합) 설명에 함께 적는다
 _MODE_LABEL = {TravelMode.WALK: "도보", TravelMode.CAR: "차량", TravelMode.TRANSIT: "대중교통"}

@@ -1,4 +1,4 @@
-# CoursePilot 운영 크론. deploy.sh 가 이 파일을 crontab 에 설치한다.
+# 픽앤어스 운영 크론. deploy.sh 가 이 파일을 crontab 에 설치한다.
 #   설치 확인: crontab -l
 #   {{ROOT}} 는 설치 시 저장소 절대 경로로 치환된다.
 #

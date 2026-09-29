@@ -1,5 +1,9 @@
 # CoursePilot
 
+서비스명은 **픽앤어스(PickNuS)**(2026-09-29 변경 — "CoursePilot" 은 제9류 등록상표가 있어 바꿨다).
+화면·메타·약관·SMS 등 사용자에게 보이는 이름은 픽앤어스로 쓴다. 저장소·이미지·DB·도메인·localStorage 키·크론 표식 같은
+내부 식별자(`coursepilot`)는 바꾸지 않는다(바꾸면 배포·데이터·로그인이 깨진다).
+
 ## 스택
 Next.js+TS+Zustand / FastAPI+PostgreSQL+pgvector / Socket.IO / Claude Haiku(LLM, 없으면 규칙 폴백)
 

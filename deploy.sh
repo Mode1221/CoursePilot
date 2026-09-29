@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# CoursePilot 원커맨드 배포 (단일 VM, docker compose).
+# 픽앤어스 원커맨드 배포 (단일 VM, docker compose).
 #   전제: Docker + Docker Compose v2 설치, .env 작성(.env.prod.example 참고),
 #         DNS 에서 DOMAIN 과 api.DOMAIN 이 이 서버 IP 를 가리키도록 A 레코드 설정,
 #         방화벽/보안그룹에서 80, 443 오픈.

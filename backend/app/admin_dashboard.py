@@ -13,7 +13,7 @@ DASHBOARD_HTML = """<!doctype html>
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>CoursePilot 운영 대시보드</title>
+<title>픽앤어스 운영 대시보드</title>
 <style>
   :root {
     color-scheme: light dark;
@@ -49,7 +49,7 @@ DASHBOARD_HTML = """<!doctype html>
 </style>
 </head>
 <body>
-<h1>CoursePilot 운영 대시보드</h1>
+<h1>픽앤어스 운영 대시보드</h1>
 <p class="sub">폴백률·유료 API 잔여 한도·학습 신호·유입 경로를 한 화면에서 봅니다. 30초마다 갱신.</p>
 <div class="row">
   <input id="token" type="password" placeholder="ADMIN_TOKEN (설정된 경우)" />
