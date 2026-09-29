@@ -65,3 +65,38 @@ jobs:
             NEXT_PUBLIC_NAVER_MAP_CLIENT_ID=${{ vars.NEXT_PUBLIC_NAVER_MAP_CLIENT_ID }}
           cache-from: type=gha,scope=${{ matrix.name }}
           cache-to: type=gha,mode=max,scope=${{ matrix.name }}
+
+  # 이미지가 올라가면 바로 VM 에 배포한다(크론 5분 대기 없이). 비밀값이 없으면 건너뛰고 크론이 한다.
+  #
+  # SSH 키는 VM 의 authorized_keys 에 command= 로 묶여 **배포 스크립트 하나만** 실행할 수 있다
+  # (셸·포트 포워딩 불가). 넣을 값은 VM 에서 scripts/ops/setup_deploy_key.sh 가 출력한다.
+  # 비밀값: DEPLOY_HOST · DEPLOY_USER · DEPLOY_SSH_KEY · DEPLOY_KNOWN_HOSTS
+  deploy:
+    needs: build
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    concurrency:
+      group: deploy-vm
+      cancel-in-progress: false  # 배포 도중에 끊으면 반쯤 올라간 상태가 된다
+    permissions:
+      contents: read
+    steps:
+      - name: VM 에 배포
+        env:
+          HOST: ${{ secrets.DEPLOY_HOST }}
+          USER_: ${{ secrets.DEPLOY_USER }}
+          KEY: ${{ secrets.DEPLOY_SSH_KEY }}
+          KNOWN: ${{ secrets.DEPLOY_KNOWN_HOSTS }}
+        run: |
+          set -euo pipefail
+          if [ -z "$HOST" ] || [ -z "$KEY" ] || [ -z "$KNOWN" ]; then
+            echo "배포 비밀값이 없어 건너뜀 — VM 크론(5분)이 대신 배포한다."
+            exit 0
+          fi
+          install -m 700 -d ~/.ssh
+          printf '%s\n' "$KEY" > ~/.ssh/deploy && chmod 600 ~/.ssh/deploy
+          printf '%s\n' "$KNOWN" > ~/.ssh/known_hosts
+          # 강제 명령이라 보내는 문자열은 "deploy <sha>" 형식 검사에만 쓰인다
+          ssh -i ~/.ssh/deploy -o StrictHostKeyChecking=yes -o BatchMode=yes -o ConnectTimeout=20 \
+            "${USER_:-ubuntu}@$HOST" "deploy $GITHUB_SHA"

@@ -95,10 +95,34 @@ docker compose up --build -d   # docker-compose.yml (로컬, HTTPS/프록시 없
 첫 `./deploy.sh` 이후에는 크론이 5분마다 `scripts/ops/auto_deploy.sh` 를 돌린다.
 main 에 새 커밋이 있으면 그 커밋 sha 이미지(`DEPLOY_TAG`)로 `deploy.sh` 를 실행하고,
 실패하면 직전 배포 sha 로 되돌린 뒤 웹훅으로 알린다(실패한 sha 는 재시도 안 함).
-SSH 로 밀어 넣지 않고 VM 이 당겨 오므로 GitHub 에 SSH 키를 맡기지 않는다.
+크론은 **백업 경로**다. 기본 경로는 아래 "푸시 → 운영 자동 반영"(SSH 즉시 배포)이다.
 - 로그: `logs/deploy.log`, 상태: `.deploy/deployed`·`.deploy/failed`
 - 끄기: `.env` 에 `AUTO_DEPLOY=false`
 - VM 저장소에 커밋 안 된 수정이 있으면 배포를 보류하고 알린다
+
+### 푸시 → 운영 자동 반영 (Claude 브랜치)
+저장소 주인 요청(2026-09-29)으로 `claude/*` 브랜치는 사람 손 없이 운영까지 간다.
+
+```
+claude/… 푸시 → CI(린트·테스트·E2E·도커) → auto-merge.yml: PR 생성 → squash 머지
+  → release.yml: arm64 이미지 빌드 → deploy 잡: SSH → VM deploy_hook.sh → auto_deploy.sh --wait
+```
+- 머지 조건: CI 가 **그 커밋**에서 통과 + 브랜치가 최신 main 을 품고 있음. 아니면 PR 만 열고 멈춘다.
+- 끄기: 저장소 **Settings → Secrets and variables → Actions → Variables** 에 `AUTO_MERGE=false`
+  (PR 은 계속 열리고 머지만 사람이 한다). 배포만 끄려면 VM `.env` 에 `AUTO_DEPLOY=false`.
+- 실패하면 `auto_deploy.sh` 가 직전 sha 로 되돌리고 웹훅 알림, Actions 의 deploy 잡도 빨간불.
+
+**한 번 설정**
+1. GitHub 저장소 **Settings → Actions → General → Workflow permissions** 에서
+   **Read and write permissions** 선택 + **Allow GitHub Actions to create and approve pull requests** 체크 → Save.
+2. VM 에서 배포 키 만들기(한 번):
+   ```bash
+   cd /opt/coursepilot && git pull && ./scripts/ops/setup_deploy_key.sh
+   ```
+   출력되는 값 4개(`DEPLOY_HOST`·`DEPLOY_USER`·`DEPLOY_KNOWN_HOSTS`·`DEPLOY_SSH_KEY`)를
+   **Settings → Secrets and variables → Actions → New repository secret** 으로 넣는다.
+   이 키는 authorized_keys 에 `command=` 로 묶여 배포 스크립트만 실행된다(셸 접속·포트 포워딩 불가).
+3. 비밀값이 없으면 deploy 잡은 건너뛰고 크론(5분)이 배포한다 — 설정 전에도 깨지지 않는다.
 
 ### 개별 배포
 ```bash
