@@ -1,0 +1,27 @@
+{
+  "lastBuildDate": "Wed, 10 Sep 2026 09:00:00 +0900",
+  "total": 5,
+  "start": 1,
+  "display": 5,
+  "items": [
+    {
+      "title": "<b>성수</b> 커피",
+      "link": "https://example.com/1",
+      "category": "음식점>카페",
+      "description": "",
+      "telephone": "",
+      "address": "서울특별시 성동구 성수동2가 000-0",
+      "roadAddress": "서울특별시 성동구 아차산로 17",
+      "mapx": "1270557000",
+      "mapy": "375445000"
+    },
+    {
+      "title": "좌표없는 곳",
+      "category": "음식점>한식",
+      "address": "서울특별시 어딘가",
+      "roadAddress": "서울특별시 어딘가 1",
+      "mapx": "0",
+      "mapy": "0"
+    }
+  ]
+}

@@ -1,0 +1,966 @@
+"""코스 품질 향상 플래너 (docs/AI_COURSE_QUALITY.md).
+
+후보 스코어링(A) + 카테고리 시퀀스 템플릿(B) + 동선 최적화(C) + Best-of-N(D).
+외부 키 불필요·결정론적. build_timeline 이 최종 물리 검증을 담당한다.
+"""
+from __future__ import annotations
+
+import asyncio
+import math
+from datetime import date, datetime, time
+
+from app.adapters.map_service import MapService
+from app.pipeline.hours_policy import has_popularity, hours_missing
+from app.pipeline.validation import build_timeline
+from app.pipeline.weights import (
+    COURSE_WEIGHTS,
+    PLACE_WEIGHTS,
+    CourseWeights,
+    ScoreWeights,
+)
+from app.schemas import Place, PlanConstraints, TimelineItem
+
+# ── 카테고리 분류 ────────────────────────────────────────────────
+_SLOT_KEYWORDS: dict[str, tuple[str, ...]] = {
+    # 네이버 지역검색 category 는 "음식점>양식" 처럼 오므로 실제 표기를 폭넓게 담는다
+    "meal": (
+        "restaurant", "식당", "음식", "한식", "일식", "중식", "양식", "고기", "분식", "브런치",
+        "이탈리", "국수", "치킨", "피자", "돈까스", "횟집", "해물", "뷔페", "구이", "찌개",
+    ),
+    "cafe": ("cafe", "카페", "디저트", "베이커리", "빵", "커피", "티하우스", "찻집"),
+    # "예술"이 "술"에 걸려 술집으로 오분류되던 문제 → 구체 표기만 본다
+    "bar": ("bar", "술집", "포장마차", "펍", "포차", "와인", "칵테일", "주점", "호프", "이자카야", "위스키"),
+    "activity": (
+        "전시", "갤러리", "소품", "공원", "미술", "책", "서점", "쇼핑",
+        "영화", "볼링", "방탈출", "노래", "박물관", "체험", "공연", "보드게임",
+    ),
+}
+_SLOT_KEYWORDS_FLAT = frozenset(k for ks in _SLOT_KEYWORDS.values() for k in ks) | frozenset(
+    ("커피전문점", "카페", "디저트카페", "제과,베이커리", "육류,고기", "술집", "전시관", "갈비", "한식", "양식")
+)
+
+
+def classify(place: Place) -> str:
+    # 카카오 category_group_code 가 있으면 그것이 가장 정확하다(이름 문자열 매칭보다 안정적).
+    from app.adapters.kakao import slot_for
+
+    if place.is_popup or "팝업" in place.name:
+        return "activity"  # 팝업·전시는 기간 한정 할거리
+    slot = slot_for(place.category_code, place.category)
+    if slot == "meal" and _is_dessert(place):
+        # 카카오는 제과·베이커리·떡집·아이스크림을 '음식점(FD6)' 그룹에 넣는다 → 식사 칸에 빵집이
+        # 들어가 "디저트 → 빵집" 코스가 나왔다(평가 하네스 실측). 분류명으로 카페 칸으로 돌린다.
+        return "cafe"
+    if slot:
+        return slot
+    cat = (place.category or "").lower()
+    # 구체적인 슬롯을 먼저 본다. "음식점 > 술집 > 와인바"는 '음식'이 먼저 걸려
+    # 식사 자리로 들어가 버렸다 — 술집·카페가 밥 자리를 차지하면 코스가 어긋난다.
+    for slot in ("bar", "cafe", "activity", "meal"):
+        if any(k in cat for k in _SLOT_KEYWORDS[slot]):
+            return slot
+    return "activity"  # 미분류는 활동으로
+
+
+DESSERT_SIGNS = ("제과", "베이커리", "디저트", "떡,한과", "아이스크림", "빙수", "도넛", "케이크", "와플", "요거트", "초콜릿", "마카롱")
+
+
+def _is_dessert(place: Place) -> bool:
+    return any(w in (place.category or "") for w in DESSERT_SIGNS)
+
+
+HOT_WORDS = ("핫플", "요즘", "신상", "뜨는", "새로 생긴", "요새", "트렌디")
+
+
+def is_hot_request(constraints: PlanConstraints) -> bool:
+    return any(w in k for k in constraints.keywords for w in HOT_WORDS)
+
+
+# 데이트에 약한 저가·대형 프랜차이즈. 카카오는 프랜차이즈의 마지막 분류에 브랜드명을 넣는다
+# ("… > 커피전문점 > 이디야커피") — 이름이 그 브랜드로 시작하면 프랜차이즈로 본다.
+BUDGET_CHAINS = (
+    "메가MGC", "메가커피", "이디야", "빽다방", "컴포즈", "더벤티", "매머드", "커피베이", "요거프레소",
+    "애슐리", "크라운호프", "역전할머니", "봉구비어", "맘스터치", "롯데리아", "김밥천국",
+)
+
+
+def franchise_level(place: Place) -> int:
+    """0: 개인 가게, 1: 프랜차이즈, 2: 저가 프랜차이즈(데이트엔 약함)."""
+    name = place.name or ""
+    if any(name.startswith(b) or b in name.split(" ")[0] for b in BUDGET_CHAINS):
+        return 2
+    parts = [p.strip() for p in (place.category or "").split(">") if p.strip()]
+    if len(parts) >= 3:
+        brand = parts[-1]
+        generic = brand in _SLOT_KEYWORDS_FLAT or len(brand) < 2
+        if not generic and name.startswith(brand):
+            return 1
+    return 0
+
+
+# ── 후보 스코어링 (A) ────────────────────────────────────────────
+def score_place(
+    place: Place,
+    constraints: PlanConstraints,
+    prefs: dict | None,
+    popularity: float = 0.0,
+    self_rating: float | None = None,
+    context_pop: float = 0.0,
+    cold_start: bool = False,
+    weights: ScoreWeights | None = None,
+) -> float:
+    prefs = prefs or {}
+    w = weights or PLACE_WEIGHTS
+    score = 0.0
+
+    # 평점: 자체 원탭 별점이 있으면 외부 별점과 블렌드(자체 우선), 없으면 외부만.
+    # 외부 집계 평점은 표본이 적으면(N<30) 신뢰하지 않는다 — 5.0(리뷰 2개)이
+    # 4.3(리뷰 800개)보다 위로 오는 것이 지금까지의 대표적 오정렬이었다.
+    ext = (place.rating / 5.0) if _rating_trusted(place) else None
+    own = (self_rating / 5.0) if self_rating is not None else None
+    if own is not None and ext is not None:
+        score += w.rating * (
+            w.self_rating_share * own + (1 - w.self_rating_share) * ext
+        )
+    elif own is not None:
+        score += w.rating * own
+    elif ext is not None:
+        score += w.rating * ext
+
+    # 콜드스타트 폴백(활용): 행동 신호가 전무하면 외부 평점에 더 의존(폴백 체인).
+    # 신호가 쌓이면 자동으로 가중이 사라져 행동 기반으로 이행.
+    if cold_start and ext is not None:
+        score += w.cold_start_rating * ext
+
+    # 자체 정량 신호: 인기(코스 채택·북마크). 이미 0~1 로 정규화되어 들어옴
+    score += w.popularity * popularity
+
+    # 시간대 컨텍스트(#12): 요청 시간대에 자주 채택된 장소 가점(0~1 정규화)
+    score += w.context_pop * context_pop
+
+    # 키워드/무드 매칭 (카테고리·이름에 등장)
+    haystack = f"{place.category or ''} {place.name}".lower()
+    keywords = [k.lower() for k in constraints.keywords]
+    if keywords:
+        matched = sum(1 for k in keywords if k in haystack)
+        score += w.keyword * (matched / len(keywords))
+
+    # 예산 적합 (저렴할수록 여유 → 가점, 가격 미상은 중립)
+    if constraints.budget_max and place.price is not None:
+        share = place.price / max(1, constraints.budget_max)
+        score += w.budget * max(0.0, 1.0 - share)
+
+    # 온보딩 선호 지역/무드 일치
+    if prefs.get("mood") and prefs["mood"].lower() in haystack:
+        score += w.pref_mood
+
+    # 행동 선호(#13): 사용자가 실제 자주 채택한 카테고리면 가점(선언보다 행동 신뢰)
+    behavior_cats = prefs.get("behavior_cats") or []
+    if behavior_cats and classify(place) in behavior_cats:
+        score += w.behavior_cat
+
+    # 동행유형 컨텍스트: 상황에 맞는 장소 특성 가점
+    comp_kw = _COMPANION_KEYWORDS.get(constraints.companion or "", ())
+    if comp_kw and any(k in haystack for k in comp_kw):
+        score += w.companion
+
+    # 제외 조건: 사용자가 빼달라고 한 성격이면 크게 감점(하드에 가까운 소프트 제약)
+    if any(k.lower() in haystack for k in constraints.exclude_keywords):
+        score -= w.exclude_penalty
+
+    # 우천 대체: 야외 성격은 감점, 실내 성격은 가점
+    if constraints.prefer_indoor:
+        if any(k in haystack for k in _OUTDOOR_KEYWORDS):
+            score -= w.outdoor_penalty
+        if any(k in haystack for k in _INDOOR_KEYWORDS):
+            score += w.indoor_bonus
+
+    # 인원수 컨텍스트: 대인원은 단체석, 소수는 조용한 자리 쪽이 실패가 적다
+    party_kw = _party_keywords(constraints.party_size)
+    if party_kw and any(k in haystack for k in party_kw):
+        score += w.party
+
+    # 사실 태그: 요청한 조건(단체석·주차·반려동물 등)이 실제로 가능/불가한지.
+    # 감정 섞인 리뷰 원문 대신, 스니펫에서 뽑은 사실 축만 본다.
+    score += w.fact_tag * _fact_tag_match(place, constraints)
+
+    # 심야 요청이면 늦게까지 여는 곳이 실제로 답이다(이름·카테고리 매칭만으로는 부족).
+    if "심야" in constraints.keywords and _open_late(place):
+        score += w.late_night
+
+    # 업력: 상권에서 오래 버틴 가게일수록 실패 확률이 낮다(리뷰 원문 없이 얻는 품질 신호).
+    score += w.longevity * longevity_signal(place)
+
+    # 인근 폐업률: 같은 동네가 빠르게 죽고 있으면 감점.
+    closure = closure_signal(place)
+    if closure is not None:
+        score -= w.closure_penalty * closure
+
+    # 관광·문화 공식 등재(TourAPI 등)와 블로그 인지도 — 둘 다 리뷰 원문을 쓰지 않는 신호.
+    if place.tour_listed:
+        score += w.tour_listed
+    score += w.awareness * awareness_signal(place)
+
+    # 요즘 뜨는 곳 — "핫플·요즘·신상" 요청이면 비중을 키우고 업력 가점을 끈다(업력은 오래된 가게 편).
+    hot_mode = is_hot_request(constraints)
+    if place.hot_score:
+        score += w.hot * place.hot_score * (2.0 if hot_mode else 1.0)
+    if hot_mode:
+        score -= w.longevity * longevity_signal(place)  # 위에서 더한 업력 가점을 되돌린다
+    if place.is_popup:
+        score += w.popup * (1.5 if hot_mode else 1.0)
+
+    # 영업시간을 확인했는데 없고 인기 신호도 없으면 뒤로 보낸다(후보가 모자랄 때만 나온다).
+    # 알려진 곳은 감점하지 않는다 — 뽑히면 웹검색 보강으로 채운다(pipeline/hours_policy.py).
+    if hours_missing(place) and not has_popularity(place, popularity):
+        score -= w.unknown_hours
+
+    # 데이트 코스: 저가 프랜차이즈는 크게, 일반 프랜차이즈는 조금 감점(그 동네에 그것뿐이면 그래도 나온다).
+    level = franchise_level(place)
+    if level == 2:
+        score -= 1.0
+    elif level == 1:
+        score -= 0.3
+    return score
+
+
+# 외부 집계 평점을 신뢰할 최소 표본 수. Google Enterprise 콜에서 함께 받는다.
+MIN_TRUSTED_RATINGS = 30
+# 업력 상한(년). 이 이상은 더 가점하지 않는다 — log 로 완만하게 올린다.
+LONGEVITY_CAP_YEARS = 20
+# 인지도(블로그 검색 건수) 포화 지점.
+AWARENESS_CAP = 3000
+
+
+# 요청에 이 표현이 있으면, 그 축이 "불가"로 확인된 곳은 후보에서 뺀다.
+HARD_FACT_TAGS: dict[str, tuple[str, ...]] = {
+    "반려동물": ("반려동물", "애견", "강아지", "펫"),
+    "단체석": ("단체", "룸", "연회"),
+    "주차": ("주차", "차 가지고", "자차"),
+    "예약": ("예약",),
+}
+
+
+def required_fact_tags(constraints: PlanConstraints) -> list[str]:
+    """요청 문장·키워드에서 '되어야만 하는' 사실 축을 뽑는다."""
+    haystack = " ".join([*constraints.keywords, constraints.companion or ""])
+    return [
+        tag
+        for tag, words in HARD_FACT_TAGS.items()
+        if any(w in haystack for w in words)
+    ]
+
+
+def _drop_impossible(
+    candidates: list[Place], constraints: PlanConstraints
+) -> list[Place]:
+    """필수 축이 '불가'로 확인된 장소를 뺀다. 전부 걸러지면 원래 후보를 지킨다."""
+    required = required_fact_tags(constraints)
+    if not required:
+        return candidates
+    kept = [
+        p for p in candidates if not any(tag in p.caution_tags for tag in required)
+    ]
+    return kept or candidates
+
+
+# 이 시각 이후까지 열면 "늦게까지 하는 곳"으로 본다(자정 넘김 포함).
+LATE_CLOSE_HOUR = 23
+
+
+def _open_late(place: Place) -> bool:
+    if place.close_time is None:
+        return False
+    if place.open_time and place.close_time <= place.open_time:
+        return True  # 자정을 넘겨 영업
+    return place.close_time.hour >= LATE_CLOSE_HOUR
+
+
+def _fact_tag_match(place: Place, constraints: PlanConstraints) -> float:
+    """요청 키워드와 겹치는 사실 태그: 가능하면 +1, 주의면 -1, 없으면 0."""
+    if not (place.fact_tags or place.caution_tags):
+        return 0.0
+    wanted = [k for k in [*constraints.keywords, constraints.companion or ""] if k]
+    if not wanted:
+        return 0.0
+    hit = sum(1 for tag in place.fact_tags if any(tag in k or k in tag for k in wanted))
+    miss = sum(1 for tag in place.caution_tags if any(tag in k or k in tag for k in wanted))
+    if hit == miss == 0:
+        return 0.0
+    return max(-1.0, min(1.0, hit - miss))
+
+
+def _rating_trusted(place: Place) -> bool:
+    """표본 수를 아는 경우에만 N>=30 을 요구한다(모르면 종전대로 사용)."""
+    if place.rating is None:
+        return False
+    if place.rating_count is None:
+        return True
+    return place.rating_count >= MIN_TRUSTED_RATINGS
+
+
+def longevity_signal(place: Place) -> float:
+    """인허가일자 기준 업력 → 0~1. log 라 초기 몇 년의 차이를 크게 본다."""
+    if place.opened_on is None:
+        return 0.0
+    years = (date.today() - place.opened_on).days / 365.25
+    if years <= 0:
+        return 0.0
+    return min(1.0, math.log1p(years) / math.log1p(LONGEVITY_CAP_YEARS))
+
+
+def closure_signal(place: Place) -> float | None:
+    """인근 폐업률 0~1. 대장이 없거나 표본이 적으면 None(중립)."""
+    try:
+        from app.adapters.localdata import get_localdata_registry
+
+        return get_localdata_registry().closure_rate(place.address)
+    except Exception:
+        return None
+
+
+def awareness_signal(place: Place) -> float:
+    """블로그 검색 건수 → 0~1. 리뷰 원문이 아니라 건수만 쓴다."""
+    if not place.blog_mentions:
+        return 0.0
+    return min(1.0, math.log1p(place.blog_mentions) / math.log1p(AWARENESS_CAP))
+
+
+# 우천 시 피해야 할/선호할 장소 성격
+_OUTDOOR_KEYWORDS = ("공원", "산책", "야외", "루프탑", "테라스", "시장", "한강", "캠핑", "피크닉")
+_INDOOR_KEYWORDS = ("실내", "전시", "미술관", "박물관", "영화", "카페", "볼링", "공연", "몰")
+
+LARGE_PARTY = 5  # 이 인원부터는 단체석 여부가 중요해진다
+_LARGE_PARTY_KEYWORDS = ("룸", "단체", "홀", "연회", "코스")
+_SMALL_PARTY_KEYWORDS = ("카운터", "조용", "아담")
+
+
+def _party_keywords(party_size: int | None) -> tuple[str, ...]:
+    if party_size is None:
+        return ()
+    if party_size >= LARGE_PARTY:
+        return _LARGE_PARTY_KEYWORDS
+    if party_size <= 2:
+        return _SMALL_PARTY_KEYWORDS
+    return ()
+
+
+# 동행유형별 선호 특성(이름/카테고리에 등장 시 가점)
+_COMPANION_KEYWORDS: dict[str, tuple[str, ...]] = {
+    "데이트": ("분위기", "뷰", "루프탑", "야경", "감성"),
+    "회식": ("룸", "단체", "고기", "포차", "호프"),
+    "가족": ("한정식", "좌식", "룸", "브런치", "공원"),
+    "친구": ("가성비", "핫플", "브런치"),
+    "혼자": ("바", "카운터", "조용"),
+}
+
+
+SLOT_HOURS = 2  # 한 칸(방문+이동)에 대략 2시간
+MAX_STOPS = 6  # 사용자가 직접 말한 개수의 상한(하루 종일 코스)
+
+
+# ── 카테고리 시퀀스 템플릿 (B) ───────────────────────────────────
+def keyword_slot(constraints: PlanConstraints) -> str | None:
+    """요청 키워드가 특정 성격을 콕 집었으면 그 슬롯을 돌려준다.
+
+    "카페 한 곳"인데 식사 시간대라고 식당을 넣으면 요청과 어긋난다.
+    """
+    text = " ".join(constraints.keywords).lower()
+    if not text:
+        return None
+    for slot, kws in _SLOT_KEYWORDS.items():
+        if any(k in text for k in kws):
+            return slot
+    return None
+
+
+def excluded_slots(constraints: PlanConstraints) -> set[str]:
+    """사용자가 빼달라고 한 성격의 슬롯. 감점만으로는 템플릿이 그 칸을 요구해
+    결국 코스에 들어가므로, 칸 자체를 만들지 않는다."""
+    out: set[str] = set()
+    for word in constraints.exclude_keywords:
+        low = word.lower()
+        for slot, kws in _SLOT_KEYWORDS.items():
+            if any(k in low or low in k for k in kws):
+                out.add(slot)
+    return out
+
+
+def _replace_excluded(slots: list[str], excluded: set[str]) -> list[str]:
+    """제외된 슬롯을 대체 슬롯으로 바꾼다(모두 제외면 그대로 둔다)."""
+    if not excluded:
+        return slots
+    order = ["cafe", "activity", "meal", "bar"]
+    out: list[str] = []
+    for slot in slots:
+        if slot not in excluded:
+            out.append(slot)
+            continue
+        alt = next((s for s in order if s not in excluded), None)
+        out.append(alt if alt else slot)
+    return out
+
+
+def desired_slots(constraints: PlanConstraints) -> list[str]:
+    """코스 칸 구성. 합의 코스면 두 사람의 취향 칸(required_slots)이 반드시 들어간다."""
+    return _apply_required(_base_slots(constraints), constraints)
+
+
+def _apply_required(slots: list[str], constraints: PlanConstraints) -> list[str]:
+    required = [s for s in constraints.required_slots if s not in excluded_slots(constraints)]
+    if not required and not constraints.lead_slot:
+        return slots
+    out = list(slots)
+    for r in required:
+        if r in out:
+            continue
+        # 취향 칸이 아닌 자리를 뒤에서부터 내준다. 없으면 붙인다(최대 칸 수 안에서).
+        idx = next((i for i in range(len(out) - 1, -1, -1) if out[i] not in required), None)
+        if idx is None:
+            if len(out) < MAX_STOPS:
+                out.append(r)
+        else:
+            out[idx] = r
+    lead = constraints.lead_slot
+    if lead and lead in out and out[0] != lead:
+        out.remove(lead)
+        out.insert(0, lead)
+    return out
+
+
+def _base_slots(constraints: PlanConstraints) -> list[str]:
+    # 시간을 말하지 않았으면 데이트 코스 기본 3곳(식사·카페·한 곳 더). 2곳은 코스라기엔 짧았다(운영 점검 10/10 이 2곳).
+    dur = constraints.duration_min or DEFAULT_DURATION_MIN
+    # 하루를 통으로 비운 요청(8~9시간)에 4칸만 만들면 오후에 코스가 끝나 버린다
+    n = max(2, min(MAX_STOPS, dur // 90))
+    ordered = _ordered_slots(constraints, n)
+    if ordered is not None:
+        return ordered
+    if constraints.stop_count:  # "2차", "세 군데" 처럼 개수를 직접 말했으면 그 값을 따른다
+        # 하루 종일 코스는 5~6곳도 요청한다 — 4곳으로 잘라 요청을 무시하지 않는다
+        n = max(1, min(MAX_STOPS, constraints.stop_count))
+        if n == 1:  # "한 곳만" — 요청 키워드 우선, 없으면 식사 시간대 기준
+            wanted = keyword_slot(constraints)
+            if wanted:
+                return _replace_excluded([wanted], excluded_slots(constraints))
+            hour = constraints.start_time.hour if constraints.start_time else 12
+            return _replace_excluded(
+                ["meal" if _is_mealtime(hour) else "cafe"], excluded_slots(constraints)
+            )
+    evening = constraints.start_time is not None and constraints.start_time.hour >= 18
+    comp = constraints.companion
+
+    # 회식: 식사+술 중심 / 데이트: 활동·분위기 포함 / 가족: 술 배제·활동 위주
+    if comp == "회식":
+        slots = {
+            2: ["meal", "bar"],
+            3: ["meal", "cafe", "bar"],
+            4: ["meal", "cafe", "bar", "bar"],
+            5: ["meal", "cafe", "bar", "activity", "bar"],
+            6: ["meal", "cafe", "bar", "activity", "meal", "bar"],
+        }[n]
+        return _replace_excluded(
+            _shift_meal_to_mealtime(slots, constraints.start_time),
+            excluded_slots(constraints),
+        )
+    if comp == "가족":
+        slots = {
+            2: ["meal", "cafe"],
+            3: ["meal", "activity", "cafe"],
+            4: ["meal", "activity", "cafe", "activity"],
+            5: ["meal", "activity", "cafe", "activity", "meal"],
+            6: ["meal", "activity", "cafe", "activity", "meal", "cafe"],
+        }[n]
+        return _replace_excluded(
+            _shift_meal_to_mealtime(slots, constraints.start_time),
+            excluded_slots(constraints),
+        )
+
+    last = "bar" if (evening and comp != "가족") else ("activity" if comp == "데이트" else "cafe")
+    base = {
+        2: ["meal", "cafe" if comp == "데이트" else ("bar" if evening else "cafe")],
+        3: ["meal", "cafe", last],
+        4: ["meal", "activity", "cafe", last],
+        5: ["meal", "activity", "cafe", "meal", last],
+        6: ["meal", "activity", "cafe", "meal", "activity", last],
+    }[n]
+    slots = _shift_meal_to_mealtime(base, constraints.start_time)
+    slots = _dedupe_adjacent(_lead_with_keyword(slots, constraints))
+    return _replace_excluded(slots, excluded_slots(constraints))
+
+
+DEFAULT_DURATION_MIN = 270
+
+
+def _ordered_slots(constraints: PlanConstraints, n: int) -> list[str] | None:
+    """문장에 나온 순서대로 칸을 세운다("파스타 먹고 와인바" → 식사 → 술). 순서가 없으면 None.
+
+    말한 칸이 기본 개수보다 적으면 식사·카페·할거리 중 빠진 것으로 채우되, 마지막이 술이면 그 앞에 넣는다
+    (와인바 뒤에 카페가 오지 않게). 합의 코스는 required_slots 로 따로 정한다.
+    """
+    if not constraints.slot_order or constraints.required_slots:
+        return None
+    excluded = excluded_slots(constraints)
+    order = [s for s in constraints.slot_order if s not in excluded]
+    if not order:
+        return None
+    if constraints.stop_count:
+        n = max(1, min(MAX_STOPS, constraints.stop_count))
+        order = order[:n]
+    else:
+        n = max(n, min(MAX_STOPS, len(order)))
+    slots = list(order)
+    fill = [s for s in ("meal", "cafe", "activity", "bar") if s not in excluded]
+    tail_bar = slots[-1] == "bar"
+    for s in fill:
+        if len(slots) >= n:
+            break
+        if s in slots or (s == "bar" and tail_bar):
+            continue
+        if tail_bar:
+            slots.insert(len(slots) - 1, s)
+        else:
+            slots.append(s)
+    while len(slots) < n and fill:
+        slots.insert(len(slots) - 1 if tail_bar else len(slots), fill[len(slots) % len(fill)])
+    return _replace_excluded(_dedupe_adjacent(slots), excluded)
+
+
+def _dedupe_adjacent(slots: list[str]) -> list[str]:
+    """같은 성격이 연달아 오지 않게 한다(식사 → 식사처럼 붙으면 코스가 단조롭다)."""
+    alternatives = ["cafe", "activity", "meal", "bar"]
+    out: list[str] = []
+    for slot in slots:
+        if out and out[-1] == slot:
+            nxt = next((a for a in alternatives if a != slot and (len(out) < 2 or out[-2] != a)), slot)
+            out.append(nxt)
+        else:
+            out.append(slot)
+    return out
+
+
+def _lead_with_keyword(slots: list[str], constraints: PlanConstraints) -> list[str]:
+    """요청 키워드가 성격을 지목했으면 그 칸을 앞으로 세운다.
+
+    "반려동물 동반 카페"인데 시간대 때문에 식당부터 시작하면 요청과 어긋난다.
+    이미 그 성격이 첫 칸이면 그대로 둔다.
+    """
+    wanted = keyword_slot(constraints)
+    if not wanted or not slots or slots[0] == wanted:
+        return slots
+    if wanted in slots:  # 순서만 당긴다
+        rest = list(slots)
+        rest.remove(wanted)
+        return [wanted, *rest]
+    return [wanted, *slots[1:]]
+
+
+# 식사 시간대(현지 관습): 점심 11~14시, 저녁 17~21시
+def _is_mealtime(hour: int) -> bool:
+    return 11 <= hour < 14 or 17 <= hour < 21
+
+
+def _shift_meal_to_mealtime(slots: list[str], start: time | None) -> list[str]:
+    """식사가 아닌 시각에 시작하면 첫 식사를 식사 시간대로 미룬다.
+
+    예: 오전 10시 시작이면 "식사 → 카페" 대신 "카페 → 식사"(브런치 후 점심).
+    한 칸에 90분을 잡고 앞에서부터 시간을 더해 식사 시간대에 가장 먼저 닿는 칸을 찾는다.
+    """
+    if start is None or "meal" not in slots or _is_mealtime(start.hour):
+        return slots
+    meal_at = slots.index("meal")
+    for offset in range(1, len(slots)):
+        hour = (start.hour + offset * SLOT_HOURS) % 24
+        if _is_mealtime(hour):
+            moved = list(slots)
+            moved.pop(meal_at)
+            moved.insert(offset, "meal")
+            return moved
+    return slots
+
+
+# ── 동선 최적화 (C): nearest-neighbor ────────────────────────────
+def _dist(a: Place, b: Place) -> float:
+    return abs(a.lat - b.lat) + abs(a.lng - b.lng)  # 맨해튼 근사(정렬용)
+
+
+def route_order(places: list[Place]) -> list[Place]:
+    if len(places) <= 2:
+        return places
+    remaining = places[1:]
+    ordered = [places[0]]
+    while remaining:
+        last = ordered[-1]
+        nxt = min(remaining, key=lambda p: _dist(last, p))
+        ordered.append(nxt)
+        remaining.remove(nxt)
+    return ordered
+
+
+def route_order_from(places: list[Place], origin: Place) -> list[Place]:
+    """출발지에서 가장 가까운 곳부터 최근접 이웃으로 잇는다."""
+    if len(places) <= 1:
+        return places
+    remaining = list(places)
+    first = min(remaining, key=lambda p: _dist(origin, p))
+    remaining.remove(first)
+    return [first, *route_order([first, *remaining])[1:]]
+
+
+# ── 선호 순서 정렬 (C'): 학습된 카테고리 전이 최대화 (data #7) ──
+def seq_order(places: list[Place]) -> list[Place]:
+    if len(places) <= 2:
+        return places
+    from app.sequence import sequence_store
+
+    # 첫 장소는 유지(식사 시작 관성), 이후 학습 전이가 가장 높은 순으로 그리디 연결
+    table = sequence_store.all_transitions()  # 후보마다 조회하지 않도록 한 번만 읽는다
+    ordered = [places[0]]
+    remaining = places[1:]
+    while remaining:
+        last = classify(ordered[-1])
+        nxt = max(remaining, key=lambda p: table.get((last, classify(p)), 0.0))
+        ordered.append(nxt)
+        remaining.remove(nxt)
+    return ordered
+
+
+# ── 후보 선택: 슬롯별 최고 점수 + 다양성 ─────────────────────────
+def brand_key(place: Place) -> str:
+    """같은 브랜드(체인) 판별용 키. 이름 첫 낱말이면 충분하다("스타벅스 성수점")."""
+    return (place.name or "").split()[0] if place.name.strip() else place.id
+
+
+def _pick_by_template(
+    ranked: list[Place], slots: list[str]
+) -> list[Place]:
+    used: set[str] = set()
+    brands: set[str] = set()
+    picked: list[Place] = []
+
+    def _fresh(
+        slot: str | None, avoid_brand: bool, avoid_cat: str | None = None
+    ) -> Place | None:
+        return next(
+            (
+                p
+                for p in ranked
+                if p.id not in used
+                and (slot is None or classify(p) == slot)
+                and (not avoid_brand or brand_key(p) not in brands)
+                and (avoid_cat is None or classify(p) != avoid_cat)
+            ),
+            None,
+        )
+
+    for slot in slots:
+        # 슬롯을 못 채워 아무거나 넣을 때도 직전과 같은 성격은 피한다
+        # (카페 세 곳이 연달아 붙는 코스가 나오던 문제)
+        last_cat = classify(picked[-1]) if picked else None
+        cand = (
+            _fresh(slot, True)
+            or _fresh(slot, False)
+            or _fresh(None, True, last_cat)
+            or _fresh(None, False, last_cat)
+            or _fresh(None, False)
+        )
+        if cand is not None:
+            picked.append(cand)
+            used.add(cand.id)
+            brands.add(brand_key(cand))
+    return picked
+
+
+# ── 협업 필터링 선택 (활용): 공동 채택 친화도로 슬롯 채우기 ────────
+def _cf_pick(ranked: list[Place], slots: list[str]) -> list[Place]:
+    """슬롯별로 이미 담긴 장소들과 공동 채택 친화도가 높은 후보를 선택.
+
+    친화도 데이터가 없으면 랭킹 순으로 자연 복귀(콜드스타트 안전).
+    """
+    from app.cooccurrence import cooccurrence_store
+
+    used: set[str] = set()
+    picked: list[Place] = []
+    for slot in slots:
+        cands = [p for p in ranked if p.id not in used and classify(p) == slot]
+        if not cands:
+            cands = [p for p in ranked if p.id not in used]
+        if not cands:
+            continue
+        anchors = [p.id for p in picked]
+        # 랭킹(내림차순)을 유지하며 친화도 높은 후보 우선(안정 정렬)
+        scores = cooccurrence_store.affinities([p.id for p in cands], anchors)
+        best = max(cands, key=lambda p: scores.get(p.id, 0.0))
+        picked.append(best)
+        used.add(best.id)
+    return picked
+
+
+# ── 코스 목적함수 (D) ────────────────────────────────────────────
+def course_score(
+    timeline: list[TimelineItem], weights: CourseWeights | None = None
+) -> float:
+    cw = weights or COURSE_WEIGHTS
+    if not timeline:
+        return float("-inf")
+    ratings = [it.place.rating for it in timeline if it.place.rating is not None]
+    avg_rating = sum(ratings) / len(ratings) if ratings else 0.0
+    total_travel = sum(
+        it.travel_to_next.duration_min for it in timeline if it.travel_to_next
+    )
+    kinds = [classify(it.place) for it in timeline]
+    diversity = len(set(kinds))
+    # 같은 성격이 연달아 붙으면(식사 → 식사) 코스가 단조로워진다
+    repeats = sum(1 for a, b in zip(kinds, kinds[1:], strict=False) if a == b)
+    # 재정렬 패턴(#7): 학습된 선호 순서(카테고리 전이)에 가점
+    from app.sequence import sequence_store
+
+    seq_pref = sequence_store.sequence_score([classify(it.place) for it in timeline])
+    return (
+        len(timeline) * cw.length            # 완성도(장소 수)
+        + avg_rating * cw.avg_rating         # 평균 평점
+        + diversity * cw.diversity           # 카테고리 다양성
+        + _seq_norm(seq_pref)                # 선호 순서 적합
+        - total_travel * cw.travel_penalty   # 총 이동 페널티
+        - repeats * cw.repeat_penalty        # 같은 성격 연속 페널티
+    )
+
+
+def _seq_norm(raw: float) -> float:
+    """전이 누적값을 포화(0~0.5)로 눌러 과적합 방지."""
+    if raw <= 0:
+        return 0.0
+    return 0.5 * (raw / (raw + 3.0))
+
+
+# 데이트 코스 후보로 부적절한 업태. 분류(category)로 판단한다 — 이름으로 보면
+# "홍익대학교 박물관"처럼 이름에 '대학교'가 든 문화시설까지 빠진다.
+UNFIT_CATEGORY = (
+    "구내식당", "학생식당", "푸드코트", "사내식당", "급식", "편의점", "도시락",
+    "교육,학문", "학교", "학원", "의료", "병원", "약국", "금융", "은행", "공공기관", "관공서",
+    "부동산", "주유소", "주차장", "교통,수송", "사무실", "기업", "산업", "종교",
+)
+UNFIT_NAME = ("구내식당", "학생식당", "푸드코트")
+
+
+def _focus_slots(candidates: list[Place], constraints: PlanConstraints) -> list[Place]:
+    """합의 코스: 칸 주인의 취향에 맞는 후보가 있으면 그 칸은 그 후보들로만 고른다.
+
+    같은 식사 칸 후보에 고기집·양식집이 섞여 있으면 평점으로 갈려, 칸을 가진 사람의 취향이
+    아니라 우연히 점수 높은 쪽이 들어간다(상대 취향만 반영된 것처럼 보였다). 맞는 곳이 하나도
+    없으면 거르지 않는다(빈 칸보다 낫고, 칩은 "못 찾았어요"로 솔직하게).
+    """
+    if not constraints.slot_focus:
+        return candidates
+    from app.pipeline.consensus import place_matches
+
+    focus: dict[str, str] = {}
+    for pair in constraints.slot_focus:
+        if len(pair) == 2:
+            focus.setdefault(pair[0], pair[1])
+    out = list(candidates)
+    from app.pipeline.intent import match_words, satisfies
+
+    for slot, craving in focus.items():
+        attr = {"what": craving, "slot": slot}
+        in_slot = [p for p in out if classify(p) == slot]
+        words = match_words(craving)  # 혼자 만드는 코스의 칸 초점(pipeline/intent.py)
+        if words:
+            matching = [p for p in in_slot if satisfies(p, words)]
+        else:
+            matching = [p for p in in_slot if place_matches(p, attr)]
+        if matching and len(matching) < len(in_slot):
+            drop = {p.id for p in in_slot} - {p.id for p in matching}
+            out = [p for p in out if p.id not in drop]
+    return out
+
+
+ALT_PER_SLOT = 3
+ALT_RADIUS_KM = 1.5
+
+
+def attach_alternatives(
+    timeline: list[TimelineItem],
+    pool: list[Place],
+    constraints: PlanConstraints,
+    prefs: dict | None = None,
+    k: int = ALT_PER_SLOT,
+) -> None:
+    """칸마다 같은 성격의 대안 k곳 — 점수 높고 원래 자리에서 가까운 순(동선이 크게 안 바뀌게).
+
+    합의 코스면 그 칸 주인의 취향에 맞는 곳을 앞에(칸 주인이 고르는 느낌), 이름이 같은 곳은 하나만.
+    """
+    from app.pipeline.consensus import place_matches
+
+    chosen = {it.place.id for it in timeline}
+    names = {it.place.name for it in timeline}
+    focus = {pair[0]: pair[1] for pair in constraints.slot_focus if len(pair) == 2}
+    on = constraints.plan_date or datetime.now().date()
+    pool = [
+        p for p in pool
+        if p.id not in chosen and not is_unfit_for_date(p)
+        and not (p.is_popup and p.active_until and p.active_until < on)
+    ]
+    for item in timeline:
+        slot = classify(item.place)
+        same = [p for p in pool if classify(p) == slot and p.name not in names]
+        near = [p for p in same if _km(item.place, p) <= ALT_RADIUS_KM] or same
+
+        def rank(p: Place, here: Place = item.place, slot: str = slot) -> float:
+            s = score_place(p, constraints, prefs) - 0.4 * _km(here, p)
+            if slot in focus and place_matches(p, {"what": focus[slot], "slot": slot}):
+                s += 1.0
+            return s
+
+        picked: list[Place] = []
+        seen: set[str] = set()
+        for p in sorted(near, key=rank, reverse=True):
+            if p.name in seen:
+                continue
+            seen.add(p.name)
+            picked.append(p)
+            if len(picked) >= k:
+                break
+        item.alternatives = picked
+
+
+def _km(a: Place, b: Place) -> float:
+    dlat = (a.lat - b.lat) * 111.0
+    dlng = (a.lng - b.lng) * 88.0  # 서울 위도 근처
+    return math.hypot(dlat, dlng)
+
+
+def is_unfit_for_date(place: Place) -> bool:
+    """회사·학교 식당, 학교·병원·관공서 등 — 데이트 코스 후보로 부적절."""
+    cat = place.category or ""
+    return any(w in cat for w in UNFIT_CATEGORY) or any(w in place.name for w in UNFIT_NAME)
+
+
+async def plan_course(
+    candidates: list[Place],
+    constraints: PlanConstraints,
+    map_service: MapService,
+    prefs: dict | None = None,
+    origin: Place | None = None,
+) -> list[TimelineItem]:
+    """스코어링·템플릿·동선·Best-of-N 을 적용해 최적 타임라인을 반환."""
+    # 데이트 코스에 안 맞는 업태(회사·학교 식당, 푸드코트 등)는 애초에 후보에서 뺀다.
+    candidates = [p for p in candidates if not is_unfit_for_date(p)]
+    # 끝난 팝업·전시는 추천하지 않는다(코스 날짜 기준)
+    on = constraints.plan_date or datetime.now().date()
+    candidates = [p for p in candidates if not (p.is_popup and p.active_until and p.active_until < on)]
+    candidates = _focus_slots(candidates, constraints)
+    if not candidates:
+        return []
+
+    # 빼달라고 한 성격은 후보에서 제거한다. 감점(soft)만으로는 Best-of-N 의 다른
+    # 시드(협업필터·선호순서)가 그 장소를 다시 끌어올려 코스에 넣을 수 있다.
+    dropped = excluded_slots(constraints)
+    if dropped:
+        kept = [p for p in candidates if classify(p) not in dropped]
+        if kept:  # 전부 걸러지면 아무 코스도 못 만드므로 원래 후보를 쓴다
+            candidates = kept
+
+    # 동반 조건은 취향이 아니라 가부다 — 반려동물 동반인데 "반려동물 불가"로
+    # 확인된 곳은 감점이 아니라 제외해야 한다(감점만으로는 다른 시드가 되살린다).
+    candidates = _drop_impossible(candidates, constraints)
+
+    # 자체 인기 신호 조회 후 0~1 로 정규화(최댓값 대비 상대값)
+    from app.popularity import popularity_store
+    from app.ratings import rating_store
+
+    ids = [p.id for p in candidates]
+    raw = popularity_store.scores(ids)
+    # 카테고리(식당/카페/…)별 최댓값으로 정규화 → 절대 인기 편향 제거(상대 인기)
+    cat_peak: dict[str, float] = {}
+    for p in candidates:
+        c = classify(p)
+        cat_peak[c] = max(cat_peak.get(c, 0.0), raw.get(p.id, 0.0))
+    pop = {
+        p.id: (raw.get(p.id, 0.0) / cat_peak[classify(p)])
+        if cat_peak.get(classify(p))
+        else 0.0
+        for p in candidates
+    }
+    self_ratings = rating_store.averages(ids)  # 자체 원탭 별점
+
+    # 시간대 컨텍스트(#12): 요청 시작 시간대의 채택 신호를 카테고리별 상대 정규화
+    ctx_pop: dict[str, float] = {}
+    if constraints.start_time is not None:
+        from app.timecontext import daypart_of, time_context_store
+
+        dp = daypart_of(constraints.start_time.hour)
+        ctx_raw = time_context_store.scores(ids, dp)
+        ctx_peak: dict[str, float] = {}
+        for p in candidates:
+            c = classify(p)
+            ctx_peak[c] = max(ctx_peak.get(c, 0.0), ctx_raw.get(p.id, 0.0))
+        ctx_pop = {
+            p.id: (ctx_raw.get(p.id, 0.0) / ctx_peak[classify(p)])
+            if ctx_peak.get(classify(p))
+            else 0.0
+            for p in candidates
+        }
+
+    # 콜드스타트 판정(활용): 행동 신호(인기·자체별점·시간대)가 전무하면 외부 평점 폴백
+    behavioral_mass = (
+        sum(raw.values())
+        + sum(v for v in self_ratings.values() if v is not None)
+        + sum(ctx_pop.values())
+    )
+    cold_start = behavioral_mass <= 0.0
+
+    ranked = sorted(
+        candidates,
+        key=lambda p: score_place(
+            p, constraints, prefs, pop.get(p.id, 0.0), self_ratings.get(p.id),
+            ctx_pop.get(p.id, 0.0), cold_start,
+        ),
+        reverse=True,
+    )
+    slots = desired_slots(constraints)
+
+    # 후보 코스 시드 → 각각 물리 검증 후 코스 점수로 최고 선택 (D). 라벨로 선택 로깅(#15).
+    seeds: list[tuple[str, list[Place]]] = []
+    templated = _pick_by_template(ranked, slots)
+    ordered = bool(constraints.slot_order) and not constraints.required_slots
+    if templated:
+        seeds.append(("template", templated))          # 1) 템플릿 순서
+        if not ordered:  # 사용자가 순서를 말했으면("파스타 먹고 와인바") 그 순서를 바꾸지 않는다
+            seeds.append(("route", route_order(templated)))  # 2) 동선 최적화
+            seeds.append(("sequence", seq_order(templated)))  # 3) 학습된 선호 순서(#7)
+    if not ordered:
+        cf = _cf_pick(ranked, slots)
+        if cf:
+            seeds.append(("cf", cf))                         # 4) 협업 필터링(공동 채택)
+    if templated and origin is not None and not ordered:
+        seeds.append(("start", route_order_from(templated, origin)))  # 출발지 기준 동선
+    if not ordered or not templated:
+        seeds.append(("score", ranked[: len(slots)]))       # 5) 순수 점수 상위
+
+    # 시드마다 이동 경로를 외부에 묻는다 — 차례로 기다리면 시드 수만큼 느려진다(운영 한 코스 38~78초).
+    timelines = await asyncio.gather(
+        *(build_timeline(seed, constraints, map_service) for _, seed in seeds),
+        return_exceptions=True,
+    )
+    best: list[TimelineItem] = []
+    best_score = float("-inf")
+    best_label = ""
+    def _repeats(tl: list[TimelineItem]) -> bool:
+        kinds = [classify(it.place) for it in tl]
+        return any(a == b for a, b in zip(kinds, kinds[1:], strict=False))
+
+    valid = [(lb, tl) for (lb, _), tl in zip(seeds, timelines, strict=True) if not isinstance(tl, BaseException)]
+    # 같은 성격이 연달아 오는 코스(식사 → 식사)는 다른 시드가 있으면 고르지 않는다
+    if any(not _repeats(tl) for _, tl in valid if tl):
+        valid = [(lb, tl) for lb, tl in valid if not _repeats(tl)]
+    for label, timeline in valid:
+        s = course_score(timeline)
+        if s > best_score:
+            best_score, best, best_label = s, timeline, label
+    # #15: 어떤 시드 전략이 채택됐는지 누적 → 목적함수 가중치 튜닝 데이터
+    if best_label:
+        from app.strategy import strategy_store
+
+        strategy_store.bump(best_label)
+    return best

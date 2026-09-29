@@ -1,0 +1,21 @@
+{
+  "permissions": {
+    "deny": [
+      "Read(./frontend/node_modules/**)",
+      "Read(./frontend/.next/**)",
+      "Read(./frontend/out/**)",
+      "Read(./frontend/test-results/**)",
+      "Read(./frontend/playwright-report/**)",
+      "Read(./frontend/.playwright/**)",
+      "Read(./frontend/pnpm-lock.yaml)",
+      "Read(./frontend/tsconfig.tsbuildinfo)",
+      "Read(./frontend/next-env.d.ts)",
+      "Read(./backend/**/__pycache__/**)",
+      "Read(./backend/.pytest_cache/**)",
+      "Read(./.ruff_cache/**)",
+      "Read(./**/*.pyc)",
+      "Read(./**/.venv/**)",
+      "Read(./.git/**)"
+    ]
+  }
+}

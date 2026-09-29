@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<dbs>
+  <db>
+    <mt20id>PF232323</mt20id>
+    <prfnm>성수 사진전</prfnm>
+    <prfpdfrom>2026.09.01</prfpdfrom>
+    <prfpdto>2026.10.31</prfpdto>
+    <fcltynm>성수아트홀</fcltynm>
+    <poster>http://www.kopis.or.kr/upload/pf/1.jpg</poster>
+    <area>서울특별시</area>
+    <genrenm>전시</genrenm>
+    <openrun>N</openrun>
+    <prfstate>공연중</prfstate>
+  </db>
+</dbs>

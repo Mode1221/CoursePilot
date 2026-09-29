@@ -1,0 +1,205 @@
+from fastapi.testclient import TestClient
+
+from app.auth import VerificationStore
+from app.main import api
+
+
+def test_sms_request_returns_dev_code_without_key():
+    client = TestClient(api)
+    res = client.post("/auth/sms/request", json={"phone": "010-1234-5678"})
+    assert res.status_code == 200
+    # SMS 키 미설정(개발) → 코드가 응답에 노출되어 자동화/테스트 가능
+    assert res.json()["dev_code"] is not None
+
+
+def test_sms_verify_flow():
+    client = TestClient(api)
+    code = client.post("/auth/sms/request", json={"phone": "010-9999-0000"}).json()["dev_code"]
+    ok = client.post("/auth/sms/verify", json={"phone": "010-9999-0000", "code": code})
+    assert ok.status_code == 200 and ok.json()["verified"] is True
+    bad = client.post("/auth/sms/verify", json={"phone": "010-9999-0000", "code": "000000"})
+    assert bad.status_code == 400  # 이미 소비됨/불일치
+
+
+def test_verification_store_expiry(monkeypatch):
+
+    vs = VerificationStore()
+    code = vs.issue("p1")
+    assert vs.verify("p1", code) is True
+    assert vs.is_verified("p1") is True
+    # 만료 위조
+    vs._verified["p1"] = 0
+    assert vs.is_verified("p1") is False
+
+
+def test_signup_allowed_without_sms_when_disabled():
+    client = TestClient(api)
+    # sms_enabled=False(키 없음) → 인증 없이 가입 허용(개발/현행 동작 유지)
+    res = client.post("/signup", json={"phone": "010-2222-3333"})
+    assert res.status_code == 200
+
+
+def test_purchase_dev_bypass_without_payment_key():
+    client = TestClient(api)
+    uid = client.post("/signup", json={"phone": "010-4444-5555"}).json()["user_id"]
+    # 결제 비활성(키 없음) → imp_uid 없이도 지급(개발 폴백)
+    res = client.post(f"/users/{uid}/purchase", json={"points": 3}, headers={"X-User-Id": uid})
+    assert res.status_code == 200
+    assert res.json()["questions_left"] >= 3
+
+
+def test_코드를_여러_번_틀리면_폐기된다():
+    from app.auth import MAX_ATTEMPTS, VerificationStore
+
+    store = VerificationStore()
+    code = store.issue("01099998888")
+    for _ in range(MAX_ATTEMPTS):
+        assert store.verify("01099998888", "000000") is False
+    assert store.verify("01099998888", code) is False  # 폐기됨 → 재발급 필요
+    assert store.verify("01099998888", store.issue("01099998888")) is True
+
+
+def test_만료된_코드는_정리된다():
+    from app.auth import VerificationStore
+
+    store = VerificationStore()
+    store.issue("01099997777")
+    store._codes["01099997777"] = ("123456", 0.0)  # 만료 상태로 강제
+    assert store.verify("01099997777", "123456") is False
+    assert "01099997777" not in store._codes
+
+
+def test_재가입은_기존_계정으로_돌아간다():
+    client = TestClient(api)
+    phone = "010-8888-7777"
+    first = client.post("/signup", json={"phone": phone}).json()
+    again = client.post("/signup", json={"phone": phone}).json()
+    assert again["user_id"] == first["user_id"]
+    assert again["credits_left"] == first["credits_left"]
+
+
+def test_같은_번호_연속_발송은_막는다():
+    from app.auth import VerificationStore
+
+    store = VerificationStore()
+    assert store.can_send("010-1111-2222") is True
+    assert store.can_send("010-1111-2222") is False  # 쿨다운
+
+
+def test_시간당_발송_상한이_있다():
+    from app.auth import MAX_SENDS_PER_HOUR, RESEND_COOLDOWN, VerificationStore
+
+    store = VerificationStore()
+    phone = "010-3333-4444"
+    for _ in range(MAX_SENDS_PER_HOUR):
+        assert store.can_send(phone) is True
+        # 쿨다운을 지난 것처럼 이력을 과거로 밀어 둔다
+        store._sends[phone] = [t - RESEND_COOLDOWN - 1 for t in store._sends[phone]]
+    assert store.can_send(phone) is False
+
+
+def test_SMS_발송_실패는_502_로_알린다(monkeypatch):
+    import app.adapters.sms as sms_module
+    from app.main import api
+
+    class _Failing:
+        async def send(self, phone: str, text: str) -> bool:
+            raise RuntimeError("vendor down")
+
+    monkeypatch.setattr(sms_module, "get_sms_service", lambda: _Failing())
+    client = TestClient(api)
+    res = client.post("/auth/sms/request", json={"phone": "010-5555-3333"})
+    assert res.status_code == 502
+
+
+def test_운영에서_결제_키가_없으면_지급하지_않는다(monkeypatch):
+    """검증 없이 포인트를 찍어 주면 누구나 공짜로 충전할 수 있다."""
+    client = TestClient(api)
+    from app.users import user_store
+
+    uid = client.post("/signup", json={"phone": "010-7777-8888"}).json()["user_id"]
+    before = user_store.get(uid).credits_left
+
+    monkeypatch.setattr("app.config.settings.env", "production")
+    res = client.post(f"/users/{uid}/purchase", json={"points": 5}, headers={"X-User-Id": uid})
+    assert res.status_code == 503
+
+    assert user_store.get(uid).credits_left == before  # 한 푼도 늘지 않았다
+
+
+def test_ready_응답이_결제_활성_여부를_알려_준다():
+    # 결제는 기동 조건이 아니지만, 꺼져 있으면 구매가 503 이므로 드러나야 한다.
+    body = TestClient(api).get("/health/ready").json()
+    assert body["payment_enabled"] is False
+
+
+def test_토큰이_90일_지나면_만료된다(monkeypatch):
+    """만료가 없으면 한 번 새어 나간 토큰이 영원히 유효하다."""
+    import time
+
+    from app import session_token
+
+    monkeypatch.setattr("app.config.settings.session_secret", "s3cret")
+    now = int(time.time())
+    fresh = session_token.issue("u1", now)
+    assert session_token.verify("u1", fresh, now=now) is True
+    assert session_token.verify("u1", fresh, now=now + 89 * 86400) is True
+    assert session_token.verify("u1", fresh, now=now + 91 * 86400) is False
+    assert session_token.expired(fresh, now=now + 91 * 86400) is True
+
+
+def test_발급시각을_위조하면_서명이_깨진다(monkeypatch):
+    import time
+
+    from app import session_token
+
+    monkeypatch.setattr("app.config.settings.session_secret", "s3cret")
+    old = int(time.time()) - 100 * 86400
+    token = session_token.issue("u1", old)
+    forged = f"{int(time.time())}.{token.split('.')[1]}"
+    assert session_token.verify("u1", forged) is False
+
+
+def test_만료_없는_구형_토큰은_거절한다(monkeypatch):
+    import base64
+    import hashlib
+    import hmac
+
+    from app import session_token
+
+    monkeypatch.setattr("app.config.settings.session_secret", "s3cret")
+    mac = hmac.new(b"s3cret", b"u1", hashlib.sha256).digest()
+    legacy = base64.urlsafe_b64encode(mac).decode().rstrip("=")
+    assert session_token.verify("u1", legacy) is False
+
+
+def test_만료된_토큰으로_접근하면_401(monkeypatch):
+    import time
+
+    from app import session_token
+
+    monkeypatch.setattr("app.config.settings.session_secret", "s3cret")
+    client = TestClient(api)
+    uid = client.post("/signup", json={"phone": "010-5555-1111"}).json()["user_id"]
+    old = session_token.issue(uid, int(time.time()) - 200 * 86400)
+    res = client.get(
+        f"/users/{uid}/credits", headers={"X-User-Id": uid, "X-User-Token": old}
+    )
+    assert res.status_code == 401
+
+
+def test_인증하면_토큰을_새로_끊어_준다():
+    """만료로 돌아온 사용자가 인증만 다시 하면 쓰던 계정으로 이어진다."""
+    client = TestClient(api)
+    phone = "010-5555-2222"
+    code = client.post("/auth/sms/request", json={"phone": phone}).json()["dev_code"]
+    client.post("/auth/sms/verify", json={"phone": phone, "code": code})
+    uid = client.post("/signup", json={"phone": phone}).json()["user_id"]
+
+    # 같은 번호로 연달아 요청하면 rate limit 이라, 코드만 직접 발급해 검증한다
+    from app.auth import normalize_phone, verification_store
+
+    code = verification_store.issue(normalize_phone(phone))
+    body = client.post("/auth/sms/verify", json={"phone": phone, "code": code}).json()
+    assert body["verified"] is True
+    assert body["user_id"] == uid

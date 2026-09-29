@@ -1,0 +1,15 @@
+{
+  "meta": {"total_count": 2, "pageable_count": 2, "is_end": true,
+           "same_name": {"region": [], "keyword": "성수 카페", "selected_region": ""}},
+  "documents": [
+    {"id": "26338954", "place_name": "성수커피", "category_name": "음식점 > 카페 > 커피전문점",
+     "category_group_code": "CE7", "category_group_name": "카페", "phone": "02-000-0000",
+     "address_name": "서울 성동구 성수동2가 000-0", "road_address_name": "서울 성동구 아차산로 17",
+     "x": "127.05570000", "y": "37.54450000", "place_url": "http://place.map.kakao.com/26338954",
+     "distance": "120"},
+    {"id": "12345678", "place_name": "성수술집", "category_name": "음식점 > 술집 > 요리주점",
+     "category_group_code": "FD6", "category_group_name": "음식점",
+     "address_name": "서울 성동구 성수동1가 111", "road_address_name": "서울 성동구 연무장길 5",
+     "x": "127.0560", "y": "37.5450", "place_url": "http://place.map.kakao.com/12345678"}
+  ]
+}

@@ -1,0 +1,16 @@
+fastapi==0.141.1
+uvicorn[standard]==0.54.0
+python-socketio==5.17.0
+redis==5.3.1  # 다중 인스턴스 시 Socket.IO Redis 매니저 (REDIS_URL 설정 시에만 사용)
+sqlalchemy==2.1.1
+psycopg[binary]==3.3.6
+pgvector==0.5.0
+pydantic==2.13.5
+pydantic-settings==2.15.0
+httpx==0.28.1
+anthropic==0.125.0
+openai==1.109.1  # 1.55 미만은 httpx 0.28 과 충돌(클라이언트 생성 실패)
+python-dotenv==1.2.3
+pyyaml==6.0.3  # 테스트: prod compose 와 .env.example 키 일치 검사
+pytest==9.1.1
+pytest-asyncio==1.4.0

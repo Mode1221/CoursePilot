@@ -1,0 +1,38 @@
+# 의존성 업데이트 — 생태계마다 묶음 PR 1개(주·월 1회), 메이저 버전은 제외(손으로 검증해 올린다).
+# 취약점 수정은 GitHub 보안 알림·CI `audit` 잡이 따로 잡는다.
+version: 2
+updates:
+  - package-ecosystem: pip
+    directory: /backend
+    schedule: { interval: weekly }
+    groups:
+      backend: { patterns: ["*"], update-types: [minor, patch] }
+    ignore:
+      - { dependency-name: "*", update-types: ["version-update:semver-major"] }
+  - package-ecosystem: npm
+    directory: /frontend
+    schedule: { interval: weekly }
+    groups:
+      frontend: { patterns: ["*"], update-types: [minor, patch] }
+    ignore:
+      - { dependency-name: "*", update-types: ["version-update:semver-major"] }
+      # 로컬·CI 브라우저 버전과 맞물려 있어 손으로 올린다
+      - { dependency-name: "@playwright/test" }
+  - package-ecosystem: docker
+    directory: /backend
+    schedule: { interval: monthly }
+    ignore:
+      # 파이썬 마이너(3.11 → 3.14)도 의존성 호환을 확인해야 한다 — 패치만
+      - { dependency-name: "python", update-types: ["version-update:semver-major", "version-update:semver-minor"] }
+  - package-ecosystem: docker
+    directory: /frontend
+    schedule: { interval: monthly }
+    ignore:
+      - { dependency-name: "node", update-types: ["version-update:semver-major", "version-update:semver-minor"] }
+  - package-ecosystem: github-actions
+    directory: /
+    schedule: { interval: monthly }
+    groups:
+      actions: { patterns: ["*"] }
+    ignore:
+      - { dependency-name: "*", update-types: ["version-update:semver-major"] }

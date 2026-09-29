@@ -1,0 +1,49 @@
+# 코스 품질 즉석 점검 — probe/* 브랜치를 푸시하거나 수동 실행하면 운영 API 로 예시 코스를 만들어
+# 결과 표를 "코스 품질 점검" 이슈에 댓글로 남긴다(작업 요약에도). 코스는 QA 계정으로 만들고 지운다.
+name: Course probe
+
+on:
+  push:
+    branches: ["probe/**"]
+  workflow_dispatch:
+
+concurrency:
+  group: course-probe
+  cancel-in-progress: false
+
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: write  # 결과를 probe-results 브랜치에도 남긴다(이슈 댓글은 비로그인으로 읽기 어렵다)
+      issues: write
+    env:
+      QA_API_URL: ${{ vars.QA_API_URL }}
+      QA_TOKEN: ${{ secrets.QA_TOKEN }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: 코스 만들기·정리
+        run: python3 scripts/probe/course_probe.py > report.md; cat report.md >> "$GITHUB_STEP_SUMMARY"
+      - name: 이슈에 남기기
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          gh label create quality-probe --color 1D76DB --description "코스 품질 즉석 점검" --force >/dev/null 2>&1 || true
+          n="$(gh issue list --label quality-probe --state all --json number --jq '.[0].number // empty')"
+          if [ -z "$n" ]; then
+            gh issue create --title "코스 품질 점검" --label quality-probe --body-file report.md
+          else
+            gh issue reopen "$n" >/dev/null 2>&1 || true
+            gh issue edit "$n" --body-file report.md  # 본문을 최신 결과로(댓글은 기록용)
+            gh issue comment "$n" --body-file report.md
+          fi
+      - name: probe-results 브랜치에 남기기
+        run: |
+          git config user.name "github-actions" && git config user.email "actions@github.com"
+          cp report.md /tmp/report.md
+          git fetch -q origin probe-results && git checkout -q probe-results || git checkout -q --orphan probe-results
+          git rm -rq . >/dev/null 2>&1 || true
+          mkdir -p reports && cp /tmp/report.md "reports/${GITHUB_RUN_ID}.md" && cp /tmp/report.md latest.md
+          git add reports latest.md && git commit -qm "probe ${GITHUB_RUN_ID}" && git push -q origin probe-results

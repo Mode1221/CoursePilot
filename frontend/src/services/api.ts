@@ -1,0 +1,416 @@
+import { arrivalPayload } from "@/services/acquisition";
+import { readTogetherToken } from "@/services/togetherToken";
+import { storedUserId, storedUserToken, useUserStore } from "@/store/userStore";
+import type { Course } from "@/types";
+
+/** 합의 코스 카드(30초). 예산은 서버에 저장되지만 상대에게는 나가지 않는다. */
+export interface TogetherCard {
+  name?: string;
+  condition: "fresh" | "normal" | "tired" | "hungry";
+  cravings: string[];
+  dislikes: string[];
+  budget_band?: number | null;
+  note?: string;
+}
+
+export interface TogetherStatus {
+  course_id: string;
+  owner_name: string;
+  partner_name: string;
+  submitted: string[];
+  built: boolean;
+  accepted_by: string[];
+  request_text: string;
+  cards: { conditions: string[]; cravings: string[]; dislikes: string[]; budget_bands: number[] };
+  stale?: boolean;
+  /** 링크로 온 사람이 새로 가입하면 두 사람이 받는 보상(서버 값) */
+  invite_reward?: InviteReward | null;
+}
+
+/** 초대 보상: `days` 일 동안 하루 몫에 `extra` 만큼 더한다(기능별 — course·ai·build). */
+export interface InviteReward {
+  days: number;
+  extra: Record<string, number>;
+}
+
+export interface GenerateResponse {
+  course: Course;
+  relaxed: boolean;
+  needs_confirmation: boolean;
+}
+
+import { apiBase } from "@/services/apiBase";
+
+/**
+ * 사용 한도 응답의 종류(서버 `code`).
+ * - guest_required: 신원이 없다 → 체험 시작
+ * - login_required: 체험 몫을 다 썼다 → 로그인
+ * - daily_limit: 로그인 회원의 오늘 몫을 다 썼다
+ * - service_busy: 서비스 전체 오늘 몫이 찼다
+ */
+export type LimitCode = "guest_required" | "login_required" | "daily_limit" | "service_busy";
+
+export class ApiError extends Error {
+  constructor(
+    public status: number,
+    message: string,
+    /** 서버가 붙인 추적 id. 문의 시 이 값으로 로그를 찾을 수 있다. */
+    public requestId?: string,
+    /** 한도·신원 관련 응답이면 그 종류 */
+    public code?: LimitCode,
+  ) {
+    super(message);
+  }
+}
+
+export interface LoginResult {
+  user_id: string;
+  token?: string;
+  kind?: "member";
+  moved_courses?: number;
+  /** 같이 정하기 링크로 와서 새로 가입했으면 받은 보상 */
+  invite_reward?: InviteReward | null;
+}
+
+interface RequestOptions {
+  method?: string;
+  body?: unknown; // JSON 직렬화됨
+  userId?: string; // 있으면 X-User-Id 헤더
+  togetherToken?: string; // 합의 코스 상대의 링크 토큰 → X-Together-Token (가입 없이 AI 사용)
+}
+
+// detail 이 없거나 사람이 읽을 수 없는 형태일 때 쓰는 기본 문구
+const DEFAULT_ERROR = "요청을 처리하지 못했어요. 잠시 후 다시 시도해주세요.";
+// 네트워크가 끊긴 채로 응답이 오지 않으면 화면이 '처리 중'에 영영 갇힌다.
+const TIMEOUT_MS = 20_000;
+const TIMEOUT_ERROR = "응답이 너무 늦어요. 네트워크를 확인하고 다시 시도해주세요.";
+// 조회(GET)는 부작용이 없으니 일시적 실패는 조용히 한 번 더 시도한다.
+const RETRY_DELAY_MS = 400;
+
+function sleep(ms: number) {
+  return new Promise((r) => setTimeout(r, ms));
+}
+
+/** 조회 요청은 네트워크/서버 일시 오류(0·5xx)에 한해 한 번만 다시 시도한다. */
+async function request<T>(path: string, opts: RequestOptions = {}): Promise<T> {
+  const method = opts.method ?? "GET";
+  try {
+    return await requestOnce<T>(path, opts);
+  } catch (e) {
+    const transient = e instanceof ApiError && (e.status === 0 || e.status >= 500);
+    if (method !== "GET" || !transient) throw e;
+    await sleep(RETRY_DELAY_MS);
+    return requestOnce<T>(path, opts);
+  }
+}
+
+/** 세션 만료 처리. 저장된 신원을 지우고 로그인 화면으로 보낸다. */
+function onSessionExpired() {
+  try {
+    useUserStore.getState().clearUser();
+  } catch {
+    // 스토어가 아직 없을 수 있다(SSR 등) — 조용히 넘긴다
+  }
+  if (typeof window !== "undefined" && !["/login", "/start"].includes(window.location.pathname)) {
+    window.location.assign(`/login?expired=1&next=${encodeURIComponent(currentPath())}`);
+  }
+}
+
+function currentPath(): string {
+  if (typeof window === "undefined") return "/";
+  return window.location.pathname + window.location.search;
+}
+
+/**
+ * 한도에 걸리면 다음 행동으로 보낸다. 체험 몫을 다 썼으면 로그인, 신원이 없으면 체험 시작.
+ * 로그인하면 지금 보던 화면으로 돌아온다(next).
+ */
+function onLimit(code: LimitCode | undefined) {
+  if (typeof window === "undefined") return;
+  const next = encodeURIComponent(currentPath());
+  if (code === "login_required" && window.location.pathname !== "/login") {
+    window.location.assign(`/login?reason=trial&next=${next}`);
+  } else if (code === "guest_required" && window.location.pathname !== "/start") {
+    window.location.assign(`/start?next=${next}`);
+  }
+}
+
+/**
+ * 기기 무작위 id — 합의 코스 측정(역할 역전: 상대로 참여했던 기기가 나중에 먼저 시작)에만 쓴다.
+ * 개인정보가 아니고, 서버는 이 값으로 사람을 식별하지 않는다.
+ */
+function deviceId(): string | null {
+  if (typeof window === "undefined") return null;
+  try {
+    const KEY = "coursepilot_device";
+    let id = window.localStorage.getItem(KEY);
+    if (!id) {
+      id = (crypto.randomUUID?.() ?? `${Date.now()}-${Math.random().toString(36).slice(2)}`).slice(0, 64);
+      window.localStorage.setItem(KEY, id);
+    }
+    return id;
+  } catch {
+    return null;
+  }
+}
+
+// 실제 호출 1회: BASE, JSON 헤더, X-User-Id, 에러→ApiError, 파싱.
+async function requestOnce<T>(path: string, opts: RequestOptions = {}): Promise<T> {
+  const headers: Record<string, string> = {};
+  if (opts.body !== undefined) headers["Content-Type"] = "application/json";
+  if (opts.togetherToken) headers["X-Together-Token"] = opts.togetherToken;
+  const device = deviceId();
+  if (device) headers["X-Device-Id"] = device;
+  // 신원은 늘 함께 보낸다(체험 계정 포함) — 서버가 한도를 사람 단위로 세고,
+  // 코스 편집 권한도 서명 토큰으로만 인정한다.
+  const identity = opts.userId ?? storedUserId() ?? undefined;
+  if (identity) {
+    headers["X-User-Id"] = identity;
+    // 서명 토큰이 있으면 함께 보낸다(서버가 비밀키를 쓰는 환경에서는 필수)
+    const token = storedUserToken();
+    if (token) headers["X-User-Token"] = token;
+  }
+  // 같이 정하는 상대는 링크 토큰으로 이 코스를 고친다(가입 없음)
+  if (!opts.togetherToken) {
+    const m = /^\/courses\/([^/?]+)/.exec(path);
+    const partner = m ? readTogetherToken(m[1]) : null;
+    if (partner) headers["X-Together-Token"] = partner;
+  }
+
+  const method = opts.method ?? "GET";
+  let res: Response;
+  try {
+    res = await fetch(`${apiBase()}${path}`, {
+      method,
+      headers,
+      body: opts.body !== undefined ? JSON.stringify(opts.body) : undefined,
+      signal: AbortSignal.timeout(TIMEOUT_MS),
+    });
+  } catch (e) {
+    const timedOut = e instanceof DOMException && e.name === "TimeoutError";
+    throw new ApiError(0, timedOut ? TIMEOUT_ERROR : DEFAULT_ERROR);
+  }
+  if (res.status === 401 && identity) {
+    // 세션 토큰이 만료(90일)되었거나 서명이 맞지 않는다. 저장된 신원을 버리고
+    // 재인증 화면으로 보낸다 — 그대로 두면 모든 요청이 계속 401 이다.
+    onSessionExpired();
+  }
+  if (!res.ok) {
+    const body = await res.json().catch(() => null);
+    const detail = body?.detail;
+    const code: LimitCode | undefined = typeof body?.code === "string" ? body.code : undefined;
+    const requestId = res.headers.get("X-Request-Id") ?? undefined;
+    // detail 은 화면에 그대로 노출된다. 서버 검증 오류(422)는 배열/객체로 오고,
+    // detail 이 없으면 내부 경로가 보이므로 사람이 읽을 수 있는 문구만 쓴다.
+    const message = typeof detail === "string" && detail.trim() ? detail : DEFAULT_ERROR;
+    if (code) onLimit(code);
+    throw new ApiError(res.status, message, requestId, code);
+  }
+  // 204/빈 응답 대비
+  const text = await res.text();
+  return (text ? JSON.parse(text) : undefined) as T;
+}
+
+export const api = {
+  createCourse: (userId?: string) =>
+    request<Course>("/courses", { method: "POST", userId }),
+
+  getCourse: (id: string) => request<Course>(`/courses/${id}`),
+
+  renameCourse: (id: string, title: string, userId?: string) =>
+    request<Course>(`/courses/${id}`, { method: "PATCH", body: { title }, userId }),
+
+  duplicateCourse: (id: string, userId?: string) =>
+    request<Course>(`/courses/${id}/duplicate`, { method: "POST", userId }),
+
+  deleteCourse: (id: string, userId?: string) =>
+    request<{ ok: boolean }>(`/courses/${id}`, { method: "DELETE", userId }),
+
+  generate: (id: string, text: string, userId?: string, togetherToken?: string) =>
+    request<GenerateResponse>(`/courses/${id}/generate`, { method: "POST", body: { text }, userId, togetherToken }),
+
+  // 완화 동의 후 재시도(크레딧 미소모)
+  relax: (id: string, userId?: string, togetherToken?: string) =>
+    request<GenerateResponse>(`/courses/${id}/relax`, { method: "POST", userId, togetherToken }),
+
+  requestSmsCode: (phone: string) =>
+    request<{ sent: boolean; dev_code: string | null }>("/auth/sms/request", {
+      method: "POST",
+      body: { phone },
+    }),
+
+  // 이미 가입한 번호면 새 토큰을 함께 돌려준다(만료 후 재인증 경로)
+  verifySmsCode: (phone: string, code: string) =>
+    request<{ verified: boolean; user_id?: string; token?: string; moved_courses?: number }>("/auth/sms/verify", {
+      method: "POST",
+      body: { phone, code },
+    }),
+
+  // 첫 방문 출처·초대 토큰을 함께 보낸다(새 계정일 때만 서버가 쓴다)
+  signup: (phone: string) =>
+    request<LoginResult & { credits_left: number }>("/signup", {
+      method: "POST",
+      body: { phone, ...arrivalPayload() },
+    }),
+
+  // 로그인 없이 한 번 써 보기 — 서버가 체험 계정과 서명 토큰을 준다
+  startGuest: (nickname: string | null, agreed: boolean) =>
+    request<{ user_id: string; token?: string; kind: "guest" }>("/auth/guest", {
+      method: "POST",
+      body: { nickname, agreed, ...arrivalPayload() },
+    }),
+
+  // 지금 신원과 남은 횟수(체험 중 안내용)
+  me: () =>
+    request<{
+      kind: "guest" | "member" | null;
+      user_id?: string;
+      nickname?: string | null;
+      remaining?: Record<string, number>;
+      limits?: Record<string, number>;
+      /** 초대 보상 기간이면 끝나는 시각(UTC ISO)과 하루에 더해지는 몫 */
+      invite_bonus?: { until: string; extra: Record<string, number> } | null;
+    }>("/me"),
+
+  // 카카오 인가 코드로 로그인. 체험 중이었으면 그 코스가 이 계정으로 옮겨진다
+  kakaoLogin: (code: string, redirectUri: string) =>
+    request<LoginResult>("/auth/kakao", {
+      method: "POST",
+      body: { code, redirect_uri: redirectUri, ...arrivalPayload() },
+    }),
+
+  reorder: (id: string, placeIds: string[]) =>
+    request<Course>(`/courses/${id}/reorder`, { method: "POST", body: { place_ids: placeIds } }),
+
+  setItems: (id: string, placeIds: string[]) =>
+    request<Course>(`/courses/${id}/items`, { method: "POST", body: { place_ids: placeIds } }),
+
+  searchPlaces: (region: string, q = "", limit = 8) =>
+    request<import("@/types").Place[]>(
+      `/places/search?region=${encodeURIComponent(region)}&q=${encodeURIComponent(q)}&limit=${limit}`,
+    ),
+
+  addPlace: (id: string, placeId: string) =>
+    request<Course>(`/courses/${id}/places`, { method: "POST", body: { place_id: placeId } }),
+
+  messages: (id: string) =>
+    request<{ role: "user" | "ai"; text: string }[]>(`/courses/${id}/messages`),
+
+  reviewSummary: (placeId: string, placeName: string) =>
+    request<{ summary: string; count: number; pros: string[]; cons: string[] }>("/reviews/summary", {
+      method: "POST",
+      body: { place_id: placeId, place_name: placeName },
+    }),
+
+  courseReasons: (id: string) =>
+    request<{ reasons: Record<string, string[]> }>(`/courses/${id}/reasons`),
+
+  deleteAccount: (userId: string) =>
+    request<{ ok: boolean; deleted_courses: number }>(`/users/${userId}`, {
+      method: "DELETE",
+      userId,
+    }),
+
+  getPreferences: (userId: string) =>
+    request<{
+      mood: string | null;
+      budget: string | null;
+      region: string | null;
+      diet: string[];
+      transport: string | null;
+      must_haves: string[];
+    }>(`/users/${userId}/preferences`, { userId }),
+
+  setPreferences: (userId: string, prefs: Record<string, unknown>) =>
+    request<void>(`/users/${userId}/preferences`, { method: "PUT", body: prefs, userId }),
+
+  myCourses: (userId: string) => request<Course[]>(`/users/${userId}/courses`, { userId }),
+
+  myBookmarks: (userId: string) => request<Course[]>(`/users/${userId}/bookmarks`, { userId }),
+
+  addBookmark: (userId: string, courseId: string) =>
+    request<void>(`/users/${userId}/bookmarks/${courseId}`, { method: "PUT", userId }),
+
+  // ── 합의 코스("먼저 상대에게 묻기") ─────────────────────────────────────
+  togetherStart: (courseId: string, userId: string, body: { text: string; owner_name?: string; partner_name?: string }) =>
+    request<TogetherStatus>(`/courses/${courseId}/together`, { method: "POST", body, userId }),
+  togetherLink: (courseId: string, userId: string) =>
+    request<{ token: string }>(`/courses/${courseId}/together/link`, { userId }),
+  togetherStatus: (token: string) => request<TogetherStatus>(`/together/${token}`),
+  togetherPartnerInput: (token: string, card: TogetherCard) =>
+    request<TogetherStatus>(`/together/${token}/input`, { method: "POST", body: card }),
+  togetherOwnerInput: (courseId: string, userId: string, card: TogetherCard) =>
+    request<TogetherStatus>(`/courses/${courseId}/together/input`, { method: "POST", body: card, userId }),
+  togetherBuild: (courseId: string, userId: string) =>
+    request<{ course: Course; status: TogetherStatus }>(`/courses/${courseId}/together/build`, {
+      method: "POST",
+      userId,
+    }),
+  togetherOwnerRate: (courseId: string, userId: string, ratings: Record<string, number>) =>
+    request<{ mine: Record<string, number> }>(`/courses/${courseId}/together/rate`, {
+      method: "POST",
+      body: { ratings },
+      userId,
+    }),
+  togetherPartnerRate: (token: string, ratings: Record<string, number>) =>
+    request<{ mine: Record<string, number> }>(`/together/${token}/rate`, { method: "POST", body: { ratings } }),
+  togetherPartnerAccept: (token: string) =>
+    request<TogetherStatus>(`/together/${token}/accept`, { method: "POST" }),
+  togetherOwnerAccept: (courseId: string, userId: string) =>
+    request<TogetherStatus>(`/courses/${courseId}/together/accept`, { method: "POST", userId }),
+  publicConfig: () =>
+    request<{ naver_map_client_id: string; kakao_login_client_id?: string | null; phone_login?: boolean }>(
+      `/config/public`,
+    ),
+  areaStatus: (region: string) =>
+    request<{ area: string; level: string | null; message: string | null; calmer_hour: string | null } | null>(
+      `/areas/status?region=${encodeURIComponent(region)}`,
+    ),
+  credits: (userId: string) =>
+    request<{ questions_left: number; free_mode?: boolean }>(`/users/${userId}/credits`, { userId }),
+
+  // 별점은 사람·장소당 한 표(다시 매기면 이전 점수 대체)라 사용자 id 를 함께 보낸다
+  ratePlace: (placeId: string, stars: number, userId?: string) =>
+    request<{ ok: boolean; average: number | null }>(`/places/${placeId}/rating`, {
+      method: "POST",
+      body: { stars },
+      userId,
+    }),
+
+  relatedPlaces: (placeId: string, limit = 5) =>
+    request<import("@/types").Place[]>(`/places/${placeId}/related?limit=${limit}`),
+
+  // 재방문 의사는 사람·장소당 한 번만 신호로 세므로 사용자 id 를 함께 보낸다
+  revisit: (placeId: string, userId?: string) =>
+    request<{ ok: boolean; counted: boolean }>(`/places/${placeId}/revisit`, {
+      method: "POST",
+      userId,
+    }),
+
+  feedback: (courseId: string, kind: string, detail = "") =>
+    request<{ ok: boolean }>(`/courses/${courseId}/feedback`, {
+      method: "POST",
+      body: { kind, detail },
+    }),
+
+  view: (courseId: string) =>
+    request<{ ok: boolean }>(`/courses/${courseId}/view`, { method: "POST" }),
+
+  satisfaction: (courseId: string, liked: boolean) =>
+    request<{ ok: boolean }>(`/courses/${courseId}/satisfaction`, {
+      method: "POST",
+      body: { liked },
+    }),
+
+  complete: (courseId: string) =>
+    request<{ ok: boolean; places: number }>(`/courses/${courseId}/complete`, {
+      method: "POST",
+    }),
+
+  purchase: (userId: string, points: number) =>
+    request<{ questions_left: number }>(`/users/${userId}/purchase`, {
+      method: "POST",
+      body: { points },
+      userId,
+    }),
+};

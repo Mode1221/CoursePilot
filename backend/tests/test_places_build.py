@@ -1,0 +1,202 @@
+"""장소 DB 구축 배치: 전수 수집·폐업 제거·Google 콜 페이싱."""
+import io
+from datetime import UTC, date, datetime
+
+import pytest
+
+from app.adapters.google import GooglePlacesClient
+from app.adapters.kakao import KakaoLocalService
+from app.adapters.localdata import LocalDataRegistry
+from app.batch.districts import DISTRICTS
+from app.batch.grid import cells_for
+from app.batch.places_build import (
+    GROUP_CODES,
+    SUPPLEMENT_KEYWORDS,
+    collect,
+    drop_closed,
+    fill_hours,
+    fill_ratings,
+    run,
+)
+from app.schemas import Place
+
+CSV = """개방자치단체코드,사업장명,도로명주소,지번주소,영업상태명,상세영업상태명,인허가일자,폐업일자
+3040000,살아있는집,서울 성동구 아차산로 17,서울 성동구 성수동2가 17,영업/정상,영업,20150301,
+3040000,문닫은집,서울 성동구 아차산로 21,서울 성동구 성수동2가 21,폐업,폐업,20180401,20220501
+"""
+
+
+def _place(pid: str, name: str = "가게", address: str | None = None) -> Place:
+    return Place(id=pid, name=name, address=address, lat=37.5, lng=127.0)
+
+
+class _FakeKakao(KakaoLocalService):
+    def __init__(self, per_call=2, fail_codes=()):
+        self.calls: list[tuple[str, float]] = []
+        self.keyword_calls: list[tuple[str, str]] = []
+        self._per_call = per_call
+        self._fail = set(fail_codes)
+
+    async def search_category(self, group_code, lat, lng, radius_m=1000, pages=3):
+        self.calls.append((group_code, lat))
+        if group_code in self._fail:
+            raise RuntimeError("boom")
+        return [_place(f"{group_code}-{lat}-{lng}-{i}") for i in range(self._per_call)]
+
+    async def search_keyword_at(self, query, lat, lng, radius_m, pages=3):
+        self.keyword_calls.append((query, f"{lat:.4f}"))
+        return [_place(f"kw-{query}-{lat}")]
+
+
+async def test_상권마다_격자_칸_전부에_모든_카테고리를_훑는다():
+    kakao = _FakeKakao()
+    targets = DISTRICTS[:2]
+    places = await collect(kakao, targets)
+    cells = sum(len(cells_for(d)) for d in targets)
+    assert cells > 2  # 반경 1km 상권은 칸 하나로 끝나지 않는다
+    assert len(kakao.calls) == cells * len(GROUP_CODES)
+    # 칸마다 다른 좌표로 부르므로 결과가 칸 수만큼 쌓인다 + 보충 키워드
+    assert len(places) == cells * len(GROUP_CODES) * 2 + len(targets) * len(SUPPLEMENT_KEYWORDS)
+
+
+async def test_보충_키워드는_상권_중심에서_한_번씩():
+    kakao = _FakeKakao()
+    await collect(kakao, DISTRICTS[:1])
+    assert [q for q, _ in kakao.keyword_calls] == list(SUPPLEMENT_KEYWORDS)
+    assert kakao.keyword_calls[0][1] == f"{DISTRICTS[0].lat:.4f}"
+
+
+async def test_보충_키워드_실패는_배치를_멈추지_않는다():
+    class _KwFail(_FakeKakao):
+        async def search_keyword_at(self, query, lat, lng, radius_m, pages=3):
+            raise RuntimeError("boom")
+
+    places = await collect(_KwFail(), DISTRICTS[:1])
+    assert places and all(not p.id.startswith("kw-") for p in places)
+
+
+async def test_한_상권_실패가_배치를_멈추지_않는다():
+    places = await collect(_FakeKakao(fail_codes=("FD6",)), DISTRICTS[:1])
+    assert places and all(not p.id.startswith("FD6") for p in places)
+
+
+async def test_중복_장소는_한_번만():
+    class _Dup(_FakeKakao):
+        async def search_category(self, group_code, lat, lng, radius_m=1000, pages=3):
+            return [_place("same")]
+
+        async def search_keyword_at(self, query, lat, lng, radius_m, pages=3):
+            return [_place("same")]
+
+    assert len(await collect(_Dup(), DISTRICTS[:3])) == 1
+
+
+def test_폐업을_빼고_인허가일자를_붙인다(monkeypatch):
+    registry = LocalDataRegistry()
+    registry.load_csv(io.StringIO(CSV))
+    monkeypatch.setattr("app.adapters.localdata.get_localdata_registry", lambda: registry)
+    places = [
+        _place("a", "살아있는집", "서울 성동구 아차산로 17"),
+        _place("b", "문닫은집", "서울 성동구 아차산로 21"),
+    ]
+    kept, removed = drop_closed(places)
+    assert [p.id for p in kept] == ["a"] and removed == 1
+    assert kept[0].opened_on == date(2015, 3, 1)
+
+
+def test_대장이_없으면_그대로_통과(monkeypatch):
+    monkeypatch.setattr(
+        "app.adapters.localdata.get_localdata_registry", lambda: LocalDataRegistry()
+    )
+    kept, removed = drop_closed([_place("b", "문닫은집")])
+    assert len(kept) == 1 and removed == 0
+
+
+class _FakeGoogle(GooglePlacesClient):
+    """영업시간·평점은 같은 Enterprise 콜로 함께 온다(호출 1회)."""
+
+    def __init__(self):
+        self._key = "k"
+        self.hours: list[str] = []
+        self.ratings: list[str] = []
+
+    async def refresh_details(self, place, weekday=None):
+        self.hours.append(place.id)
+        self.ratings.append(place.id)
+        place.hours_checked_at = datetime.now(UTC)
+        place.rating, place.rating_checked_at = 4.1, datetime.now(UTC)
+        return place
+
+
+async def test_영업시간은_하루_할당량까지만(monkeypatch):
+    google = _FakeGoogle()
+    monkeypatch.setattr("app.adapters.google.get_places_client", lambda: google)
+    filled = await fill_hours([_place(f"p{i}") for i in range(10)], limit=3)
+    assert filled == 3 and len(google.hours) == 3
+
+
+async def test_이미_최신인_영업시간은_묻지_않는다(monkeypatch):
+    google = _FakeGoogle()
+    monkeypatch.setattr("app.adapters.google.get_places_client", lambda: google)
+    fresh = _place("p")
+    fresh.hours_checked_at = datetime.now(UTC)
+    assert await fill_hours([fresh]) == 0
+
+
+async def test_평점은_인기_상위에만_묻는다(monkeypatch):
+    google = _FakeGoogle()
+    monkeypatch.setattr("app.adapters.google.get_places_client", lambda: google)
+    monkeypatch.setattr(
+        "app.popularity.popularity_store.scores", lambda ids: {"p2": 9.0, "p0": 1.0}
+    )
+    places = [_place(f"p{i}") for i in range(5)]
+    filled = await fill_ratings(places, limit=2, top_per_district=2)
+    assert google.ratings == ["p2", "p0"] and filled == 2
+
+
+async def test_키가_없으면_구글_단계를_건너뛴다(monkeypatch):
+    client = GooglePlacesClient()
+    client._key = ""
+    monkeypatch.setattr("app.adapters.google.get_places_client", lambda: client)
+    assert await fill_hours([_place("p")]) == 0
+    assert await fill_ratings([_place("p")]) == 0
+
+
+@pytest.mark.parametrize("hours_limit", [0, 2])
+async def test_한_사이클을_돌면_리포트가_나온다(monkeypatch, hours_limit):
+    google = _FakeGoogle()
+    monkeypatch.setattr("app.adapters.google.get_places_client", lambda: google)
+    monkeypatch.setattr(
+        "app.adapters.localdata.get_localdata_registry", lambda: LocalDataRegistry()
+    )
+    report = await run(
+        DISTRICTS[:1], hours_limit=hours_limit, ratings_limit=0, kakao=_FakeKakao()
+    )
+    assert report.collected == report.upserted > 0
+    assert report.hours_filled == hours_limit
+    assert report.districts == [DISTRICTS[0].name]
+
+
+async def test_인지도와_사실_태그를_한_번에_채운다(monkeypatch):
+    from app.batch.places_build import fill_awareness
+
+    monkeypatch.setattr("app.config.settings.naver_client_id", "id")
+
+    async def fake_signals(client, query, limit=10):
+        if query != "가게":
+            return None, []
+        return 1234, ["주차 가능하고 단체 가능한 곳", "주차장 넉넉해요 룸 있음"]
+
+    monkeypatch.setattr("app.reviews.fact_tags.blog_signals", fake_signals)
+    places = [_place("p1"), _place("p2", name="다른가게")]
+    assert await fill_awareness(places) == 1
+    assert places[0].blog_mentions == 1234
+    assert "주차" in places[0].fact_tags
+    assert places[1].blog_mentions is None
+
+
+async def test_네이버_키가_없으면_인지도를_건너뛴다(monkeypatch):
+    from app.batch.places_build import fill_awareness
+
+    monkeypatch.setattr("app.config.settings.naver_client_id", "")
+    assert await fill_awareness([_place("p")]) == 0

@@ -1,0 +1,175 @@
+# 프로덕션(단일 VM) 배포용 compose.
+#   - backend/frontend 는 **CI 가 구운 arm64 이미지를 받아서** 띄운다(빌드하지 않는다).
+#     1~2 OCPU VM 에서 Next.js 를 빌드하면 수십 분이 걸리거나 메모리가 모자란다.
+#     IMAGE_TAG 를 커밋 sha 로 주면 그 버전으로 고정된다(기본 latest).
+#   - 이미지 태그는 모두 고정한다. 전부 linux/arm64 빌드가 있어 Oracle Cloud
+#     Ampere(aarch64) VM 에서 그대로 뜬다(2026-09 확인).
+#   - Caddy: 자동 HTTPS(Let's Encrypt) + 리버스 프록시 + WebSocket
+#   - 도메인: ${DOMAIN} → 프론트, api.${DOMAIN} → 백엔드(Socket.IO 포함)
+#   - db: pgvector 컨테이너(볼륨 영속). 별도 관리형 DB 불필요.
+# 사용: `.env.prod` 를 `.env` 로 복사해 값 채운 뒤 `./deploy.sh`
+# 컨테이너 로그가 무한히 자라면 100GB 디스크가 조용히 찬다.
+x-logging: &logging
+  driver: json-file
+  options:
+    max-size: "10m"
+    max-file: "3"
+
+services:
+  db:
+    logging: *logging
+    image: pgvector/pgvector:0.8.0-pg16  # arm64 지원 확인
+    # DB 는 공개 IP 에 절대 노출하지 않는다. Tailscale 인터페이스에만 바인딩하고,
+    # TAILSCALE_IP 를 비워 두면 루프백으로 떨어져 외부에서 닿지 않는다.
+    ports:
+      - "${TAILSCALE_IP:-127.0.0.1}:5432:5432"
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-coursepilot}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set in .env}
+      POSTGRES_DB: ${POSTGRES_DB:-coursepilot}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-coursepilot}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  # 다중 인스턴스로 늘릴 때만 띄운다: `docker compose --profile scale up -d`
+  # (단일 인스턴스면 REDIS_URL 을 비워 두고 이 서비스도 뜨지 않는다)
+  redis:
+    logging: *logging
+    image: redis:7.4.1-alpine  # arm64 지원 확인
+    profiles: ["scale"]
+    restart: unless-stopped
+    command: ["redis-server", "--save", "", "--appendonly", "no"]
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  backend:
+    image: ${IMAGE_REGISTRY:-ghcr.io/mode1221/coursepilot}-backend:${IMAGE_TAG:-latest}
+    pull_policy: always
+    logging: *logging
+    restart: unless-stopped
+    environment:
+      ENV: ${ENV:-production}
+      # 없으면 X-User-Id 헤더만으로 남의 계정이 된다 — 반드시 채운다
+      SESSION_SECRET: ${SESSION_SECRET:?set in .env}
+      RATE_LIMIT_PER_MIN: ${RATE_LIMIT_PER_MIN:-60}
+      FREE_MODE: ${FREE_MODE:-true}
+      HOURS_FALLBACK_DAILY_CAP: ${HOURS_FALLBACK_DAILY_CAP:-10}
+      AI_NOTICE: ${AI_NOTICE:-}
+      DATABASE_URL: postgresql+psycopg://${POSTGRES_USER:-coursepilot}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB:-coursepilot}
+      CORS_ORIGINS: '["https://${DOMAIN}"]'
+      LLM_PROVIDER: ${LLM_PROVIDER:-anthropic}
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+      ANTHROPIC_MODEL: ${ANTHROPIC_MODEL:-claude-haiku-4-5}
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      OPENAI_MODEL: ${OPENAI_MODEL:-gpt-4o-mini}
+      MAP_PROVIDER: ${MAP_PROVIDER:-auto}
+      # 장소 발견 주 원천(카카오 로컬). 없으면 네이버/Mock 폴백.
+      KAKAO_REST_API_KEY: ${KAKAO_REST_API_KEY:-}
+      # 카카오 로그인(검색 키와 별도 앱)
+      KAKAO_LOGIN_CLIENT_ID: ${KAKAO_LOGIN_CLIENT_ID:-}
+      KAKAO_LOGIN_CLIENT_SECRET: ${KAKAO_LOGIN_CLIENT_SECRET:-}
+      TRIAL_COURSES_PER_IP_DAY: ${TRIAL_COURSES_PER_IP_DAY:-1}
+      TRIAL_GUESTS_PER_IP_DAY: ${TRIAL_GUESTS_PER_IP_DAY:-3}
+      # 운영 자동 QA(GitHub Actions) — 비우면 로그인 흐름 점검은 건너뛴다
+      QA_TOKEN: ${QA_TOKEN:-}
+      NAVER_APIHUB_KEY_ID: ${NAVER_APIHUB_KEY_ID:-}
+      NAVER_APIHUB_KEY: ${NAVER_APIHUB_KEY:-}
+      NAVER_CLIENT_ID: ${NAVER_CLIENT_ID:-}
+      NAVER_CLIENT_SECRET: ${NAVER_CLIENT_SECRET:-}
+      # 네이버 클라우드 플랫폼(경로 탐색 Directions 5)
+      NCP_API_KEY_ID: ${NCP_API_KEY_ID:-}
+      NAVER_MAP_CLIENT_ID: ${NAVER_MAP_CLIENT_ID:-}
+      SEOUL_OPENAPI_KEY: ${SEOUL_OPENAPI_KEY:-}
+      HOT_DATALAB_DAILY: ${HOT_DATALAB_DAILY:-200}
+      NCP_API_KEY: ${NCP_API_KEY:-}
+      TOURAPI_SERVICE_KEY: ${TOURAPI_SERVICE_KEY:-}
+      KOPIS_SERVICE_KEY: ${KOPIS_SERVICE_KEY:-}
+      # LOCALDATA 폐업·업력 CSV(아래 볼륨에 주 1회 내려받는다)
+      LOCALDATA_CSV_DIR: ${LOCALDATA_CSV_DIR:-/data/localdata}
+      LOCALDATA_CSV_URLS: ${LOCALDATA_CSV_URLS:-[]}
+      GOOGLE_MAPS_API_KEY: ${GOOGLE_MAPS_API_KEY:-}
+      NHN_SMS_APP_KEY: ${NHN_SMS_APP_KEY:-}
+      NHN_SMS_SECRET_KEY: ${NHN_SMS_SECRET_KEY:-}
+      NHN_SMS_SENDER: ${NHN_SMS_SENDER:-}
+      SMS_DEV_FALLBACK: ${SMS_DEV_FALLBACK:-false}
+      PORTONE_API_KEY: ${PORTONE_API_KEY:-}
+      PORTONE_API_SECRET: ${PORTONE_API_SECRET:-}
+      # 백엔드를 2개 이상 띄울 때만 설정(단일 인스턴스면 비워둔다)
+      REDIS_URL: ${REDIS_URL:-}
+      ADMIN_TOKEN: ${ADMIN_TOKEN:-}
+      POINT_PRICE_KRW: ${POINT_PRICE_KRW:-1000}
+      ALERT_WEBHOOK_URL: ${ALERT_WEBHOOK_URL:-}
+      # Caddy 는 같은 compose 네트워크(도커 기본 브리지 대역 172.16.0.0/12)에서 온다.
+      # 이 대역을 못 믿으면 모든 요청이 caddy IP 하나로 보여 rate limit 이 전역이 된다.
+      TRUSTED_PROXIES: ${TRUSTED_PROXIES:-["127.0.0.1","::1","10.0.0.0/8","172.16.0.0/12","192.168.0.0/16"]}
+    volumes:
+      # LOCALDATA CSV(주 1회 재다운로드 가능한 파생 데이터라 백업 대상 아님)
+      - ${LOCALDATA_HOST_DIR:-./data/localdata}:/data/localdata
+    healthcheck:
+      test: ["CMD", "python", "-c",
+             "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    depends_on:
+      db:
+        condition: service_healthy
+
+  frontend:
+    image: ${IMAGE_REGISTRY:-ghcr.io/mode1221/coursepilot}-frontend:${IMAGE_TAG:-latest}
+    pull_policy: always
+    logging: *logging
+    restart: unless-stopped
+    environment:
+      # 브라우저는 현재 호스트에서 api.<도메인> 을 유도한다(빌드에 도메인을 박지 않는다).
+      # SSR(공유 페이지 OG)만 컨테이너 내부 주소로 곧장 부른다.
+      API_INTERNAL_BASE: http://backend:8000
+    healthcheck:
+      # 이미지에 curl/wget 이 없어 node 로 확인한다
+      test: ["CMD", "node", "-e",
+             "fetch('http://localhost:3000/').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    depends_on:
+      backend:
+        condition: service_healthy
+
+  caddy:
+    logging: *logging
+    image: caddy:2.8.4  # arm64 지원 확인
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    environment:
+      DOMAIN: ${DOMAIN}
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    healthcheck:
+      # Caddy 관리 API(로컬 전용). 설정을 물고 있으면 살아 있는 것이다
+      test: ["CMD", "wget", "-q", "--spider", "http://localhost:2019/config/"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 20s
+    depends_on:
+      - frontend
+      - backend
+
+volumes:
+  pgdata:
+  caddy_data:
+  caddy_config:

@@ -1,0 +1,8 @@
+{
+  "meta": {"total_count": 1, "pageable_count": 1, "is_end": false},
+  "documents": [
+    {"id": "999", "place_name": "성수식당", "category_name": "음식점 > 한식 > 육류,고기",
+     "category_group_code": "FD6", "address_name": "서울 성동구 성수동", 
+     "road_address_name": "서울 성동구 아차산로 20", "x": "127.0558", "y": "37.5446"}
+  ]
+}
