@@ -34,6 +34,12 @@
 - **운영 QA 확장** — 지금은 같이 정하기 핵심 흐름만. 혼자 만들기(자연어 → 코스)·카카오 로그인 왕복(실계정 필요)·
   결제는 미포함. 추가 시 `frontend/e2e-prod/prod.spec.ts`, LLM 호출 수(서비스 상한)와 3시간 주기를 함께 고려.
 
+- **운영 계정·키 정리** (저장소 주인)
+  - 채팅에 노출됐던 GitHub PAT 폐기 → 작업 환경별로 새 토큰을 환경변수로만 발급. 배포 SSH 키 교체(`docs/DEPLOY.md`, `setup_deploy_key.sh`).
+  - 홍보용 정식 도메인(duckdns 대체) — 바꾸면 Caddy·카카오 로그인 Redirect URI·`QA_BASE_URL` 변수·OG `SITE_URL` 을 함께 바꾼다.
+- **초기 유저 모집** — 스레드·디스콰이엇·GeekNews(Show GN) 에 만든 사람 계정으로 소개. 링크에 `?src=<채널>` 을 붙이고
+  `/admin/growth` 로 채널별 체험·가입·초대 전환을 비교한다.
+
 ## P1 — 품질·데이터
 0. **자연어 커버리지 확대** — 지역·시각·범위·키워드·편집에 더해 인원수(`test_party_size.py`), 날짜(`test_plan_date.py`), 방문 개수(`test_stop_count.py`), 카테고리 지목 편집(`test_edit_by_category.py`), 출발지 지정(`test_start_place.py`), 이동수단 혼합(`test_mixed_travel.py`), 우천 대체(`test_rainy_course.py`), 주말 날짜(`test_plan_date.py`)까지 처리.
 3. **리뷰 RAG 고도화** (🟡/⬜) — 약관 준수(요약 금지 소스 구분) 내 데이터 강화. 재수집 중복 저장·협찬 표시 리뷰 검색 제외는 처리됨.
