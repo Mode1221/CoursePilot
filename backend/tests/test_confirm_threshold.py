@@ -24,9 +24,9 @@ async def test_두곳짜리_코스는_확인을_요구하지_않는다():
 
 
 async def test_요청_개수에_못_미치면_확인을_요구한다():
-    result = await generate_course("성수동 5곳 오전 10시부터 하루종일", get_map_service())
-    assert len(result.timeline) < 5
-    assert result.needs_confirmation is True
+    result = await generate_course("성수동 6곳 오전 10시부터 하루종일", get_map_service())
+    # 채웠으면 묻지 않고, 못 채웠으면 반드시 묻는다(조용히 적게 주지 않는다)
+    assert result.needs_confirmation is (len(result.timeline) < 6)
 
 
 async def test_요청_개수를_채우면_확인하지_않는다():

@@ -5,6 +5,7 @@
 """
 from __future__ import annotations
 
+import asyncio
 import math
 from datetime import date, datetime, time
 
@@ -428,9 +429,13 @@ def _apply_required(slots: list[str], constraints: PlanConstraints) -> list[str]
 
 
 def _base_slots(constraints: PlanConstraints) -> list[str]:
-    dur = constraints.duration_min or 180
+    # 시간을 말하지 않았으면 데이트 코스 기본 3곳(식사·카페·한 곳 더). 2곳은 코스라기엔 짧았다(운영 점검 10/10 이 2곳).
+    dur = constraints.duration_min or DEFAULT_DURATION_MIN
     # 하루를 통으로 비운 요청(8~9시간)에 4칸만 만들면 오후에 코스가 끝나 버린다
     n = max(2, min(MAX_STOPS, dur // 90))
+    ordered = _ordered_slots(constraints, n)
+    if ordered is not None:
+        return ordered
     if constraints.stop_count:  # "2차", "세 군데" 처럼 개수를 직접 말했으면 그 값을 따른다
         # 하루 종일 코스는 5~6곳도 요청한다 — 4곳으로 잘라 요청을 무시하지 않는다
         n = max(1, min(MAX_STOPS, constraints.stop_count))
@@ -482,6 +487,43 @@ def _base_slots(constraints: PlanConstraints) -> list[str]:
     slots = _shift_meal_to_mealtime(base, constraints.start_time)
     slots = _dedupe_adjacent(_lead_with_keyword(slots, constraints))
     return _replace_excluded(slots, excluded_slots(constraints))
+
+
+DEFAULT_DURATION_MIN = 270
+
+
+def _ordered_slots(constraints: PlanConstraints, n: int) -> list[str] | None:
+    """문장에 나온 순서대로 칸을 세운다("파스타 먹고 와인바" → 식사 → 술). 순서가 없으면 None.
+
+    말한 칸이 기본 개수보다 적으면 식사·카페·할거리 중 빠진 것으로 채우되, 마지막이 술이면 그 앞에 넣는다
+    (와인바 뒤에 카페가 오지 않게). 합의 코스는 required_slots 로 따로 정한다.
+    """
+    if not constraints.slot_order or constraints.required_slots:
+        return None
+    excluded = excluded_slots(constraints)
+    order = [s for s in constraints.slot_order if s not in excluded]
+    if not order:
+        return None
+    if constraints.stop_count:
+        n = max(1, min(MAX_STOPS, constraints.stop_count))
+        order = order[:n]
+    else:
+        n = max(n, min(MAX_STOPS, len(order)))
+    slots = list(order)
+    fill = [s for s in ("meal", "cafe", "activity", "bar") if s not in excluded]
+    tail_bar = slots[-1] == "bar"
+    for s in fill:
+        if len(slots) >= n:
+            break
+        if s in slots or (s == "bar" and tail_bar):
+            continue
+        if tail_bar:
+            slots.insert(len(slots) - 1, s)
+        else:
+            slots.append(s)
+    while len(slots) < n and fill:
+        slots.insert(len(slots) - 1 if tail_bar else len(slots), fill[len(slots) % len(fill)])
+    return _replace_excluded(_dedupe_adjacent(slots), excluded)
 
 
 def _dedupe_adjacent(slots: list[str]) -> list[str]:
@@ -717,10 +759,16 @@ def _focus_slots(candidates: list[Place], constraints: PlanConstraints) -> list[
         if len(pair) == 2:
             focus.setdefault(pair[0], pair[1])
     out = list(candidates)
+    from app.pipeline.intent import match_words, satisfies
+
     for slot, craving in focus.items():
         attr = {"what": craving, "slot": slot}
         in_slot = [p for p in out if classify(p) == slot]
-        matching = [p for p in in_slot if place_matches(p, attr)]
+        words = match_words(craving)  # 혼자 만드는 코스의 칸 초점(pipeline/intent.py)
+        if words:
+            matching = [p for p in in_slot if satisfies(p, words)]
+        else:
+            matching = [p for p in in_slot if place_matches(p, attr)]
         if matching and len(matching) < len(in_slot):
             drop = {p.id for p in in_slot} - {p.id for p in matching}
             out = [p for p in out if p.id not in drop]
@@ -875,22 +923,38 @@ async def plan_course(
     # 후보 코스 시드 → 각각 물리 검증 후 코스 점수로 최고 선택 (D). 라벨로 선택 로깅(#15).
     seeds: list[tuple[str, list[Place]]] = []
     templated = _pick_by_template(ranked, slots)
+    ordered = bool(constraints.slot_order) and not constraints.required_slots
     if templated:
         seeds.append(("template", templated))          # 1) 템플릿 순서
-        seeds.append(("route", route_order(templated)))  # 2) 동선 최적화
-        seeds.append(("sequence", seq_order(templated)))  # 3) 학습된 선호 순서(#7)
-    cf = _cf_pick(ranked, slots)
-    if cf:
-        seeds.append(("cf", cf))                         # 4) 협업 필터링(공동 채택)
-    if templated and origin is not None:
+        if not ordered:  # 사용자가 순서를 말했으면("파스타 먹고 와인바") 그 순서를 바꾸지 않는다
+            seeds.append(("route", route_order(templated)))  # 2) 동선 최적화
+            seeds.append(("sequence", seq_order(templated)))  # 3) 학습된 선호 순서(#7)
+    if not ordered:
+        cf = _cf_pick(ranked, slots)
+        if cf:
+            seeds.append(("cf", cf))                         # 4) 협업 필터링(공동 채택)
+    if templated and origin is not None and not ordered:
         seeds.append(("start", route_order_from(templated, origin)))  # 출발지 기준 동선
-    seeds.append(("score", ranked[: len(slots)]))       # 5) 순수 점수 상위
+    if not ordered or not templated:
+        seeds.append(("score", ranked[: len(slots)]))       # 5) 순수 점수 상위
 
+    # 시드마다 이동 경로를 외부에 묻는다 — 차례로 기다리면 시드 수만큼 느려진다(운영 한 코스 38~78초).
+    timelines = await asyncio.gather(
+        *(build_timeline(seed, constraints, map_service) for _, seed in seeds),
+        return_exceptions=True,
+    )
     best: list[TimelineItem] = []
     best_score = float("-inf")
     best_label = ""
-    for label, seed in seeds:
-        timeline = await build_timeline(seed, constraints, map_service)
+    def _repeats(tl: list[TimelineItem]) -> bool:
+        kinds = [classify(it.place) for it in tl]
+        return any(a == b for a, b in zip(kinds, kinds[1:], strict=False))
+
+    valid = [(lb, tl) for (lb, _), tl in zip(seeds, timelines, strict=True) if not isinstance(tl, BaseException)]
+    # 같은 성격이 연달아 오는 코스(식사 → 식사)는 다른 시드가 있으면 고르지 않는다
+    if any(not _repeats(tl) for _, tl in valid if tl):
+        valid = [(lb, tl) for lb, tl in valid if not _repeats(tl)]
+    for label, timeline in valid:
         s = course_score(timeline)
         if s > best_score:
             best_score, best, best_label = s, timeline, label

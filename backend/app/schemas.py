@@ -170,6 +170,8 @@ class PlanConstraints(BaseModel):
     lead_slot: str | None = None
     slot_queries: list[list[str]] = Field(default_factory=list)  # [[slot, keyword], ...]
     slot_focus: list[list[str]] = Field(default_factory=list)  # [[slot, craving], ...] 칸 주인의 취향
+    # 혼자 만드는 코스: 문장에 나온 순서대로의 칸(pipeline/intent.py). 비면 시간대 템플릿을 쓴다.
+    slot_order: list[str] = Field(default_factory=list)
 
 
 Course.model_rebuild()

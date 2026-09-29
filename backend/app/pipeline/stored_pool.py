@@ -22,14 +22,69 @@ _cache: dict[tuple[float, float, int], tuple[float, list[Place]]] = {}
 _GENERIC = {"맛집", "카페", "가볼만한곳", "술집", ""}
 
 
-def region_center_radius(region: str | None, fallback: list[Place]) -> tuple[float, float, int] | None:
-    """상권 목록에 있으면 그 중심·반경, 없으면 벤더 결과의 중앙값 좌표."""
+# 수집 상권(batch/districts.py)에 따로 없지만 자주 말하는 동네 — 중심만 쓴다(반경은 좁게).
+# 없으면 벤더 결과 중앙값을 써서 "삼청동"이 1km 넘게 떨어진 인사동·종로3가로 번졌다(운영 점검).
+NEIGHBORHOODS: dict[str, tuple[float, float, int]] = {
+    "삼청동": (37.5857, 126.9818, 500),
+    "서촌": (37.5793, 126.9707, 600),
+    "익선동": (37.5742, 126.9895, 400),
+    "인사동": (37.5740, 126.9855, 450),
+    "경리단길": (37.5390, 126.9900, 500),
+    "해방촌": (37.5430, 126.9860, 500),
+    "한남동": (37.5345, 127.0010, 700),
+    "합정": (37.5495, 126.9139, 600),
+    "상수": (37.5478, 126.9227, 500),
+    "서울숲": (37.5446, 127.0374, 700),
+    "가로수길": (37.5205, 127.0229, 500),
+    "압구정": (37.5270, 127.0283, 700),
+    "청담": (37.5240, 127.0480, 700),
+    "신촌": (37.5598, 126.9425, 700),
+    "건대": (37.5404, 127.0692, 700),
+    "여의도": (37.5219, 126.9245, 900),
+    "문래": (37.5178, 126.8952, 600),
+}
+
+
+def known_center(region: str | None) -> tuple[float, float, int] | None:
+    """말한 동네의 중심·반경(상권 목록 또는 NEIGHBORHOODS). 모르면 None."""
     from app.batch.districts import DISTRICTS
 
-    if region:
-        for d in DISTRICTS:
-            if d.name == region or d.name in region or region in d.name:
-                return d.lat, d.lng, max(d.radius_m, 700)
+    if not region:
+        return None
+    for name, area in NEIGHBORHOODS.items():  # 좁은 동네가 먼저(“삼청동”이 “북촌”으로 가지 않게)
+        if name in region or region.rstrip("동") == name.rstrip("동"):
+            return area
+    for d in DISTRICTS:
+        if d.name == region or d.name in region or region in d.name:
+            return d.lat, d.lng, max(d.radius_m, 700)
+    return None
+
+
+def distance_m(lat1: float, lng1: float, lat2: float, lng2: float) -> float:
+    dy = (lat2 - lat1) * 111_000
+    dx = (lng2 - lng1) * 111_000 * math.cos(math.radians(lat1))
+    return math.hypot(dx, dy)
+
+
+def keep_near(places: list[Place], region: str | None, min_keep: int = 12) -> list[Place]:
+    """말한 동네에서 너무 먼 후보를 뺀다(키워드 검색은 동네 밖 결과도 섞어 준다).
+
+    반경의 1.8배(최소 1km) 밖은 뺀다. 남는 게 너무 적으면(후보가 없는 동네) 그대로 둔다.
+    """
+    area = known_center(region)
+    if area is None:
+        return places
+    lat, lng, radius = area
+    limit = max(1000.0, radius * 1.8)
+    near = [p for p in places if distance_m(lat, lng, p.lat, p.lng) <= limit]
+    return near if len(near) >= min_keep else places
+
+
+def region_center_radius(region: str | None, fallback: list[Place]) -> tuple[float, float, int] | None:
+    """상권 목록·동네 목록에 있으면 그 중심·반경, 없으면 벤더 결과의 중앙값 좌표."""
+    area = known_center(region)
+    if area is not None:
+        return area
     if fallback:
         lats = sorted(p.lat for p in fallback)
         lngs = sorted(p.lng for p in fallback)

@@ -12,10 +12,7 @@ name: Production QA
 on:
   schedule:
     - cron: "7 */3 * * *"  # 3시간마다(UTC) — 한국 시각 09·12·15·18·21·00·03·06시 7분
-  workflow_run:
-    workflows: ["Release images"]
-    types: [completed]
-  workflow_dispatch:
+  workflow_dispatch:  # 배포가 끝나면 release.yml 이 실행한다(자동 머지가 연 실행은 workflow_run 을 깨우지 않아서)
 
 concurrency:
   group: prod-qa
@@ -23,7 +20,6 @@ concurrency:
 
 jobs:
   qa:
-    if: github.event_name != 'workflow_run' || github.event.workflow_run.conclusion == 'success'
     runs-on: ubuntu-latest
     timeout-minutes: 20
     permissions:
