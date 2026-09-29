@@ -740,7 +740,14 @@ UNFIT_CATEGORY = (
     "교육,학문", "학교", "학원", "의료", "병원", "약국", "금융", "은행", "공공기관", "관공서",
     "부동산", "주유소", "주차장", "교통,수송", "사무실", "기업", "산업", "종교",
 )
-UNFIT_NAME = ("구내식당", "학생식당", "푸드코트")
+UNFIT_NAME = (
+    "구내식당", "학생식당", "푸드코트",
+    # 운동 시설·아이 대상 행사는 데이트 할거리가 아니다(운영 점검: "한강 산책" → 한강공원 농구장, 잠실 → 어린이 교육 행사)
+    "농구장", "축구장", "풋살", "테니스장", "배드민턴", "야구장", "족구장", "게이트볼",
+    "어린이", "유아", "키즈", "초등", "가족교육", "주말가족",
+)
+# 체육시설 분류도 뺀다(공원 자체는 할거리)
+UNFIT_CATEGORY = (*UNFIT_CATEGORY, "체육시설", "운동장", "농구장", "축구장", "테니스장")
 
 
 def _focus_slots(candidates: list[Place], constraints: PlanConstraints) -> list[Place]:
@@ -833,7 +840,11 @@ def _km(a: Place, b: Place) -> float:
 def is_unfit_for_date(place: Place) -> bool:
     """회사·학교 식당, 학교·병원·관공서 등 — 데이트 코스 후보로 부적절."""
     cat = place.category or ""
-    return any(w in cat for w in UNFIT_CATEGORY) or any(w in place.name for w in UNFIT_NAME)
+    if any(w in cat for w in UNFIT_CATEGORY) or any(w in place.name for w in UNFIT_NAME):
+        return True
+    # 장소가 특정되지 않는 행사("서울시 전역", "온라인")는 코스의 한 칸이 될 수 없다
+    addr = place.address or ""
+    return any(w in addr for w in ("전역", "온라인", "미정"))
 
 
 async def plan_course(

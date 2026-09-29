@@ -165,6 +165,9 @@ class LocalDataRegistry:
 
     def __init__(self) -> None:
         self._by_name: dict[str, list[BusinessRecord]] = {}
+        # 행정동별 (폐업 수, 전체 수). 대장이 바뀌면(적재·교체) 버리고 처음 조회 때 한 번에 다시 센다.
+        # 예전엔 조회마다 대장 전체(수십만 건)를 훑어 코스 한 번에 수십 초가 들었다(운영 점검 plan 20~34초).
+        self._area_stats: dict[str, tuple[int, int]] | None = None
         self._loaded_on: date | None = None
 
     @property
@@ -184,6 +187,7 @@ class LocalDataRegistry:
     def clear(self) -> None:
         self._by_name = {}
         self._loaded_on = None
+        self._area_stats = None
 
     def adopt(self, other: LocalDataRegistry) -> None:
         """완성된 인덱스로 **원자적으로** 갈아끼운다.
@@ -193,6 +197,7 @@ class LocalDataRegistry:
         """
         self._by_name = other._by_name
         self._loaded_on = other._loaded_on
+        self._area_stats = None
 
     # --- 적재 -------------------------------------------------------------
     def load_csv(
@@ -238,6 +243,7 @@ class LocalDataRegistry:
                 )
             )
             kept += 1
+            self._area_stats = None
         elapsed = time.monotonic() - started
         logger.info(
             "localdata 적재 %s: 읽음 %d행 / 인덱싱 %d행 (%.1f%%) / %.1f초",
@@ -287,6 +293,7 @@ class LocalDataRegistry:
         if not isinstance(payload, dict) or payload.get("signature") != signature:
             return False
         self._by_name = payload["by_name"]
+        self._area_stats = None
         self._loaded_on = payload["loaded_on"]
         logger.info(
             "localdata 캐시 복원 %s: %d행", cache_path.name,
@@ -359,15 +366,21 @@ class LocalDataRegistry:
         area = _area_key(address)
         if not area:
             return None
-        records = [
-            r
-            for group in self._by_name.values()
-            for r in group
-            if _area_key(r.address) == area
-        ]
-        if len(records) < 10:
+        stats = self._area_stats
+        if stats is None:
+            stats = {}
+            for group in self._by_name.values():
+                for r in group:
+                    key = _area_key(r.address)
+                    if not key:
+                        continue
+                    closed, total = stats.get(key, (0, 0))
+                    stats[key] = (closed + (1 if r.closed else 0), total + 1)
+            self._area_stats = stats
+        closed, total = stats.get(area, (0, 0))
+        if total < 10:
             return None
-        return sum(1 for r in records if r.closed) / len(records)
+        return closed / total
 
 
 def _area_key(address: str | None) -> str:

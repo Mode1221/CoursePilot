@@ -6,6 +6,8 @@
 import io
 import tracemalloc
 
+import pytest
+
 from app.adapters.localdata import (
     TARGET_SIGUNGU,
     LocalDataRegistry,
@@ -202,3 +204,26 @@ def test_use_cache_False_는_캐시를_만들지_않는다(tmp_path):
                "3040000,살아있는집,서울특별시 성동구 아차산로 17,,영업/정상,영업,20150301,\n")
     assert LocalDataRegistry().load_dir(tmp_path, use_cache=False) == 1
     assert not (tmp_path / CACHE_FILE).exists()
+
+
+def test_폐업률_조회는_대장을_매번_훑지_않는다():
+    """코스 한 번에 후보 수백 곳을 채점한다 — 조회마다 대장 전체를 훑으면 수십 초가 든다."""
+    import time as _t
+
+    from app.adapters.localdata import BusinessRecord
+
+    registry = LocalDataRegistry()
+    for i in range(50_000):
+        registry._by_name.setdefault(f"가게{i}", []).append(
+            BusinessRecord(name=f"가게{i}", address=f"서울특별시 성동구 동{i % 20} {i}", status="폐업" if (i // 20) % 4 == 0 else "영업",
+                           opened_on=None, closed_on=None)
+        )
+    registry._area_stats = None
+    t0 = _t.perf_counter()
+    rates = [registry.closure_rate(f"서울특별시 성동구 동{i % 20} 1") for i in range(300)]
+    assert _t.perf_counter() - t0 < 1.0
+    assert rates[0] == pytest.approx(0.25, abs=0.05)
+    # 대장이 바뀌면 다시 센다
+    fresh = LocalDataRegistry()
+    registry.adopt(fresh)
+    assert registry.closure_rate("서울특별시 성동구 동1 1") is None
