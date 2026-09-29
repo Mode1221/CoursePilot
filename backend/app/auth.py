@@ -147,7 +147,22 @@ async def request_code(phone: str, ip: str = "") -> str | None:
 
 
 def require_verified(phone: str) -> bool:
-    """가입 진행 가능 여부. SMS 비활성(개발)이면 항상 통과."""
-    if not settings.sms_enabled:
-        return True
-    return verification_store.is_verified(phone)
+    """가입 진행 가능 여부.
+
+    - SMS 가 켜져 있으면 인증번호를 맞힌 번호만.
+    - 운영에서 SMS 가 꺼져 있으면: 개발 폴백(SMS_DEV_FALLBACK)일 때만 인증번호 확인을 거치고,
+      그것도 아니면 **거절**. 예전에는 무조건 통과라 전화번호만 알면 남의 계정 토큰을 받았다.
+    - 개발(로컬·테스트)에서 SMS 가 없으면 통과(편의).
+    """
+    if settings.sms_enabled or (settings.is_production and settings.sms_dev_fallback):
+        return verification_store.is_verified(phone)
+    return not settings.is_production
+
+
+def can_resume_existing() -> bool:
+    """인증만으로 **이미 있는 계정**에 다시 들어갈 수 있는가.
+
+    개발 폴백은 인증번호를 화면에 그대로 보여 준다 — 남의 번호로도 번호를 받아 맞힐 수 있다.
+    그 상태에서 기존 계정 토큰을 내주면 곧 계정 탈취다. 운영에서는 진짜 SMS 일 때만 허용한다.
+    """
+    return settings.sms_enabled or not settings.is_production

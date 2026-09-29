@@ -8,7 +8,7 @@ import asyncio
 import re
 
 # 개발 기본값 그대로면 비밀번호를 설정하지 않은 것으로 본다
-from fastapi import APIRouter, Header, HTTPException
+from fastapi import APIRouter, Header, HTTPException, Request
 from pydantic import BaseModel, Field
 
 from app.adapters.map_service import get_map_service
@@ -44,9 +44,11 @@ def _owned_course(course_id: str, user_id: str | None, token: str | None = None)
     course = store.get(course_id)
     if course is None:
         raise HTTPException(status_code=404, detail="코스를 찾을 수 없어요")
-    if course.owner_id is not None and course.owner_id != user_id:
+    # 주인 없는 코스(예전 비로그인 코스)는 아무도 주인이 아니다 — 예전에는 누구나 통과해,
+    # 남의 id 를 헤더에 적으면 그 사람 이름으로 AI 를 돌리고 선호·예산을 엿볼 수 있었다.
+    if course.owner_id is None or course.owner_id != user_id:
         raise HTTPException(status_code=403, detail="코스 생성자만 변경할 수 있어요")
-    if course.owner_id is not None and not verify(course.owner_id, token):
+    if not verify(course.owner_id, token):
         raise HTTPException(status_code=401, detail="다시 로그인해 주세요")
     return course
 
@@ -61,6 +63,29 @@ class GenerateResponse(BaseModel):
     needs_confirmation: bool  # 완화로도 부족 → 사용자 확인 필요 (7-4)
 
 
+def _charge_ai(actor_id: str, request: Request):
+    """AI 1회 몫을 쓴다. 실행 주체(생성자)가 체험 계정이면 체험 몫, 회원이면 하루 몫."""
+    from app.identity import is_guest
+    from app.middleware import client_ip
+    from app.usage import charge
+
+    user = user_store.get(actor_id)
+    if user is None:
+        raise HTTPException(status_code=403, detail="AI 챗봇은 생성자만 사용할 수 있습니다")
+    return charge("ai", subject=actor_id, guest=is_guest(user), ip=client_ip(request))
+
+
+async def _run_charged(course_id: str, action, ticket):
+    """큐가 넘쳐 아예 실행되지 않은 요청은 몫을 돌려준다(실행된 뒤의 환불은 action 이 한다)."""
+    from app.queue import QueueOverflow
+
+    try:
+        return await queues.run(course_id, action)
+    except QueueOverflow:
+        ticket.release()
+        raise
+
+
 def _ai_actor(course_id: str, user_id: str | None, user_token: str | None, together_token: str | None) -> str | None:
     """AI 명령을 누구 이름으로 실행할지. 생성자이거나, 합의 코스의 상대(링크 토큰)만 허용.
 
@@ -72,7 +97,12 @@ def _ai_actor(course_id: str, user_id: str | None, user_token: str | None, toget
 
         course = store.get(course_id)
         t = course.together if course else None
-        if t is not None and settings.free_mode and _secrets.compare_digest(t.token, together_token):
+        if (
+            t is not None
+            and course.owner_id is not None
+            and settings.free_mode
+            and _secrets.compare_digest(t.token, together_token)
+        ):
             return course.owner_id
     if user_id is None:
         raise HTTPException(status_code=403, detail="AI 챗봇은 생성자만 사용할 수 있습니다")
@@ -80,9 +110,27 @@ def _ai_actor(course_id: str, user_id: str | None, user_token: str | None, toget
     return user_id
 
 
+def _refunder(x_user_id: str | None, ticket):
+    """결과를 못 줬거나(실패) 코스를 바꾸지 않은(질문·되묻기) 요청은 크레딧과 AI 몫을 함께 돌려준다."""
+    done = False
+
+    def refund() -> None:
+        nonlocal done
+        if done:
+            return
+        done = True
+        if x_user_id:
+            user_store.refund_credit(x_user_id)
+        if ticket is not None:
+            ticket.release()
+
+    return refund
+
+
 @chat_router.post("/courses/{course_id}/relax", response_model=GenerateResponse)
 async def relax(
     course_id: str,
+    request: Request,
     x_user_id: str | None = Header(default=None),
     x_user_token: str | None = Header(default=None),
     x_together_token: str | None = Header(default=None),
@@ -99,6 +147,7 @@ async def relax(
     )
     if last_user_text is None:
         raise HTTPException(status_code=400, detail="완화할 이전 요청이 없습니다")
+    ticket = _charge_ai(x_user_id, request) if x_user_id else None
 
     async def action() -> GenerateResponse:
         course = store.get(course_id)
@@ -117,9 +166,14 @@ async def relax(
             prefs = user.preferences.model_dump()
             prefs["behavior_cats"] = behavior_store.top_categories(x_user_id)
         try:
-            result = await generate_course(
-                last_user_text, get_map_service(), prefs, None, force_relax=True
-            )
+            try:
+                result = await generate_course(
+                    last_user_text, get_map_service(), prefs, None, force_relax=True
+                )
+            except (Exception, asyncio.CancelledError):
+                if ticket is not None:
+                    ticket.release()
+                raise
             course.items = result.timeline
             if result.constraints.region:
                 course.region = result.constraints.region
@@ -151,13 +205,16 @@ async def relax(
             course=course, relaxed=True, needs_confirmation=result.needs_confirmation
         )
 
-    return await queues.run(course_id, action)
+    if ticket is None:
+        return await queues.run(course_id, action)
+    return await _run_charged(course_id, action, ticket)
 
 
 @chat_router.post("/courses/{course_id}/generate", response_model=GenerateResponse)
 async def generate(
     course_id: str,
     req: GenerateRequest,
+    request: Request,
     x_user_id: str | None = Header(default=None),
     x_user_token: str | None = Header(default=None),
     x_together_token: str | None = Header(default=None),
@@ -170,6 +227,8 @@ async def generate(
     # 존재 확인은 큐 밖에서 빠르게(단, 실제 상태는 lock 안에서 재조회한다)
     # 생성자, 또는 합의 코스의 상대(링크 토큰·무료 기간)만. 그 외 참여자는 수동 편집만.
     x_user_id = _ai_actor(course_id, x_user_id, x_user_token, x_together_token)
+    ticket = _charge_ai(x_user_id, request) if x_user_id else None
+    refund = _refunder(x_user_id, ticket)
 
     async def action() -> GenerateResponse:
         # 최신 상태를 lock 안에서 재조회 → 동시 요청 간 lost update 방지
@@ -183,6 +242,8 @@ async def generate(
             try:
                 user = user_store.consume_credit(x_user_id)
             except CreditError:
+                if ticket is not None:
+                    ticket.release()
                 raise HTTPException(
                     status_code=402, detail="AI에게 질문하려면 포인트를 구매해주세요"
                 ) from None
@@ -212,7 +273,7 @@ async def generate(
         old_names = {it.place.id: it.place.name for it in course.items}
         if _UNDO_RE.search(req.text):
             # "되돌려줘" — 직전 AI 변경 전으로. 한 번 더 말하면 다시 앞으로(맞바꿈)
-            (x_user_id and user_store.refund_credit(x_user_id))
+            refund()
             previous_items = _UNDO_SNAPSHOT.get(course_id)
             if previous_items is not None:
                 _UNDO_SNAPSHOT[course_id] = old_items
@@ -282,7 +343,7 @@ async def generate(
         # 질문("여기 주차 되나요?")에 코스를 갈아엎지 않는다. 편집 명령이 아닌
         # 물음이면 지금 코스로 답하고 크레딧도 돌려준다.
         if edit_cmd.action == "none" and course.items and _is_question(req.text):
-            (x_user_id and user_store.refund_credit(x_user_id))
+            refund()
             course.locked = False
             await broadcast_lock(course_id, False)
             ai_text = specific_answer(course, req.text)
@@ -295,7 +356,7 @@ async def generate(
             return GenerateResponse(course=course, relaxed=False, needs_confirmation=False)
         if edit_cmd.action == "clarify":
             # 어느 자리를 바꿀지 알 수 없다 → 새 코스를 만들지 않고 되묻는다
-            (x_user_id and user_store.refund_credit(x_user_id))
+            refund()
             course.locked = False
             await broadcast_lock(course_id, False)
             ai_text = "어느 자리를 바꿀까요? 순번(예: 2번째)이나 장소 종류로 말씀해 주세요."
@@ -307,7 +368,7 @@ async def generate(
         if edit_cmd.action == "none" and not is_actionable(
             request_text, parse_constraints(request_text)
         ):
-            (x_user_id and user_store.refund_credit(x_user_id))
+            refund()
             course.locked = False
             await broadcast_lock(course_id, False)
             ai_text = '어떤 모임인지 알려주세요. 예: "성수동에서 토요일 저녁 데이트"'
@@ -370,7 +431,7 @@ async def generate(
         except (Exception, asyncio.CancelledError):
             # 큐 타임아웃은 CancelledError 로 들어온다(BaseException 이라 Exception 에 안 걸린다).
             # 그때도 크레딧은 돌려줘야 한다 — 결과를 못 받았으니까.
-            (x_user_id and user_store.refund_credit(x_user_id))  # 실패 시 소비 크레딧 되돌림
+            refund()  # 실패 시 소비 크레딧 되돌림
             course.locked = False
             await broadcast_lock(course_id, False)
             raise
@@ -418,11 +479,11 @@ async def generate(
             ai_text = "코스를 비웠어요. 어떤 모임인지 다시 말씀해 주세요."
         elif is_edit and new_ids == old_ids and edit_cmd.action == "reorder":
             # 이미 최적 동선이면 "못 찾았다"가 아니라 그대로 좋다고 알린다
-            (x_user_id and user_store.refund_credit(x_user_id))
+            refund()
             ai_text = "이미 이동거리가 가장 짧은 순서예요. 그대로 두는 걸 추천해요."
         elif is_edit and new_ids == old_ids:
             # 없는 순번·카테고리를 지목하면 아무것도 바뀌지 않는다 → 알리고 크레딧도 돌려준다
-            (x_user_id and user_store.refund_credit(x_user_id))
+            refund()
             ai_text = "요청하신 자리를 찾지 못했어요. 순번(예: 2번째)이나 장소 종류로 다시 말씀해 주세요."
         elif is_edit and edit_cmd.action == "keep":
             ai_text = f"말씀하신 곳만 남겼어요. 이제 {len(course.items)}곳이에요."
@@ -455,7 +516,9 @@ async def generate(
             course=course, relaxed=relaxed, needs_confirmation=needs_confirmation
         )
 
-    return await queues.run(course_id, action)
+    if ticket is None:
+        return await queues.run(course_id, action)
+    return await _run_charged(course_id, action, ticket)
 
 
 # "다시 해줘", "새로 만들어줘" — 직전 조건 그대로 다시 만들라는 뜻
@@ -648,7 +711,18 @@ def _ai_reply(
 
 
 @chat_router.get("/courses/{course_id}/messages", response_model=list[ChatMessage])
-async def get_messages(course_id: str) -> list[ChatMessage]:
-    """채팅 로그 조회 (append-only). 공유 뷰에서는 노출하지 않음."""
+async def get_messages(
+    course_id: str,
+    x_user_id: str | None = Header(default=None),
+    x_user_token: str | None = Header(default=None),
+    x_together_token: str | None = Header(default=None),
+) -> list[ChatMessage]:
+    """채팅 로그 조회 (append-only). 생성자와 같이 정하는 상대만 — 공유 링크로는 보이지 않는다."""
+    from app.identity import course_editor
+
+    course = store.get(course_id)
+    if course is None:
+        raise HTTPException(status_code=404, detail="코스를 찾을 수 없어요")
+    course_editor(course, x_user_id, x_user_token, x_together_token)
     return chat_store.list(course_id)
 

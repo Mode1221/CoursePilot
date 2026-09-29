@@ -34,9 +34,11 @@ def test_탈퇴하면_계정과_코스가_사라진다():
 
 def test_대화_기록도_지운다():
     uid, cid, _ = _user_with_course()
-    assert client.get(f"/courses/{cid}/messages").json()  # 대화가 남아 있다
+    from app.chat import chat_store
+
+    assert chat_store.list(cid)  # 대화가 남아 있다
     client.delete(f"/users/{uid}", headers={"X-User-Id": uid})
-    assert client.get(f"/courses/{cid}/messages").json() == []
+    assert chat_store.list(cid) == []
 
 
 def test_북마크도_지운다():

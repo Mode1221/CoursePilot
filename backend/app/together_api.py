@@ -76,9 +76,10 @@ def _owned(course_id: str, user_id: str | None, token: str | None) -> Course:
     course = store.get(course_id)
     if course is None:
         raise HTTPException(status_code=404, detail="코스를 찾을 수 없어요")
-    if course.owner_id is not None and course.owner_id != user_id:
+    # 주인 없는 코스는 아무도 주인이 아니다(예전엔 누구나 통과했다)
+    if course.owner_id is None or course.owner_id != user_id:
         raise HTTPException(status_code=403, detail="코스 생성자만 할 수 있어요")
-    if course.owner_id is not None and not verify(course.owner_id, token):
+    if not verify(course.owner_id, token):
         raise HTTPException(status_code=401, detail="다시 로그인해 주세요")
     return course
 
@@ -231,15 +232,27 @@ async def build_together(
     x_user_id: str | None = Header(default=None),
     x_user_token: str | None = Header(default=None),
 ) -> dict:
-    """두 카드를 합쳐 코스를 만든다. 생성자만. 한 명만 냈으면 그 사람 기준 초안(나중에 재조정)."""
-    _owned(course_id, x_user_id, x_user_token)
+    """두 카드를 합쳐 코스를 만든다. 생성자만. 한 명만 냈으면 그 사람 기준 초안(나중에 재조정).
+
+    합치기는 장소 검색을 칸마다 여러 번 한다 — 체험은 3회, 회원은 하루 몫 안에서.
+    """
+    from app.identity import is_guest
+    from app.usage import charge
+
+    course0 = _owned(course_id, x_user_id, x_user_token)
+    owner = user_store.get(course0.owner_id) if course0.owner_id else None
+    if owner is None:
+        raise HTTPException(status_code=403, detail="코스 생성자만 할 수 있어요")
+    ticket = charge("build", subject=owner.id, guest=is_guest(owner))
 
     async def action() -> dict:
         course = store.get(course_id)
         if course is None or course.together is None:
+            ticket.release()
             raise HTTPException(status_code=404, detail="아직 시작하지 않았어요")
         t = course.together
         if not t.inputs:
+            ticket.release()
             raise HTTPException(status_code=400, detail="카드가 아직 없어요")
         inputs = [ParticipantInput(**v) for v in t.inputs.values()]
         prefs = {}
@@ -272,6 +285,11 @@ async def build_together(
                 consensus_prefer=prefer,
                 exclude_place_ids=exclude or None,
             )
+        except BaseException:
+            ticket.release()  # 결과를 못 줬다 — 몫을 돌려준다
+            course.locked = False
+            raise
+        try:
             course.items = result.timeline
             if result.constraints.region:
                 course.region = result.constraints.region
@@ -299,7 +317,13 @@ async def build_together(
         await broadcast_message(course_id, "ai", f"{who}의 카드를 합쳐 코스를 만들었어요.")
         return {"course": _public(course), "status": _status(course).model_dump()}
 
-    return await queues.run(course_id, action)
+    from app.queue import QueueOverflow
+
+    try:
+        return await queues.run(course_id, action)
+    except QueueOverflow:
+        ticket.release()
+        raise
 
 
 @together_router.post("/together/{token}/accept", response_model=TogetherStatus)

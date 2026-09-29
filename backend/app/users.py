@@ -27,6 +27,8 @@ class Preferences(BaseModel):
     transport: str | None = None     # 도보/차량
     # 매번 말하기 번거로운 상시 조건(반려동물 동반·주차 필요 등). 요청마다 자동 반영.
     must_haves: list[str] = []
+    # 체험 시작 때 받은 부를 이름(선택). 같이 정하기 카드의 기본 이름으로 쓴다.
+    nickname: str | None = None
 
 
 class User(BaseModel):

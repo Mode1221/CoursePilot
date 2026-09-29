@@ -31,7 +31,7 @@ def test_지역_미인식이면_응답에서_알린다():
     )
     assert res.status_code == 200
 
-    messages = client.get(f"/courses/{cid}/messages").json()
+    messages = client.get(f"/courses/{cid}/messages", headers={"X-User-Id": uid}).json()
     assert any("지역을 못 알아들어" in m["text"] for m in messages if m["role"] == "ai")
 
 
@@ -43,5 +43,5 @@ def test_지역을_인식하면_안내하지_않는다():
         json={"text": "홍대 오전 10시 5시간 도보"},
         headers={"X-User-Id": uid},
     )
-    messages = client.get(f"/courses/{cid}/messages").json()
+    messages = client.get(f"/courses/{cid}/messages", headers={"X-User-Id": uid}).json()
     assert not any("지역을 못 알아들어" in m["text"] for m in messages if m["role"] == "ai")

@@ -52,7 +52,7 @@ def test_이미_최적이면_찾지_못했다고_하지_않는다():
         headers={"X-User-Id": uid},
         json={"text": "순서 바꿔줘"},
     )
-    text = client.get(f"/courses/{cid}/messages").json()[-1]["text"]
+    text = client.get(f"/courses/{cid}/messages", headers={"X-User-Id": uid}).json()[-1]["text"]
     assert "찾지 못했어요" not in text
 
 
@@ -97,6 +97,6 @@ def test_순서_변경_안내는_바뀐_순서를_알려준다():
         headers={"X-User-Id": uid},
         json={"text": "첫번째랑 두번째 순서 바꿔"},
     )
-    text = client.get(f"/courses/{cid}/messages").json()[-1]["text"]
+    text = client.get(f"/courses/{cid}/messages", headers={"X-User-Id": uid}).json()[-1]["text"]
     assert "순서를 바꿨어요" in text
     assert "총 이동" in text

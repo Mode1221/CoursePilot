@@ -1,4 +1,5 @@
-import { storedUserToken, useUserStore } from "@/store/userStore";
+import { readTogetherToken } from "@/services/togetherToken";
+import { storedUserId, storedUserToken, useUserStore } from "@/store/userStore";
 import type { Course } from "@/types";
 
 /** 합의 코스 카드(30초). 예산은 서버에 저장되지만 상대에게는 나가지 않는다. */
@@ -31,15 +32,33 @@ export interface GenerateResponse {
 
 import { apiBase } from "@/services/apiBase";
 
+/**
+ * 사용 한도 응답의 종류(서버 `code`).
+ * - guest_required: 신원이 없다 → 체험 시작
+ * - login_required: 체험 몫을 다 썼다 → 로그인
+ * - daily_limit: 로그인 회원의 오늘 몫을 다 썼다
+ * - service_busy: 서비스 전체 오늘 몫이 찼다
+ */
+export type LimitCode = "guest_required" | "login_required" | "daily_limit" | "service_busy";
+
 export class ApiError extends Error {
   constructor(
     public status: number,
     message: string,
     /** 서버가 붙인 추적 id. 문의 시 이 값으로 로그를 찾을 수 있다. */
     public requestId?: string,
+    /** 한도·신원 관련 응답이면 그 종류 */
+    public code?: LimitCode,
   ) {
     super(message);
   }
+}
+
+export interface LoginResult {
+  user_id: string;
+  token?: string;
+  kind?: "member";
+  moved_courses?: number;
 }
 
 interface RequestOptions {
@@ -74,15 +93,34 @@ async function request<T>(path: string, opts: RequestOptions = {}): Promise<T> {
   }
 }
 
-/** 세션 만료 처리. 저장된 신원을 지우고 온보딩(재인증)으로 보낸다. */
+/** 세션 만료 처리. 저장된 신원을 지우고 로그인 화면으로 보낸다. */
 function onSessionExpired() {
   try {
     useUserStore.getState().clearUser();
   } catch {
     // 스토어가 아직 없을 수 있다(SSR 등) — 조용히 넘긴다
   }
-  if (typeof window !== "undefined" && window.location.pathname !== "/onboarding") {
-    window.location.assign("/onboarding?expired=1");
+  if (typeof window !== "undefined" && !["/login", "/start"].includes(window.location.pathname)) {
+    window.location.assign(`/login?expired=1&next=${encodeURIComponent(currentPath())}`);
+  }
+}
+
+function currentPath(): string {
+  if (typeof window === "undefined") return "/";
+  return window.location.pathname + window.location.search;
+}
+
+/**
+ * 한도에 걸리면 다음 행동으로 보낸다. 체험 몫을 다 썼으면 로그인, 신원이 없으면 체험 시작.
+ * 로그인하면 지금 보던 화면으로 돌아온다(next).
+ */
+function onLimit(code: LimitCode | undefined) {
+  if (typeof window === "undefined") return;
+  const next = encodeURIComponent(currentPath());
+  if (code === "login_required" && window.location.pathname !== "/login") {
+    window.location.assign(`/login?reason=trial&next=${next}`);
+  } else if (code === "guest_required" && window.location.pathname !== "/start") {
+    window.location.assign(`/start?next=${next}`);
   }
 }
 
@@ -112,11 +150,20 @@ async function requestOnce<T>(path: string, opts: RequestOptions = {}): Promise<
   if (opts.togetherToken) headers["X-Together-Token"] = opts.togetherToken;
   const device = deviceId();
   if (device) headers["X-Device-Id"] = device;
-  if (opts.userId) {
-    headers["X-User-Id"] = opts.userId;
+  // 신원은 늘 함께 보낸다(체험 계정 포함) — 서버가 한도를 사람 단위로 세고,
+  // 코스 편집 권한도 서명 토큰으로만 인정한다.
+  const identity = opts.userId ?? storedUserId() ?? undefined;
+  if (identity) {
+    headers["X-User-Id"] = identity;
     // 서명 토큰이 있으면 함께 보낸다(서버가 비밀키를 쓰는 환경에서는 필수)
     const token = storedUserToken();
     if (token) headers["X-User-Token"] = token;
+  }
+  // 같이 정하는 상대는 링크 토큰으로 이 코스를 고친다(가입 없음)
+  if (!opts.togetherToken) {
+    const m = /^\/courses\/([^/?]+)/.exec(path);
+    const partner = m ? readTogetherToken(m[1]) : null;
+    if (partner) headers["X-Together-Token"] = partner;
   }
 
   const method = opts.method ?? "GET";
@@ -132,18 +179,21 @@ async function requestOnce<T>(path: string, opts: RequestOptions = {}): Promise<
     const timedOut = e instanceof DOMException && e.name === "TimeoutError";
     throw new ApiError(0, timedOut ? TIMEOUT_ERROR : DEFAULT_ERROR);
   }
-  if (res.status === 401 && opts.userId) {
+  if (res.status === 401 && identity) {
     // 세션 토큰이 만료(90일)되었거나 서명이 맞지 않는다. 저장된 신원을 버리고
     // 재인증 화면으로 보낸다 — 그대로 두면 모든 요청이 계속 401 이다.
     onSessionExpired();
   }
   if (!res.ok) {
-    const detail = await res.json().then((b) => b?.detail).catch(() => null);
+    const body = await res.json().catch(() => null);
+    const detail = body?.detail;
+    const code: LimitCode | undefined = typeof body?.code === "string" ? body.code : undefined;
     const requestId = res.headers.get("X-Request-Id") ?? undefined;
     // detail 은 화면에 그대로 노출된다. 서버 검증 오류(422)는 배열/객체로 오고,
     // detail 이 없으면 내부 경로가 보이므로 사람이 읽을 수 있는 문구만 쓴다.
     const message = typeof detail === "string" && detail.trim() ? detail : DEFAULT_ERROR;
-    throw new ApiError(res.status, message, requestId);
+    if (code) onLimit(code);
+    throw new ApiError(res.status, message, requestId, code);
   }
   // 204/빈 응답 대비
   const text = await res.text();
@@ -180,16 +230,37 @@ export const api = {
 
   // 이미 가입한 번호면 새 토큰을 함께 돌려준다(만료 후 재인증 경로)
   verifySmsCode: (phone: string, code: string) =>
-    request<{ verified: boolean; user_id?: string; token?: string }>("/auth/sms/verify", {
+    request<{ verified: boolean; user_id?: string; token?: string; moved_courses?: number }>("/auth/sms/verify", {
       method: "POST",
       body: { phone, code },
     }),
 
   signup: (phone: string) =>
-    request<{ user_id: string; credits_left: number; token?: string }>("/signup", {
+    request<LoginResult & { credits_left: number }>("/signup", {
       method: "POST",
       body: { phone },
     }),
+
+  // 로그인 없이 한 번 써 보기 — 서버가 체험 계정과 서명 토큰을 준다
+  startGuest: (nickname: string | null, agreed: boolean) =>
+    request<{ user_id: string; token?: string; kind: "guest" }>("/auth/guest", {
+      method: "POST",
+      body: { nickname, agreed },
+    }),
+
+  // 지금 신원과 남은 횟수(체험 중 안내용)
+  me: () =>
+    request<{
+      kind: "guest" | "member" | null;
+      user_id?: string;
+      nickname?: string | null;
+      remaining?: Record<string, number>;
+      limits?: Record<string, number>;
+    }>("/me"),
+
+  // 카카오 인가 코드로 로그인. 체험 중이었으면 그 코스가 이 계정으로 옮겨진다
+  kakaoLogin: (code: string, redirectUri: string) =>
+    request<LoginResult>("/auth/kakao", { method: "POST", body: { code, redirect_uri: redirectUri } }),
 
   reorder: (id: string, placeIds: string[]) =>
     request<Course>(`/courses/${id}/reorder`, { method: "POST", body: { place_ids: placeIds } }),
@@ -270,7 +341,10 @@ export const api = {
     request<TogetherStatus>(`/together/${token}/accept`, { method: "POST" }),
   togetherOwnerAccept: (courseId: string, userId: string) =>
     request<TogetherStatus>(`/courses/${courseId}/together/accept`, { method: "POST", userId }),
-  publicConfig: () => request<{ naver_map_client_id: string }>(`/config/public`),
+  publicConfig: () =>
+    request<{ naver_map_client_id: string; kakao_login_client_id?: string | null; phone_login?: boolean }>(
+      `/config/public`,
+    ),
   areaStatus: (region: string) =>
     request<{ area: string; level: string | null; message: string | null; calmer_hour: string | null } | null>(
       `/areas/status?region=${encodeURIComponent(region)}`,

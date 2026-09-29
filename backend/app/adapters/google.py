@@ -120,6 +120,11 @@ def _consume(name: str) -> bool:
 
     if not quota_store.allow(name):
         return False
+    from app.usage import global_take
+
+    # 월 무료 한도와 별개로 하루 상한(콘솔 일일 할당량과 같은 값) — 하루에 몰아 쓰지 않게
+    if not global_take(name):
+        return False
     quota_store.record(name)
     return True
 

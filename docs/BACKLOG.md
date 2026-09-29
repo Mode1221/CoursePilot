@@ -16,6 +16,11 @@
 - **전체 CSP**(script-src·connect-src) — 실서버에서 네이버 지도 SDK 가 부르는 도메인을 확인한 뒤 Caddy 에 추가.
   세션 토큰이 localStorage 에 있어 XSS 방어가 중요하다.
 
+- **체험·로그인 후속**
+  - 한도 값(`usage.py`)은 추정치 — `/admin/metrics` 와 실제 청구서를 1~2주 보고 조정.
+  - 카카오 계정 ↔ 기존 전화 계정 연결(같은 사람이 두 계정이 될 수 있다) — 지금은 합치지 않는다.
+  - 별점·재방문 신호(`signals_api.py`)는 아직 서명 없는 `X-User-Id` 를 받는다(순위 조작 여지, 낮음).
+
 ## P1 — 품질·데이터
 0. **자연어 커버리지 확대** — 지역·시각·범위·키워드·편집에 더해 인원수(`test_party_size.py`), 날짜(`test_plan_date.py`), 방문 개수(`test_stop_count.py`), 카테고리 지목 편집(`test_edit_by_category.py`), 출발지 지정(`test_start_place.py`), 이동수단 혼합(`test_mixed_travel.py`), 우천 대체(`test_rainy_course.py`), 주말 날짜(`test_plan_date.py`)까지 처리.
 3. **리뷰 RAG 고도화** (🟡/⬜) — 약관 준수(요약 금지 소스 구분) 내 데이터 강화. 재수집 중복 저장·협찬 표시 리뷰 검색 제외는 처리됨.

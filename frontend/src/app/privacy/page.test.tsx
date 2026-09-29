@@ -11,6 +11,12 @@ describe("법률 문서 페이지", () => {
     expect(container.textContent).toContain("오사카");
   });
 
+  it("체험 기록 삭제 기한과 카카오 로그인 수집 항목을 밝힌다", () => {
+    const { container } = render(<Privacy />);
+    expect(container.textContent).toContain("30일");
+    expect(container.textContent).toContain("카카오 회원번호");
+  });
+
   it("두 문서 모두 법률 검토 전 초안임을 상단에 알린다", () => {
     for (const Page of [Privacy, Terms]) {
       const { container, unmount } = render(<Page />);

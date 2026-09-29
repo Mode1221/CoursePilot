@@ -45,3 +45,14 @@ def _reset_sms_ip_caps():
 
     verification_store._ip_sends.clear()
     yield
+
+
+@pytest.fixture(autouse=True)
+def _reset_usage_counters():
+    """사용 한도 카운터(체험·회원·서비스 전체)는 프로세스 전역이다 — 테스트마다 비운다."""
+    from app import usage
+
+    usage.counters.clear()
+    usage._warned.clear()
+    yield
+    usage.counters.clear()

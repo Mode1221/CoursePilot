@@ -14,8 +14,10 @@ def test_feedback_store_counts():
 
 
 def test_feedback_endpoint():
+    from tests.helpers import owned_course
+
     client = TestClient(api)
-    cid = client.post("/courses").json()["id"]
+    _, cid = owned_course(client)
     assert client.post(f"/courses/{cid}/feedback", json={"kind": "relax_accepted"}).status_code == 200
     assert client.post("/courses/none/feedback", json={"kind": "x"}).status_code == 404
 

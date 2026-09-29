@@ -12,8 +12,34 @@ LLM_TIMEOUT_SEC = 20.0
 LLM_MAX_RETRIES = 1
 
 
-@lru_cache(maxsize=1)
+def _within_daily_budget() -> bool:
+    """서비스 전체 LLM 하루 상한. 넘으면 None 을 돌려 호출부가 규칙 기반으로 폴백한다.
+
+    호출부마다 상한을 넣는 대신 여기 한 곳에서 막는다 — 새 LLM 기능이 생겨도 빠지지 않게.
+    """
+    from app.usage import global_take
+
+    return global_take("llm")
+
+
 def get_openai_client() -> Any | None:
+    """키가 있고 오늘 LLM 몫이 남았으면 캐시된 AsyncOpenAI, 아니면 None."""
+    client = _openai_client()
+    if client is None or not _within_daily_budget():
+        return None
+    return client
+
+
+def get_anthropic_client() -> Any | None:
+    """키가 있고 오늘 LLM 몫이 남았으면 캐시된 AsyncAnthropic, 아니면 None."""
+    client = _anthropic_client()
+    if client is None or not _within_daily_budget():
+        return None
+    return client
+
+
+@lru_cache(maxsize=1)
+def _openai_client() -> Any | None:
     """키가 있으면 캐시된 AsyncOpenAI, 없으면 None."""
     if not settings.openai_api_key:
         return None
@@ -27,7 +53,7 @@ def get_openai_client() -> Any | None:
 
 
 @lru_cache(maxsize=1)
-def get_anthropic_client() -> Any | None:
+def _anthropic_client() -> Any | None:
     """키가 있으면 캐시된 AsyncAnthropic, 없으면 None."""
     if not settings.anthropic_api_key:
         return None

@@ -73,6 +73,11 @@ class GooglePlacesReviewSource(ReviewSource):
         key = settings.google_maps_api_key
         if not key:
             raise RuntimeError("google_maps_api_key 미설정")  # 상위에서 Mock 폴백
+        from app.usage import global_take
+
+        # 구형 Places(텍스트검색+상세)는 콘솔 일일 할당량을 따로 걸기 어렵다 — 서비스 하루 상한으로 막는다
+        if not global_take("google.reviews"):
+            raise RuntimeError("google.reviews 하루 상한")  # 상위에서 Mock 폴백
         async with _client() as client:
             ts = await client.get(
                 self._TEXTSEARCH, params={"query": place_name, "key": key, "language": "ko"}

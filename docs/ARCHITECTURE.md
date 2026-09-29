@@ -63,6 +63,14 @@
 - `culture.py` — 공연·전시 일정(KOPIS). 코스 날짜에 진행 중인 것만 통과(`drop_finished_places`, 일정에 없는 장소는 판단하지 않음).
 - `tourapi.py` — 관광·문화시설 이용시간·등재 여부(Google에 영업시간 없는 곳 보강).
 - `google.py` — Google Places v1. SKU 별 분리 호출(Text Search IDs-only 매핑 / Place Details **Enterprise**). 영업시간·평점은 같은 SKU 라 `fetch_details` 한 콜로 함께 받는다(`refresh_details`). 영업시간 30일·평점 90일 TTL, 확정 코스만 런타임 갱신(`refresh_final_hours`).
+- (신원) `identity.py` — 요청자 판정 단일 지점. `resolve_caller`(서명 토큰이 맞는 실제 계정만),
+  `course_editor`(만든 사람 또는 상대 링크 토큰), 체험 계정 발급·로그인 시 이어받기(`merge_guest`)·30일 정리(`purge_guests`).
+  계정 종류는 `users.phone` 접두어로 구분(`guest:`·`kakao:`·숫자=전화) — 스키마 변경 없음.
+- (한도) `usage.py` — 기능별 사람 단위 한도(체험=평생, 회원=하루)·IP 체험 상한·서비스 전체 하루 상한.
+  `charge()` 가 `Ticket` 을 돌려주고, 결과를 못 준 요청(실패·질문·되묻기)은 `release()` 로 되돌린다.
+  LLM 상한은 `llm_client.get_*_client()` 한 곳에서(넘으면 None → 호출부가 규칙 폴백), Google 은 `_consume`·리뷰 소스에서.
+  한도 초과는 `UsageDenied` → `main.py` 핸들러가 `{"detail","code"}`(guest_required·login_required·daily_limit·service_busy).
+- (로그인) `adapters/kakao_auth.py` — 카카오 인가 코드 → 회원번호. `accounts_api.py` 의 `/auth/guest`·`/auth/kakao`·`/me`.
 - (인증) `session_token.py` — `<발급시각>.<HMAC(user_id:발급시각)>` 토큰, 90일 만료.
   만료·형식 불일치는 `verify` 가 False → 라우터가 401. 비밀키 없으면 개발 폴백.
 - `localdata.py` — LOCALDATA(지방행정 인허가) CSV 인덱스. 폐업 판정·인허가일자(업력)·지역 폐업률. 무료·무인증, 주 1회 갱신(`LOCALDATA_CSV_DIR`).

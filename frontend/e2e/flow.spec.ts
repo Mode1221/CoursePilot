@@ -46,11 +46,26 @@ async function createCourse(page: import("@playwright/test").Page, text: string)
   await expect(page.getByRole("dialog", { name: "AI 챗봇" })).toHaveCount(0, { timeout: 10_000 });
 }
 
-test("참여자(비로그인)는 AI 챗봇을 쓸 수 없다", async ({ page }) => {
+test("처음 온 사람은 가입 없이 코스 하나를 만들고, 두 번째부터는 로그인으로 안내된다", async ({ page }) => {
   await page.goto("/");
   await page.getByRole("button", { name: "코스 만들고 링크 보내기" }).click();
+  await expect(page).toHaveURL(/\/start/);
+  await page.getByLabel("뭐라고 부를까요? (선택)").fill("민수");
+  await page.getByLabel("약관 및 개인정보처리방침 동의").check();
+  await page.getByRole("button", { name: "시작하기" }).click();
+
+  // 체험 계정으로 코스를 만들고 AI 로 채운다
+  await expect(page).toHaveURL(/\/plan\//, { timeout: 15_000 });
+  await expect(page.getByText("체험 중")).toBeVisible();
   await openChat(page);
-  await expect(page.getByText(/참여자는 수동 편집만 가능/)).toBeVisible();
+  await page.getByLabel("조건 입력").fill("성수동 오전 10시 5시간 도보");
+  await page.getByText("전송").click();
+  await expect(page.getByText(/1\. 성수동 장소/)).toBeVisible({ timeout: 15_000 });
+
+  // 두 번째 코스는 로그인 화면으로
+  await page.getByRole("button", { name: "+ 새 코스" }).click();
+  await expect(page).toHaveURL(/\/login\?reason=trial/, { timeout: 10_000 });
+  await expect(page.getByText(/체험은 여기까지예요/)).toBeVisible();
 });
 
 test("생성자는 코스를 생성하고 타임라인을 본다", async ({ page }) => {
@@ -145,7 +160,8 @@ test("공유 링크는 편집 없이 코스를 보여준다", async ({ page, con
   await guest.goto(url);
   await expect(guest.getByText(/1\. 성수동 장소/)).toBeVisible({ timeout: 15_000 });
   await openChat(guest);
-  await expect(guest.getByText(/참여자는 수동 편집만 가능/)).toBeVisible();
+  await expect(guest.getByText(/이 코스는 만든 사람만 AI로 고칠 수 있어요/)).toBeVisible();
+  await expect(guest.getByRole("button", { name: "교체" })).toHaveCount(0);
 });
 
 test("온보딩에서 선호를 저장하면 다시 열었을 때 채워져 있다", async ({ page }) => {

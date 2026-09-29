@@ -94,11 +94,12 @@ describe("ChatPanel", () => {
     expect(api.generate).not.toHaveBeenCalled();
   });
 
-  it("비로그인 참여자는 입력이 잠긴다", () => {
+  it("신원 없는 방문자는 입력이 잠기고 내 코스 만들기로 안내한다", () => {
     setUser(null);
     render(<ChatPanel courseId="c1" />);
     expect((screen.getByLabelText("조건 입력") as HTMLInputElement).disabled).toBe(true);
-    expect(screen.getByText("참여자는 수동 편집만 가능합니다")).toBeDefined();
+    expect(screen.getByText("이 코스는 만든 사람만 AI로 고칠 수 있어요")).toBeDefined();
+    expect(screen.getByText("나도 만들어보기").getAttribute("href")).toBe("/start?next=new");
   });
   it("이미 완주한 코스는 새로고침 후에도 만족도 버튼을 보여준다", () => {
     useCourseStore.setState({

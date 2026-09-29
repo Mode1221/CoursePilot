@@ -65,10 +65,21 @@ async def broadcast_presence(course_id: str, exclude: str | None = None) -> None
     await sio.emit("presence", {"count": _room_size(course_id, exclude)}, room=course_id)
 
 
+MAX_ROOMS_PER_SOCKET = 3  # 한 화면이 동시에 보는 코스는 1~2개다. 무작위 id 로 방을 늘리지 못하게
+
+
 @sio.event
 async def join(sid, data):
-    """참가자가 코스 room에 입장."""
-    course_id = data.get("course_id")
+    """참가자가 코스 room에 입장. 있는 코스만, 소켓당 방 수 상한."""
+    course_id = data.get("course_id") if isinstance(data, dict) else None
+    if not isinstance(course_id, str) or not 0 < len(course_id) <= 64:
+        return
+    if len(_rooms_of(sid)) >= MAX_ROOMS_PER_SOCKET:
+        return
+    from app.store import store
+
+    if store.get(course_id) is None:
+        return
     if course_id:
         await sio.enter_room(sid, course_id)
         await sio.emit("joined", {"course_id": course_id}, to=sid)
@@ -82,8 +93,8 @@ async def leave(sid, data):
     나가지 않으면 다른 코스로 이동한 뒤에도 이전 코스의 브로드캐스트가 계속
     전달되어 대역폭과 서버 메모리를 낭비한다.
     """
-    course_id = data.get("course_id")
-    if course_id:
+    course_id = data.get("course_id") if isinstance(data, dict) else None
+    if isinstance(course_id, str) and course_id:
         await sio.leave_room(sid, course_id)
         await sio.emit("left", {"course_id": course_id}, to=sid)
         await broadcast_presence(course_id)

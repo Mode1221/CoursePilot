@@ -23,9 +23,24 @@ def _signup(client) -> str:
 
 
 def test_participant_cannot_use_ai(client):
-    course_id = client.post("/courses").json()["id"]
+    uid = _signup(client)
+    course_id = client.post("/courses", headers={"X-User-Id": uid}).json()["id"]
     res = client.post(f"/courses/{course_id}/generate", json={"text": "성수동 코스"})
     assert res.status_code == 403
+
+
+def test_anonymous_cannot_create_course(client):
+    res = client.post("/courses")
+    assert res.status_code == 401
+    assert res.json()["code"] == "guest_required"
+
+
+def test_anonymous_cannot_edit_someone_elses_course(client):
+    uid = _signup(client)
+    course_id = client.post("/courses", headers={"X-User-Id": uid}).json()["id"]
+    assert client.post(f"/courses/{course_id}/items", json={"place_ids": []}).status_code == 403
+    assert client.post(f"/courses/{course_id}/reorder", json={"place_ids": []}).status_code == 403
+    assert client.get(f"/courses/{course_id}/messages").status_code == 403
 
 
 def test_creator_generates_and_consumes_credit(client):
@@ -56,7 +71,7 @@ def test_manual_reorder_keeps_start_and_serializes(client):
     items = client.get(f"/courses/{course_id}").json()["items"]
     ids = [it["place"]["id"] for it in reversed(items)]
 
-    res = client.post(f"/courses/{course_id}/reorder", json={"place_ids": ids})
+    res = client.post(f"/courses/{course_id}/reorder", headers={"X-User-Id": uid}, json={"place_ids": ids})
     assert res.status_code == 200
     reordered = res.json()["items"]
     assert reordered[0]["arrive"] == items[0]["arrive"]  # 시작 시각 유지
@@ -96,7 +111,7 @@ def test_manual_removal_demotes_place(client):
     before = popularity_store.scores([removed_id])[removed_id]
 
     # 첫 장소 삭제(수동 편집) → 해당 장소 인기 -1 상쇄
-    client.post(f"/courses/{course_id}/reorder", json={"place_ids": keep_ids})
+    client.post(f"/courses/{course_id}/reorder", headers={"X-User-Id": uid}, json={"place_ids": keep_ids})
     after = popularity_store.scores([removed_id])[removed_id]
     assert abs(after - (before - 1)) < 0.05  # -1 상쇄(미세 감쇠 허용)
 
@@ -209,17 +224,17 @@ def test_add_place_from_repo(client):
         [Place(id="extra-1", name="추가장소", category="카페", lat=37.5, lng=127.0, rating=4.0)]
     )
 
-    res = client.post(f"/courses/{course_id}/places", json={"place_id": "extra-1"})
+    res = client.post(f"/courses/{course_id}/places", headers={"X-User-Id": uid}, json={"place_id": "extra-1"})
     assert res.status_code == 200
     items = res.json()["items"]
     assert len(items) == before + 1
     assert any(it["place"]["id"] == "extra-1" for it in items)
 
     # 중복 추가 방지
-    dup = client.post(f"/courses/{course_id}/places", json={"place_id": "extra-1"})
+    dup = client.post(f"/courses/{course_id}/places", headers={"X-User-Id": uid}, json={"place_id": "extra-1"})
     assert dup.status_code == 409
     # 미등록 장소
-    assert client.post(f"/courses/{course_id}/places", json={"place_id": "nope"}).status_code == 404
+    assert client.post(f"/courses/{course_id}/places", headers={"X-User-Id": uid}, json={"place_id": "nope"}).status_code == 404
 
 
 def test_bookmark_flow(client):

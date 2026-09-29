@@ -14,7 +14,9 @@ import TogetherPanel from "@/components/TogetherPanel";
 import { useIsNarrow } from "@/hooks/useIsNarrow";
 import { api } from "@/services/api";
 import { getSocket } from "@/services/socket";
+import { readTogetherToken } from "@/services/togetherToken";
 import { useCourseStore } from "@/store/courseStore";
+import { useUserStore } from "@/store/userStore";
 import type { Course } from "@/types";
 
 const FAB_GUTTER = 76; // 떠 있는 버튼 높이 + 위아래 여백
@@ -32,7 +34,18 @@ export default function PlanPage() {
   const setViewers = useCourseStore((s) => s.setViewers);
   const setNotFound = useCourseStore((s) => s.setNotFound);
   const notFound = useCourseStore((s) => s.notFound);
+  const ownerId = useCourseStore((s) => s.course?.owner_id ?? null);
+  const userId = useUserStore((s) => s.userId);
+  const loadUser = useUserStore((s) => s.load);
   const narrow = useIsNarrow();
+  // 손 편집은 만든 사람(서명 토큰)과 같이 정하는 상대(링크 토큰)만 된다 — 서버도 같은 규칙으로 막는다.
+  // 링크만 받은 사람에게 누르면 실패할 버튼을 보여주지 않는다.
+  const [partner, setPartner] = useState(false);
+  useEffect(() => {
+    loadUser();
+    setPartner(readTogetherToken(id) != null);
+  }, [id, loadUser]);
+  const readOnly = ownerId == null ? !partner : !(partner || userId === ownerId);
 
   useEffect(() => {
     setNotFound(false); // 다른 코스로 이동 시 이전 404 상태 초기화
@@ -125,7 +138,7 @@ export default function PlanPage() {
             <TogetherPanel courseId={id} />
             <PartnerBar courseId={id} />
           </div>
-          <MapPanel />
+          <MapPanel readOnly={readOnly} />
           <div style={{ height: 72 }} aria-hidden="true" />
         </div>
       ) : (
@@ -137,7 +150,7 @@ export default function PlanPage() {
           {/* 아래 여백(FAB_GUTTER)은 떠 있는 "AI로 코스 고치기" 버튼 자리 — 카드가 버튼 위에서 끝나고
               아래 고정 줄과도 떨어져 보이게 */}
           <div style={{ flex: 1, minHeight: 0, paddingBottom: FAB_GUTTER }}>
-            <MapPanel split />
+            <MapPanel split readOnly={readOnly} />
           </div>
         </>
       )}

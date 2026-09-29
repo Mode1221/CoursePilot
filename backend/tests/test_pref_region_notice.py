@@ -26,7 +26,7 @@ def _user_with_region(region: str) -> str:
 def _reply(uid: str, text: str) -> str:
     cid = client.post("/courses", headers={"X-User-Id": uid}).json()["id"]
     client.post(f"/courses/{cid}/generate", headers={"X-User-Id": uid}, json={"text": text})
-    return client.get(f"/courses/{cid}/messages").json()[-1]["text"]
+    return client.get(f"/courses/{cid}/messages", headers={"X-User-Id": uid}).json()[-1]["text"]
 
 
 def test_지역을_말하지_않으면_선호_지역을_알린다():

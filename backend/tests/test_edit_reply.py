@@ -26,7 +26,7 @@ def _course() -> tuple[str, str]:
 
 def _say(uid: str, cid: str, text: str) -> str:
     client.post(f"/courses/{cid}/generate", headers={"X-User-Id": uid}, json={"text": text})
-    return client.get(f"/courses/{cid}/messages").json()[-1]["text"]
+    return client.get(f"/courses/{cid}/messages", headers={"X-User-Id": uid}).json()[-1]["text"]
 
 
 def test_교체는_몇_번째를_무엇으로_바꿨는지_말한다():

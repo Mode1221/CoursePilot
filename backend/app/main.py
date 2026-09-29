@@ -23,7 +23,8 @@ from app.chat import chat_store
 from app.chat_api import _owned_course, chat_router
 from app.config import settings
 from app.constants import DEFAULT_START_TIME
-from app.middleware import RateLimitMiddleware, RequestLogMiddleware
+from app.identity import course_editor, require_caller, resolve_caller
+from app.middleware import RateLimitMiddleware, RequestLogMiddleware, client_ip
 from app.popularity import popularity_store
 from app.queue import QueueOverflow, queues
 from app.realtime import broadcast_state, sio
@@ -31,6 +32,7 @@ from app.schemas import Course, Place
 from app.signals_api import signals_router
 from app.store import store
 from app.together_api import together_router
+from app.usage import UsageDenied, charge
 from app.users import user_store
 
 # 개발 기본값 그대로면 비밀번호를 설정하지 않은 것으로 본다
@@ -126,6 +128,12 @@ async def queue_overflow(_request: Request, _exc: QueueOverflow) -> JSONResponse
     )
 
 
+@api.exception_handler(UsageDenied)
+async def usage_denied(_request: Request, exc: UsageDenied) -> JSONResponse:
+    """한도에 걸림. `code` 로 프론트가 체험 시작·로그인·내일 다시 중 무엇을 권할지 고른다."""
+    return JSONResponse(status_code=exc.status, content={"detail": exc.message, "code": exc.code})
+
+
 @api.exception_handler(asyncio.TimeoutError)
 async def action_timeout(_request: Request, _exc: asyncio.TimeoutError) -> JSONResponse:
     """외부 호출이 물려 상한을 넘긴 경우. 코스 큐는 이미 풀린 상태다."""
@@ -215,6 +223,9 @@ _AREA_CACHE: dict[str, tuple[float, dict | None]] = {}
 AREA_TTL_SEC = 600
 
 
+AREA_CACHE_MAX = 200
+
+
 @api.get("/areas/status")
 async def area_status(region: str) -> dict | None:
     """동네 혼잡도(서울 실시간 도시데이터). 키가 없거나 매핑이 없으면 null. 10분 캐시."""
@@ -224,6 +235,9 @@ async def area_status(region: str) -> dict | None:
 
     from app.adapters.seoul_openapi import area_status as fetch
 
+    region = region.strip()[:30]
+    if not region:
+        return None
     hit = _AREA_CACHE.get(region)
     if hit and _time.monotonic() - hit[0] < AREA_TTL_SEC:
         return hit[1]
@@ -234,6 +248,8 @@ async def area_status(region: str) -> dict | None:
         if st and st.level
         else None
     )
+    if len(_AREA_CACHE) >= AREA_CACHE_MAX:  # 아무 문자열로 캐시를 불리지 못하게
+        _AREA_CACHE.pop(min(_AREA_CACHE, key=lambda k: _AREA_CACHE[k][0]))
     _AREA_CACHE[region] = (_time.monotonic(), data)
     return data
 
@@ -241,28 +257,49 @@ async def area_status(region: str) -> dict | None:
 @api.get("/config/public")
 def public_config() -> dict:
     """프론트가 런타임에 읽는 공개 설정. 비밀값은 절대 넣지 않는다(키 ID 는 원래 공개값)."""
-    return {"naver_map_client_id": settings.naver_map_client_id or settings.ncp_api_key_id or ""}
+    return {
+        "naver_map_client_id": settings.naver_map_client_id or settings.ncp_api_key_id or "",
+        # 로그인 수단. 카카오 client_id 는 원래 인가 주소창에 실리는 공개값이다
+        "kakao_login_client_id": settings.kakao_login_client_id or None,
+        "phone_login": settings.sms_enabled or not settings.is_production,
+    }
 
 
 @api.post("/courses", response_model=Course)
-async def create_course(x_user_id: str | None = Header(default=None)) -> Course:
-    return store.create(owner_id=x_user_id)
+async def create_course(
+    request: Request,
+    x_user_id: str | None = Header(default=None),
+    x_user_token: str | None = Header(default=None),
+) -> Course:
+    """새 코스. 체험(게스트)은 1개·IP 당 하루 1개, 회원은 하루 몫 안에서.
+
+    신원 없이는 만들 수 없다 — 주인 없는 코스는 누구나 주인 행세를 할 수 있었다.
+    """
+    caller = require_caller(x_user_id, x_user_token)
+    charge("course", subject=caller.user_id, guest=caller.guest, ip=client_ip(request))
+    return store.create(owner_id=caller.user_id)
 
 
 @api.post("/courses/{course_id}/duplicate", response_model=Course)
 async def duplicate_course(
-    course_id: str, x_user_id: str | None = Header(default=None)
+    course_id: str,
+    request: Request,
+    x_user_id: str | None = Header(default=None),
+    x_user_token: str | None = Header(default=None),
 ) -> Course:
     """코스 복제. 지난 코스를 원본을 건드리지 않고 다시 편집하고 싶을 때 쓴다.
 
-    공유받은 코스도 복제할 수 있고, 사본의 생성자는 요청자다.
+    공유받은 코스도 복제할 수 있고, 사본의 생성자는 요청자다(새 코스 몫을 쓴다).
     """
     source = store.get(course_id)
     if source is None:
         raise HTTPException(status_code=404, detail="코스를 찾을 수 없어요")
+    caller = require_caller(x_user_id, x_user_token)
+    charge("course", subject=caller.user_id, guest=caller.guest, ip=client_ip(request))
     copy = source.model_copy(deep=True)
     copy.id = store.new_id()
-    copy.owner_id = x_user_id
+    copy.owner_id = caller.user_id
+    copy.together = None  # 원본의 상대 링크·카드를 사본이 들고 가지 않게
     copy.title = f"{source.title} (사본)"
     copy.locked = False
     store.save(copy)
@@ -430,13 +467,36 @@ def _summary_cache_put(key: tuple[str, str], value: dict) -> None:
     _summary_cache[key] = (now, value)
 
 
+def _metered(
+    feature: str, request: Request, user_id: str | None, token: str | None
+):
+    """비싼 조회를 한 번 쓴다. 로그인·체험 계정이면 그 사람 몫, 아니면(공유 링크로 온 상대 등)
+    IP 를 체험 몫으로 센다 — 신원 없이도 쓸 수는 있게 하되 끝없이는 못 쓰게."""
+    from app.usage import ip_subject
+
+    caller = resolve_caller(user_id, token)
+    if caller is not None:
+        return charge(feature, subject=caller.user_id, guest=caller.guest)
+    return charge(feature, subject=ip_subject(client_ip(request)), guest=True)
+
+
 @api.post("/reviews/summary")
-async def review_summary(req: ReviewSummaryRequest) -> dict:
-    """장소 상세 모달용 리뷰 요약 (4-2 + 8장 RAG). 같은 장소는 잠시 캐시한다."""
-    cache_key = (req.place_id, req.query)
+async def review_summary(
+    req: ReviewSummaryRequest,
+    request: Request,
+    x_user_id: str | None = Header(default=None),
+    x_user_token: str | None = Header(default=None),
+) -> dict:
+    """장소 상세 모달용 리뷰 요약 (4-2 + 8장 RAG). 같은 장소는 잠시 캐시한다.
+
+    캐시 키는 장소만 — 질의 문구를 바꿔 가며 캐시를 비켜 유료 호출을 반복하지 못하게.
+    캐시에 있으면 횟수를 세지 않는다(돈이 들지 않으니까).
+    """
+    cache_key = (req.place_id, "")
     cached = _summary_cache_get(cache_key)
     if cached is not None:
         return cached
+    ticket = _metered("review", request, x_user_id, x_user_token)
 
     from app.db import is_ready
     from app.reviews.aspects import extract_aspects
@@ -471,6 +531,8 @@ async def review_summary(req: ReviewSummaryRequest) -> dict:
     result = {"summary": summary, "count": len(found), "pros": pros, "cons": cons}
     if found:  # 빈 결과는 캐시하지 않는다(수집 전일 수 있음)
         _summary_cache_put(cache_key, result)
+    else:
+        ticket.release()  # 리뷰가 없었다 — 보여 준 게 없으니 몫을 돌려준다
     return result
 
 
@@ -488,6 +550,17 @@ async def course_reasons_endpoint(course_id: str) -> dict:
     return {"reasons": course_reasons(course, last_text)}
 
 
+def _editable(
+    course_id: str, user_id: str | None, user_token: str | None, together_token: str | None
+) -> Course:
+    """손 편집 권한. 코스 id 는 공유 링크로 누구에게나 가므로 id 만으로는 못 고친다."""
+    course = store.get(course_id)
+    if course is None:
+        raise HTTPException(status_code=404, detail="코스를 찾을 수 없어요")
+    course_editor(course, user_id, user_token, together_token)
+    return course
+
+
 def _reject_duplicates(place_ids: list[str]) -> None:
     """같은 장소가 두 번 들어가면 이동시간 0 구간과 신호 왜곡이 생긴다."""
     if len(set(place_ids)) != len(place_ids):
@@ -500,14 +573,18 @@ class ReorderRequest(BaseModel):
 
 
 @api.post("/courses/{course_id}/reorder", response_model=Course)
-async def manual_reorder(course_id: str, req: ReorderRequest) -> Course:
+async def manual_reorder(
+    course_id: str, req: ReorderRequest,
+    x_user_id: str | None = Header(default=None),
+    x_user_token: str | None = Header(default=None),
+    x_together_token: str | None = Header(default=None),
+) -> Course:
     """수동 편집(드래그/삭제). AI 미호출·무료지만 서버 큐로 직렬화 + broadcast (5-1).
 
-    참여자(비로그인)도 가능하므로 인증/크레딧 불필요.
+    생성자(서명 토큰) 또는 같이 정하는 상대(링크 토큰)만. 크레딧 불필요.
     """
     _reject_duplicates(req.place_ids)
-    if store.get(course_id) is None:
-        raise HTTPException(status_code=404, detail="코스를 찾을 수 없어요")
+    _editable(course_id, x_user_id, x_user_token, x_together_token)
 
     async def action() -> Course:
         course = store.get(course_id)
@@ -552,13 +629,17 @@ class AddPlaceRequest(BaseModel):
 
 
 @api.post("/courses/{course_id}/places", response_model=Course)
-async def add_place(course_id: str, req: AddPlaceRequest) -> Course:
+async def add_place(
+    course_id: str, req: AddPlaceRequest,
+    x_user_id: str | None = Header(default=None),
+    x_user_token: str | None = Header(default=None),
+    x_together_token: str | None = Header(default=None),
+) -> Course:
     """추천("함께 가요") 장소를 코스 끝에 추가 후 전체 동선 재계산 (수동 편집).
 
-    장소는 전역 저장소에서 복원. AI 미호출·무료. 참여자도 가능하므로 인증 불필요.
+    장소는 전역 저장소에서 복원. AI 미호출·무료. 생성자 또는 같이 정하는 상대만.
     """
-    if store.get(course_id) is None:
-        raise HTTPException(status_code=404, detail="코스를 찾을 수 없어요")
+    _editable(course_id, x_user_id, x_user_token, x_together_token)
 
     async def action() -> Course:
         course = store.get(course_id)
@@ -604,15 +685,19 @@ class SetItemsRequest(BaseModel):
 
 
 @api.post("/courses/{course_id}/items", response_model=Course)
-async def set_items(course_id: str, req: SetItemsRequest) -> Course:
+async def set_items(
+    course_id: str, req: SetItemsRequest,
+    x_user_id: str | None = Header(default=None),
+    x_user_token: str | None = Header(default=None),
+    x_together_token: str | None = Header(default=None),
+) -> Course:
     """코스 항목을 지정한 순서로 설정 후 동선 재계산 (수동 편집).
 
     현재 코스에 없는 id 는 전역 장소 저장소에서 복원하므로, 삭제한 장소를 되살리는
-    되돌리기(undo)도 이 엔드포인트 하나로 처리된다. AI 미호출·무료.
+    되돌리기(undo)도 이 엔드포인트 하나로 처리된다. AI 미호출·무료. 생성자 또는 같이 정하는 상대만.
     """
     _reject_duplicates(req.place_ids)
-    if store.get(course_id) is None:
-        raise HTTPException(status_code=404, detail="코스를 찾을 수 없어요")
+    _editable(course_id, x_user_id, x_user_token, x_together_token)
 
     async def action() -> Course:
         course = store.get(course_id)
@@ -669,14 +754,23 @@ async def set_items(course_id: str, req: SetItemsRequest) -> Course:
 
 
 @api.get("/places/search", response_model=list[Place])
-async def search_places(region: str, q: str = "", limit: int = 8) -> list[Place]:
+async def search_places(
+    region: str,
+    request: Request,
+    q: str = "",
+    limit: int = 8,
+    x_user_id: str | None = Header(default=None),
+    x_user_token: str | None = Header(default=None),
+) -> list[Place]:
     """장소 검색 (직접 추가·교체용). 결과는 전역 저장소에 보관해 이후 id 로 복원 가능.
 
-    인증 불필요(수동 편집 보조). region 은 필수, q 는 추가 키워드.
+    region 은 필수, q 는 추가 키워드. 횟수는 사람(없으면 IP) 단위로 센다.
     """
-    region = region.strip()
+    region = region.strip()[:30]
+    q = q[:60]
     if not region:
         raise HTTPException(status_code=400, detail="지역을 입력해주세요")
+    _metered("search", request, x_user_id, x_user_token)
     limit = max(1, min(limit, 20))
     keywords = [w for w in q.split() if w]
     places = await get_map_service().search_places(region, keywords, limit)

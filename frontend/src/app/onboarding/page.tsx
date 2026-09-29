@@ -56,6 +56,15 @@ export default function Onboarding() {
     load();
   }, [load]);
 
+  // 운영에서 문자 인증이 꺼져 있으면 여기서는 가입할 수 없다 → 로그인·체험으로 안내
+  const [phoneLogin, setPhoneLogin] = useState(true);
+  useEffect(() => {
+    api
+      .publicConfig()
+      .then((c) => setPhoneLogin(c.phone_login !== false))
+      .catch(() => {});
+  }, []);
+
   // 세션 토큰이 만료되면 api 클라이언트가 여기로 보낸다(?expired=1).
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -174,6 +183,25 @@ export default function Onboarding() {
       setError("저장에 실패했어요. 잠시 후 다시 시도해 주세요.");
       setSaving(false);
     }
+  }
+
+  if (!userId && !phoneLogin) {
+    return (
+      <main style={{ padding: "var(--sp-12) var(--sp-4)", maxWidth: 460, margin: "0 auto" }}>
+        <h1>선호 설정</h1>
+        <p style={{ color: "var(--text-muted)" }}>
+          취향은 로그인하거나 체험을 시작한 뒤에 저장할 수 있어요.
+        </p>
+        <p style={{ display: "flex", gap: "var(--sp-4)" }}>
+          <Link href="/login?next=/onboarding" style={{ color: "var(--brand-strong)", fontWeight: 600 }}>
+            로그인
+          </Link>
+          <Link href="/start?next=/onboarding" style={{ color: "var(--brand-strong)", fontWeight: 600 }}>
+            가입 없이 시작하기
+          </Link>
+        </p>
+      </main>
+    );
   }
 
   return (
