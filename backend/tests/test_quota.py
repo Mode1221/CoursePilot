@@ -210,7 +210,7 @@ async def test_일_상한을_넘으면_웹검색을_부르지_않는다(monkeypa
         raise AssertionError("상한을 넘었는데 호출됐다")
 
     monkeypatch.setattr("app.adapters.hours_fallback._lookup", _boom)
-    place = Place(id="p", name="가게", lat=37.5, lng=127.0, hours_unverified=True)
+    place = Place(id="p", name="가게", lat=37.5, lng=127.0, hours_unverified=True, blog_mentions=500)
     assert await fill_missing_hours([place]) == 0
     assert called == []
     quota_store.clear()

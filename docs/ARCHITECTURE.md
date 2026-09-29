@@ -59,7 +59,8 @@
 - `naver.py` — 네이버 지역검색/Directions(`maps.apigw.ntruss.com`, NCP 전용키 우선)/블로그 건수(인지도).
   `naver_search.py` — 검색 창구 선택: NAVER API HUB 키(`naverapihub.apigw.ntruss.com`)가 있으면 그것을,
   없으면 개발자센터 레거시(2027-06-30 종료). 지역·블로그 호출부(naver.py, reviews/fact_tags.py)는 이걸 경유한다.
-- `hours_fallback.py` — 영업시간 최후 폴백(LLM 웹검색, 코스당 2건 상한, 결과는 항상 '확인 필요').
+- `hours_fallback.py` — 영업시간 최후 폴백(LLM 웹검색, 코스당 2건·하루 `HOURS_FALLBACK_DAILY_CAP` 상한, 결과는 항상 '확인 필요').
+  대상은 `pipeline/hours_policy.py` 가 고른다(인기 신호 있는 곳만). 같은 모듈이 planner 의 `unknown_hours` 감점도 정한다.
 - `culture.py` — 공연·전시 일정(KOPIS). 코스 날짜에 진행 중인 것만 통과(`drop_finished_places`, 일정에 없는 장소는 판단하지 않음).
 - `tourapi.py` — 관광·문화시설 이용시간·등재 여부(Google에 영업시간 없는 곳 보강).
 - `google.py` — Google Places v1. SKU 별 분리 호출(Text Search IDs-only 매핑 / Place Details **Enterprise**). 영업시간·평점은 같은 SKU 라 `fetch_details` 한 콜로 함께 받는다(`refresh_details`). 영업시간 30일·평점 90일 TTL, 확정 코스만 런타임 갱신(`refresh_final_hours`).

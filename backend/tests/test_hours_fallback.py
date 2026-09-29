@@ -9,7 +9,7 @@ from app.schemas import Place
 
 
 def _place(pid="p", **kw) -> Place:
-    base = {"id": pid, "name": "가게", "lat": 37.5, "lng": 127.0, "hours_unverified": True}
+    base = {"id": pid, "name": "가게", "lat": 37.5, "lng": 127.0, "hours_unverified": True, "blog_mentions": 500}
     return Place(**{**base, **kw})
 
 
