@@ -9,6 +9,7 @@ import math
 from datetime import date, datetime, time
 
 from app.adapters.map_service import MapService
+from app.pipeline.hours_policy import has_popularity, hours_missing
 from app.pipeline.validation import build_timeline
 from app.pipeline.weights import (
     COURSE_WEIGHTS,
@@ -207,6 +208,11 @@ def score_place(
         score -= w.longevity * longevity_signal(place)  # 위에서 더한 업력 가점을 되돌린다
     if place.is_popup:
         score += w.popup * (1.5 if hot_mode else 1.0)
+
+    # 영업시간을 확인했는데 없고 인기 신호도 없으면 뒤로 보낸다(후보가 모자랄 때만 나온다).
+    # 알려진 곳은 감점하지 않는다 — 뽑히면 웹검색 보강으로 채운다(pipeline/hours_policy.py).
+    if hours_missing(place) and not has_popularity(place, popularity):
+        score -= w.unknown_hours
 
     # 데이트 코스: 저가 프랜차이즈는 크게, 일반 프랜차이즈는 조금 감점(그 동네에 그것뿐이면 그래도 나온다).
     level = franchise_level(place)

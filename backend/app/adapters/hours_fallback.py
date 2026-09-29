@@ -12,6 +12,7 @@ import re
 from datetime import time
 
 from app.config import settings
+from app.pipeline.hours_policy import has_popularity, hours_missing
 from app.schemas import Place
 
 MAX_LOOKUPS_PER_COURSE = 2  # 느리고 비싸다 — 코스당 이 개수까지만
@@ -75,7 +76,14 @@ async def fill_missing_hours(
     if not quota_store.allow_today("llm.hours_fallback"):
         # 오늘 몫을 다 썼다. 영업시간은 "확인 필요" 표시로 남는다(요금보다 낫다).
         return 0
-    targets = [p for p in places if p.hours_unverified and p.open_time is None][:limit]
+    targets = [p for p in places if hours_missing(p)]
+    if targets:
+        # 인기 신호가 있는 곳만 찾아본다 — 덜 알려진 곳에 비싼 웹검색을 쓰지 않는다(표시는 "확인 필요"로 남는다).
+        from app.popularity import popularity_store
+
+        pop = popularity_store.scores([p.id for p in targets])
+        targets = [p for p in targets if has_popularity(p, pop.get(p.id, 0.0))]
+    targets = targets[:limit]
     if not targets:
         return 0
     quota_store.record_today("llm.hours_fallback", len(targets))
