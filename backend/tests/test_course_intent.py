@@ -131,3 +131,29 @@ def test_한강공원_자체는_할거리():
     assert not is_unfit_for_date(
         Place(id="x", name="망원한강공원", category="여행 > 공원", address="서울 마포구 마포나루길 467", lat=37.55, lng=126.9)
     )
+
+
+def test_공원_편의시설은_할거리가_아니다():
+    from app.pipeline.planner import is_unfit_for_date
+
+    assert is_unfit_for_date(
+        Place(id="x", name="한강공원망원7 개방화장실", category="화장실", address="서울 마포구 망원동", lat=37.55, lng=126.9)
+    )
+
+
+def test_한옥_초점은_문화_행사를_고르지_않는다():
+    words = intent.match_words("한옥마을")
+    assert not intent.satisfies(Place(id="e", name="2026 문화가 흐르는 서울광장", category="행사", lat=37.56, lng=126.97), words)
+    assert intent.satisfies(Place(id="h", name="북촌한옥마을", category="관광명소", lat=37.58, lng=126.98), words)
+
+
+def test_시간_모르는_전시_카페는_밤늦게_넣지_않는다():
+    from app.pipeline.validation import is_open_during
+
+    show = Place(id="s", name="특별 전시", category="전시/미술", lat=37.5, lng=127.0)
+    cafe = Place(id="c", name="카페07", category="카페", lat=37.5, lng=127.0)
+    bar = Place(id="b", name="와인주택", category="와인바", lat=37.5, lng=127.0)
+    assert not is_open_during(show, time(22, 43), time(23, 43))
+    assert not is_open_during(cafe, time(0, 22), time(1, 22))
+    assert is_open_during(cafe, time(15, 0), time(16, 0))
+    assert is_open_during(bar, time(22, 43), time(23, 43))  # 술집은 늦게까지 여는 곳이 많다
