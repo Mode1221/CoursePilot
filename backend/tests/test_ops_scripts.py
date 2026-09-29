@@ -165,3 +165,49 @@ def test_deploy가_배치_중에는_기다린다():
     assert "is_locked" in text
     assert "FORCE_DEPLOY" in text  # 강행 옵션
     assert "BATCH_WAIT_MIN:-30" in text  # 최대 30분
+
+
+# ── GitHub → VM 즉시 배포 ─────────────────────────────────────────────────
+@pytest.mark.parametrize(
+    "cmd",
+    ["", "bash", "deploy", "deploy abc", "deploy " + "g" * 40, "deploy " + "a" * 40 + "; rm -rf /", "ls -la"],
+)
+def test_배포_훅은_정해진_명령만_받는다(cmd):
+    """SSH 키가 새도 셸을 얻지 못한다 — "deploy <40자 sha>" 외에는 실행 전에 거절."""
+    proc = subprocess.run(
+        [str(OPS / "deploy_hook.sh")],
+        env={"SSH_ORIGINAL_COMMAND": cmd, "PATH": "/usr/bin:/bin"},
+        capture_output=True,
+        text=True,
+    )
+    assert proc.returncode == 2
+    assert "허용되지 않은 명령" in proc.stderr
+
+
+def test_크론과_GitHub_배포가_겹치지_않는다():
+    text = (OPS / "auto_deploy.sh").read_text()
+    assert "flock -n 9" in text  # 크론: 겹치면 빠진다
+    assert "flock -w 900 9" in text  # GitHub: 앞 배포를 기다린다
+    assert "auto_deploy.sh --wait" in (OPS / "deploy_hook.sh").read_text()
+
+
+def test_배포_키는_배포_스크립트만_실행하게_등록된다():
+    text = (OPS / "setup_deploy_key.sh").read_text()
+    for opt in ("command=", "no-port-forwarding", "no-agent-forwarding", "no-pty"):
+        assert opt in text
+
+
+def test_자동_머지는_claude_브랜치의_검사된_커밋만():
+    wf = (ROOT / ".github" / "workflows" / "auto-merge.yml").read_text()
+    assert "startsWith(github.event.workflow_run.head_branch, 'claude/')" in wf
+    assert "github.event.workflow_run.conclusion == 'success'" in wf
+    assert "--match-head-commit" in wf  # CI 가 본 커밋만 머지
+    assert "merge-base --is-ancestor origin/main" in wf  # 최신 main 을 품은 브랜치만
+    assert "AUTO_MERGE" in wf  # 끄는 스위치
+
+
+def test_릴리스는_이미지_뒤에_VM_에_배포한다():
+    wf = (ROOT / ".github" / "workflows" / "release.yml").read_text()
+    assert "needs: build" in wf
+    assert "StrictHostKeyChecking=yes" in wf
+    assert "DEPLOY_SSH_KEY" in wf
