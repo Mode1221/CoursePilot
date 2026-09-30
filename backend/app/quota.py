@@ -57,10 +57,13 @@ class QuotaStore:
         self._notified: set[tuple[str, float]] = set()  # 이미 알린 (API, 임계)
 
     def limit(self, name: str) -> int | None:
-        if name == "google.details":
+        if name in ("google.details", "google.map_id"):
             from app.config import settings
 
-            return settings.google_details_monthly  # 기본 1,000(무료 안). 올리면 넘는 만큼 과금
+            if name == "google.details":
+                return settings.google_details_monthly  # 기본 1,000(무료 안). 올리면 넘는 만큼 과금
+            # IDs-only 는 무료다. 배치 양을 올리면 place id 찾기도 그만큼 늘어난다(하루 양 × 31일 여유)
+            return MONTHLY_FREE_LIMITS[name] + max(0, settings.google_details_per_day - 20) * 31
         return MONTHLY_FREE_LIMITS.get(name)
 
     @staticmethod

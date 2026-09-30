@@ -39,3 +39,12 @@ def test_하루_배치량을_올리면_하루_상한도_오른다(monkeypatch):
 
     monkeypatch.setattr(settings, "google_details_per_day", 300)
     assert usage._global_limit("google.details") == 300 + usage.RUNTIME_DETAILS_PER_DAY
+
+
+def test_배치를_늘리면_place_id_찾기_상한도_늘어난다(monkeypatch):
+    from app import usage
+    from app.quota import quota_store
+
+    monkeypatch.setattr(settings, "google_details_per_day", 300)
+    assert usage._global_limit("google.map_id") == usage.GLOBAL_DAILY["google.map_id"] + 300
+    assert quota_store.limit("google.map_id") >= 10_000 + 280 * 30
