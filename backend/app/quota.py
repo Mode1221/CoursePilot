@@ -57,6 +57,10 @@ class QuotaStore:
         self._notified: set[tuple[str, float]] = set()  # 이미 알린 (API, 임계)
 
     def limit(self, name: str) -> int | None:
+        if name == "google.details":
+            from app.config import settings
+
+            return settings.google_details_monthly  # 기본 1,000(무료 안). 올리면 넘는 만큼 과금
         return MONTHLY_FREE_LIMITS.get(name)
 
     @staticmethod

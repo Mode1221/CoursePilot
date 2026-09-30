@@ -18,15 +18,16 @@ from app.batch.districts import DISTRICTS, District
 from app.batch.grid import cells_for
 from app.batch.merge import merge_with_stored
 from app.batch.progress import Progress
+from app.config import settings
 from app.schemas import Place
 
 logger = logging.getLogger("coursepilot")
 
-# Place Details(Enterprise) 월 1,000 = 배치 600 + 런타임 400.
-# 영업시간과 평점을 한 콜로 받으므로 하루 20콜이면 월 600 이다.
-DETAILS_PER_DAY = 20
+# Place Details(Enterprise) 월 상한(settings.google_details_monthly, 기본 1,000 무료) = 배치 + 런타임 400.
+# 영업시간과 평점을 한 콜로 받으므로 하루 20콜이면 월 600 이다(기본값). 올리는 법: docs/DEPLOY.md
+DETAILS_PER_DAY = settings.google_details_per_day
 RUNTIME_RESERVE = 400  # 코스 확정 시 갱신에 남겨 두는 몫(배치가 다 쓰면 안 된다)
-TOP_PER_DISTRICT = 25  # 상권별로 Google 로 채울 상위 곳 수(24곳 × 25 = 600)
+TOP_PER_DISTRICT = 25  # (예전) 상위 몇 곳 — 지금은 core_targets 가 상권 × 칸별로 고른다
 AWARENESS_PER_RUN = 500  # 블로그 검색 일 25,000 한도 안에서 여유 있게
 
 # 예전 이름(호출부 호환). 둘 다 같은 1콜을 쓴다.
@@ -168,21 +169,62 @@ def _details_budget(limit: int) -> int:
     return max(0, min(limit, remaining - RUNTIME_RESERVE))
 
 
+def core_targets(places: list[Place], per_slot: int | None = None) -> list[Place]:
+    """코스에 실제로 뽑힐 만한 곳 — 상권 × 칸(식사·카페·술·할거리)마다 상위 per_slot 곳.
+
+    예전엔 전체에서 인기 순 상위 25곳만 봤다. 인기 신호가 거의 0 이라 사실상 아무 곳이나였고,
+    30일마다 다시 채우느라 영업시간을 아는 곳이 600곳 안팎에서 늘지 않았다(점검: 코스 장소의 절반만 확인).
+    순서는 상권·칸을 번갈아 — 하루 할당량이 한 상권에 몰리지 않게.
+    """
+    import math
+
+    from app.batch.districts import DISTRICTS
+    from app.pipeline.planner import classify, is_unfit_for_date
+    from app.pipeline.stored_pool import distance_m
+    from app.popularity import popularity_store
+
+    per_slot = per_slot or settings.google_core_per_slot
+    pop = popularity_store.scores([p.id for p in places])
+    groups: dict[tuple[str, str], list[Place]] = {}
+    for p in places:
+        if is_unfit_for_date(p) or p.business_status == "CLOSED_PERMANENTLY":
+            continue
+        best = None
+        for d in DISTRICTS:
+            dist = distance_m(d.lat, d.lng, p.lat, p.lng)
+            if dist <= max(d.radius_m, 700) * 1.2 and (best is None or dist < best[0]):
+                best = (dist, d.name)
+        area = best[1] if best else "_기타"  # 상권 밖(재등장 장소 등)도 한 묶음으로 본다
+        groups.setdefault((area, classify(p)), []).append(p)
+
+    def rank(p: Place) -> float:
+        # 플래너가 앞에 세우는 신호: 우리 채택(인기)·블로그 인지도·요즘 뜨는 곳·관광 등재
+        return (
+            2.0 * pop.get(p.id, 0.0)
+            + math.log1p(p.blog_mentions or 0) / 3
+            + (p.hot_score or 0.0)
+            + (0.5 if p.tour_listed else 0.0)
+        )
+
+    tops = [sorted(g, key=rank, reverse=True)[:per_slot] for g in groups.values()]
+    out: list[Place] = []
+    for i in range(per_slot):  # 번갈아 한 줄로
+        out += [g[i] for g in tops if i < len(g)]
+    return out
+
+
 async def fill_hours(places: list[Place], limit: int = DETAILS_PER_DAY) -> int:
     """만료된 영업시간·평점을 하루 할당량만큼 한 콜씩 채운다(초과분은 다음 실행에서).
 
-    상권별 상위 N곳만 채운다 — 월 1,000 콜로 전수(약 15,000곳)는 불가능하다.
+    상권 × 칸별 상위 후보만(`core_targets`) — 전수(수만 곳)는 비용이 맞지 않는다.
     """
     from app.adapters.google import get_places_client, hours_stale
-    from app.popularity import popularity_store
 
     client = get_places_client()
     budget = _details_budget(limit)
     if not client.enabled or budget <= 0:
         return 0
-    scores = popularity_store.scores([p.id for p in places])
-    ranked = sorted(places, key=lambda p: scores.get(p.id, 0.0), reverse=True)
-    targets = [p for p in ranked[:TOP_PER_DISTRICT] if hours_stale(p)][:budget]
+    targets = [p for p in core_targets(places) if hours_stale(p)][:budget]
     if not targets:
         return 0
     await asyncio.gather(
@@ -200,15 +242,12 @@ async def fill_ratings(
     상위 기준은 아직 자체 신호(인기)뿐이라, 인기 순으로 자른다.
     """
     from app.adapters.google import get_places_client, rating_stale
-    from app.popularity import popularity_store
 
     client = get_places_client()
     budget = _details_budget(limit)
     if not client.enabled or budget <= 0:
         return 0
-    scores = popularity_store.scores([p.id for p in places])
-    ranked = sorted(places, key=lambda p: scores.get(p.id, 0.0), reverse=True)
-    targets = [p for p in ranked[:top_per_district] if rating_stale(p)][:budget]
+    targets = [p for p in core_targets(places) if rating_stale(p)][:budget]
     if not targets:
         return 0
     await asyncio.gather(
