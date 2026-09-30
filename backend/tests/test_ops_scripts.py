@@ -230,3 +230,9 @@ def test_배포한_버전을_로컬_latest_로도_붙인다():
     script = (ROOT / "deploy.sh").read_text()
     tag = script.index('docker tag "$base:$IMAGE_TAG" "$base:latest"')
     assert script.index("✓ 백엔드 정상") < tag < script.index("docker image prune")
+
+
+def test_배포한_버전을_env_의_IMAGE_TAG_에도_맞춘다():
+    """.env 에 IMAGE_TAG 가 고정돼 있으면 수동 재기동이 그 옛 버전을 띄웠다."""
+    script = (ROOT / "deploy.sh").read_text()
+    assert 'sed -i "s|^IMAGE_TAG=.*|IMAGE_TAG=${IMAGE_TAG}|" .env' in script

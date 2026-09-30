@@ -159,6 +159,11 @@ if [ "${IMAGE_TAG:-latest}" != "latest" ]; then
     base="${IMAGE_REGISTRY:-ghcr.io/mode1221/coursepilot}-${svc}"
     docker tag "$base:$IMAGE_TAG" "$base:latest" 2>/dev/null || true
   done
+  # .env 에 IMAGE_TAG 가 고정돼 있으면(예전 롤백 등) 손으로 다시 띄울 때 그 버전이 뜬다 — 실제로 #481 이미지로
+  # 되돌아가 있었다(2026-09-30). 배포한 버전으로 맞춰 둔다.
+  if grep -q '^IMAGE_TAG=' .env; then
+    sed -i "s|^IMAGE_TAG=.*|IMAGE_TAG=${IMAGE_TAG}|" .env
+  fi
 fi
 
 # 교체되고 남은 이전 이미지는 지운다(100GB 디스크가 조용히 차는 것을 막는다).
