@@ -80,13 +80,18 @@ def _supports_effort(model: str) -> bool:
     return not model.startswith("claude-haiku") and not model.startswith("claude-3")
 
 
-def anthropic_params(max_tokens: int, system: str | None = None, tool: str | None = None) -> dict:
+def anthropic_params(
+    max_tokens: int, system: str | None = None, tool: str | None = None, *, fast: bool = False
+) -> dict:
     """Anthropic 호출 공통 인자 — 모델·effort·도구 강제 여부를 설정 하나로 맞춘다.
 
     `ANTHROPIC_MODEL`/`ANTHROPIC_EFFORT` 만 바꾸면 모든 호출부가 따라온다. 강제 호출을 못 쓰는 모델이면
     `auto` + "반드시 도구로 답하라"는 지시로 바꾼다(실측 5/5 도구 호출).
+
+    fast=True 는 자주 불리는 단순 작업(조건 분해·영업시간 웹검색) — `ANTHROPIC_MODEL_FAST` 가 있으면 그 모델.
+    실측에서 조건 분해는 Haiku 4.5 와 Sonnet 5.5 high 결과가 같았고 Haiku 가 1.5초 빨랐다.
     """
-    model = settings.anthropic_model
+    model = (settings.anthropic_model_fast if fast else "") or settings.anthropic_model
     effort = (settings.anthropic_effort or "").strip().lower()
     use_effort = bool(effort) and _supports_effort(model)
     # effort 를 비워도 5.x 는 기본이 high 라 생각한다 — 자리는 늘 준다

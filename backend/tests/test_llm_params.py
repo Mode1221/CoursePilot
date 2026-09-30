@@ -28,3 +28,20 @@ def test_effort_를_비우면_모델_기본값(monkeypatch):
     p = anthropic_params(200)
     assert "extra_body" not in p and "tool_choice" not in p and "system" not in p
     assert p["max_tokens"] == 200 + THINKING_ROOM  # 기본 high 로 생각할 자리
+
+
+def test_자주_불리는_작업은_빠른_모델(monkeypatch):
+    monkeypatch.setattr(settings, "anthropic_model", "claude-sonnet-5-5")
+    monkeypatch.setattr(settings, "anthropic_effort", "high")
+    monkeypatch.setattr(settings, "anthropic_model_fast", "claude-haiku-4-5")
+    fast = anthropic_params(512, "추출기", "set_constraints", fast=True)
+    assert fast["model"] == "claude-haiku-4-5"
+    assert fast["tool_choice"] == {"type": "tool", "name": "set_constraints"}  # Haiku 는 강제 호출 그대로
+    assert "extra_body" not in fast
+    assert anthropic_params(200)["model"] == "claude-sonnet-5-5"
+
+
+def test_빠른_모델을_비우면_기본_모델(monkeypatch):
+    monkeypatch.setattr(settings, "anthropic_model", "claude-sonnet-5-5")
+    monkeypatch.setattr(settings, "anthropic_model_fast", "")
+    assert anthropic_params(512, fast=True)["model"] == "claude-sonnet-5-5"

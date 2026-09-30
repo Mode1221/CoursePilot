@@ -16,6 +16,8 @@ class Settings(BaseSettings):
     anthropic_model: str = "claude-haiku-4-5"
     # low/medium/high/xhigh/max. 비우면 보내지 않는다(모델 기본값). Haiku 4.5 는 effort 를 받지 않아 무시한다.
     anthropic_effort: str = ""
+    # 자주 불리고 단순한 작업(조건 분해·영업시간 웹검색)용. 비우면 ANTHROPIC_MODEL 을 쓴다.
+    anthropic_model_fast: str = ""
     openai_api_key: str = ""
     openai_model: str = "gpt-4o-mini"
 

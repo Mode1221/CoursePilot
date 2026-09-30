@@ -79,7 +79,7 @@ async def _decompose_anthropic(text: str) -> dict | None:
     from app.llm_client import anthropic_params
 
     resp = await client.messages.create(
-        **anthropic_params(512, _SYSTEM, _TOOL_NAME),
+        **anthropic_params(512, _SYSTEM, _TOOL_NAME, fast=True),
         tools=[_ANTHROPIC_TOOL],
         messages=[{"role": "user", "content": text}],
     )
