@@ -124,10 +124,13 @@ def main() -> int:
     auth = {"X-User-Id": me["user_id"], "X-User-Token": me["token"]}
     now = time.strftime("%Y-%m-%d %H:%M", time.gmtime(time.time() + 9 * 3600))
 
+    only = {int(x) for x in os.environ.get("PROBE_ONLY", "").split(",") if x.strip().isdigit()}
     rows, details = [], []
     accs, rels, cons, secs, ai_ms = [], [], [], [], []
     ok_runs = total_runs = 0
     for i, spec in enumerate(PROMPTS, 1):
+        if only and i not in only:
+            continue
         runs = []
         for _ in range(2):
             total_runs += 1
@@ -169,6 +172,9 @@ def main() -> int:
             cat = (p.get("category") or "").split(">")[-1].strip()
             addr = " ".join((p.get("address") or "").split()[:3])
             lines.append(f"| {(it.get('arrive') or '')[:5]} | {p.get('name')} | {cat} | {addr} | {hours} | {rating} | {move} |")
+        dc = runs[0][0].get("debug_constraints")
+        if dc:
+            lines += ["", "해석된 조건: " + ", ".join(f"{k}={v}" for k, v in dc.items() if v not in (None, [], ""))]
         details.append("\n".join(lines) + "\n")
 
     med = statistics.median(secs) if secs else 0

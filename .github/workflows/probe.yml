@@ -21,6 +21,7 @@ jobs:
     env:
       QA_API_URL: ${{ vars.QA_API_URL }}
       QA_TOKEN: ${{ secrets.QA_TOKEN }}
+      PROBE_ONLY: ${{ vars.PROBE_ONLY }}  # "12,14" 처럼 일부 문장만(비우면 전부)
     steps:
       - uses: actions/checkout@v4
       - name: 코스 만들기·정리
