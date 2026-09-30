@@ -537,6 +537,8 @@ def _ordered_slots(constraints: PlanConstraints, n: int) -> list[str] | None:
             slots.append(s)
     while len(slots) < n and fill:
         slots.insert(len(slots) - 1 if tail_bar else len(slots), fill[len(slots) % len(fill)])
+    if any(a == b for a, b in zip(order, order[1:], strict=False)):
+        return _replace_excluded(slots, excluded)  # "카페 두 군데"처럼 말한 반복은 그대로
     return _replace_excluded(_dedupe_adjacent(slots), excluded)
 
 

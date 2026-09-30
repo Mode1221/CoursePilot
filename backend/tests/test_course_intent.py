@@ -177,3 +177,53 @@ def test_LLM_이_문장에_없는_개수_소요는_지어내지_못한다():
 
 def test_밤_10시_루프탑_2차_칵테일은_술집_두_곳():
     assert _slots("금요일 밤 10시 이태원 루프탑 바 가고 2차는 칵테일") == ["bar", "bar"]
+
+
+def test_카페_두_군데는_카페_칸_두_개():
+    c = parse_constraints("성수에서 카페 두 군데 가고 저녁은 고기, 술집은 빼고")
+    intent.apply(c, "성수에서 카페 두 군데 가고 저녁은 고기, 술집은 빼고")
+    assert c.slot_order == ["cafe", "cafe", "meal"]
+    assert c.stop_count == 3
+    assert desired_slots(c) == ["cafe", "cafe", "meal"]
+
+
+async def test_카페_두_군데는_다른_카페_두_곳():
+    text = "토요일 오후 1시 성수동에서 카페 두 군데 가고 저녁은 고기"
+    result = await generate_course(text, MockMapService())
+    kinds = [classify(it.place) for it in result.timeline]
+    assert kinds.count("cafe") == 2 and "meal" in kinds
+    assert len({it.place.id for it in result.timeline}) == len(result.timeline)
+
+
+def test_1인_4만원은_혼자가_아니다():
+    c = parse_constraints("강남역에서 저녁 7시부터 3시간, 1인 4만원 안쪽으로 조용한 데")
+    assert c.party_size is None and c.budget_max == 40000
+    assert parse_constraints("강남역 3인 저녁").party_size == 3
+
+
+def test_끝나는_시각이_있으면_마지막_칸은_짧게_머문다():
+    import asyncio
+
+    from app.pipeline.validation import build_timeline
+
+    c = parse_constraints("강남역에서 저녁 7시부터 3시간")
+    meal = Place(id="m", name="중식당", category="음식점 > 중식", lat=37.498, lng=127.028,
+                 open_time=time(11), close_time=time(22))
+    bar = Place(id="b", name="조용한 바", category="술집 > 칵테일바", lat=37.499, lng=127.029,
+                open_time=time(18), close_time=time(2))
+    timeline = asyncio.run(build_timeline([meal, bar], c, MockMapService()))
+    assert [it.place.id for it in timeline] == ["m", "b"]
+    assert timeline[-1].depart == time(22, 0)
+
+
+def test_저녁은_고기면_앞_칸만큼_일찍_시작한다():
+    text = "성수에서 카페 두 군데 가고 저녁은 고기, 술집은 빼고"
+    c = parse_constraints(text)
+    intent.apply(c, text)
+    if c.start_time is not None:  # "저녁"을 시작 시각으로 읽었다면 앞당겨 식사가 저녁 때에 온다
+        assert c.start_time.hour < 18
+    # 숫자로 시각을 말했으면 그대로
+    t2 = "성수 오후 6시 카페 가고 저녁은 고기"
+    c2 = parse_constraints(t2)
+    intent.apply(c2, t2)
+    assert c2.start_time == time(18, 0)

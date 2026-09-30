@@ -126,6 +126,8 @@ def _guard(args: dict, base: PlanConstraints, text: str) -> dict:
         out.pop("duration_min", None)
     if base.end_time is None and not _END_HINT.search(text):
         out.pop("end_time", None)
+    if out.get("party_size") == 1 and base.party_size is None and "혼자" not in text:
+        out.pop("party_size", None)  # "1인 4만원"(1인당 예산)을 혼자로 읽지 않는다
     travel = out.get("max_travel_min")
     if travel is not None and base.max_travel_min is None:
         out["max_travel_min"] = max(int(travel), MIN_TRAVEL_FLOOR)
