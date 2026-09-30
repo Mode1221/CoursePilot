@@ -1,7 +1,7 @@
 import { expect, test, type Page } from "@playwright/test";
 
 // 운영 사이트 점검 — 사람이 매번 눌러 보던 핵심 흐름을 몇 시간마다 대신 확인한다.
-const BASE = process.env.QA_BASE_URL || "https://coursepilot-kr.duckdns.org";
+const BASE = process.env.QA_BASE_URL || "https://picknus.duckdns.org";
 const API = process.env.QA_API_URL || `https://api.${new URL(BASE).host}`;
 const QA_TOKEN = process.env.QA_TOKEN || "";
 
