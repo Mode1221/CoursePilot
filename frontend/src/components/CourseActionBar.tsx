@@ -37,19 +37,8 @@ export default function CourseActionBar({ courseId }: { courseId: string }) {
   }
 
   return (
-    <footer
-      style={{
-        display: "flex",
-        alignItems: "center",
-        gap: "var(--sp-2)",
-        padding: "var(--sp-2) var(--sp-4)",
-        paddingBottom: "calc(var(--sp-2) + env(safe-area-inset-bottom, 0px))",
-        borderTop: "1px solid var(--border)",
-        background: "var(--surface)",
-        flexWrap: "wrap",
-      }}
-    >
-      <div style={{ flex: 1, minWidth: 0 }}>
+    <footer className="cp-actionbar">
+      <div className="cp-actionbar__title">
         <CourseTitle courseId={courseId} title={course?.title ?? "코스"} userId={userId} />
       </div>
       {askSatisfaction ? (

@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 
+import { LogoGlyph } from "@/components/BrandMark";
 import TogetherCards from "@/components/TogetherCards";
 import { Badge, Button } from "@/components/ui";
 import { api, type TogetherStatus } from "@/services/api";
@@ -126,29 +127,15 @@ export default function TogetherPanel({ courseId }: { courseId: string }) {
   // 아직 시작 전
   if (!status && (course?.items.length ?? 0) > 0 && !expanded) {
     return (
-      <div
-        style={{
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "space-between",
-          gap: "var(--sp-2)",
-          padding: "var(--sp-2) var(--sp-3)",
-          border: "1px solid var(--border)",
-          borderRadius: "var(--r-lg)",
-          background: "var(--surface)",
-          fontSize: "var(--fs-sm)",
-          color: "var(--text-muted)",
-        }}
-      >
-        <span>상대 의견도 넣고 싶다면</span>
-        <button
-          type="button"
-          className="cp-btn cp-btn--soft"
-          onClick={() => setExpanded(true)}
-          style={{ padding: "6px 12px", borderRadius: "var(--r-full)", fontSize: "var(--fs-sm)", fontWeight: 600, cursor: "pointer" }}
-        >
+      <div className="cp-ask">
+        <LogoGlyph size={20} />
+        <span className="cp-ask__text">
+          <strong>상대 의견도 넣고 싶다면</strong>
+          <span>링크 하나면 상대는 30초, 둘의 답으로 다시 짜요</span>
+        </span>
+        <Button variant="primary" size="sm" onClick={() => setExpanded(true)}>
           상대에게 물어보기
-        </button>
+        </Button>
       </div>
     );
   }
@@ -280,7 +267,8 @@ export default function TogetherPanel({ courseId }: { courseId: string }) {
 
 const box = {
   padding: "var(--sp-4)",
-  borderRadius: "var(--r-lg)",
+  border: "1px solid var(--border)",
+  borderRadius: 20,
   background: "var(--surface)",
   boxShadow: "var(--shadow-1)",
   marginBottom: "var(--sp-3)",

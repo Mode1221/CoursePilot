@@ -29,7 +29,8 @@ const PlaceSearchPanel = dynamic(() => import("@/components/PlaceSearchPanel"));
  */
 const CARD = {
   background: "var(--surface)",
-  borderRadius: "var(--r-lg)",
+  border: "1px solid var(--border)",
+  borderRadius: 20,
   boxShadow: "var(--shadow-1)",
   padding: "var(--sp-4)",
 } as const;
@@ -146,31 +147,30 @@ export default function MapPanel({
       </div>
 
       <div style={split ? { ...CARD, overflowY: "auto", minHeight: 0 } : CARD}>
-      <div style={{ display: "flex", alignItems: "center", gap: "var(--sp-2)", marginBottom: "var(--sp-3)", flexWrap: "wrap" }}>
-        <h2 style={{ margin: 0, fontSize: "var(--fs-lg)" }}>타임라인</h2>
-        {course.items.length > 0 && <CourseSummary course={course} />}
+      {/* 머리: 제목과 도구는 한 줄, 요약은 그 아래 — 예전엔 도구가 요약과 섞여 두세 줄로 흩어졌다 */}
+      <div className="cp-tl-head">
+        <h2>타임라인</h2>
         {locked && <Badge tone="warn">잠금</Badge>}
-        {course.items.length > 0 && (
-          <Button
-            size="sm"
-            aria-label="코스 텍스트 복사"
-            style={{ marginLeft: readOnly ? "auto" : undefined }}
-            onClick={() => copyCourse(course)}
-          >
-            텍스트 복사
-          </Button>
-        )}
-        {!readOnly && (
-          <Button
-            size="sm"
-            aria-label="되돌리기"
-            disabled={editDisabled || historyLen === 0}
-            onClick={() => undo()}
-          >
-            ↩ 되돌리기
-          </Button>
-        )}
+        <span className="cp-tl-head__tools">
+          {course.items.length > 0 && (
+            <Button size="sm" variant="ghost" aria-label="코스 텍스트 복사" onClick={() => copyCourse(course)}>
+              텍스트 복사
+            </Button>
+          )}
+          {!readOnly && (
+            <Button
+              size="sm"
+              variant="ghost"
+              aria-label="되돌리기"
+              disabled={editDisabled || historyLen === 0}
+              onClick={() => undo()}
+            >
+              ↩ 되돌리기
+            </Button>
+          )}
+        </span>
       </div>
+      {course.items.length > 0 && <CourseSummary course={course} />}
       {course.items.length === 0 && (
         <EmptyState
           title="아직 코스가 없어요"
@@ -182,7 +182,7 @@ export default function MapPanel({
         />
       )}
 
-      <ol aria-label="코스 타임라인" className="cp-rail">
+      <ol aria-label="코스 타임라인" className="cp-rail cp-rail--course">
         {course.items.map((item, i) => (
           <li
             key={item.place.id}
@@ -197,7 +197,8 @@ export default function MapPanel({
               transition: "opacity var(--dur) var(--ease)",
             }}
           >
-            <span className="cp-stop__n" aria-hidden="true">{i + 1}</span>
+            {/* 순번은 상호명 앞 "1." 이 이미 말한다 — 레일에는 점만 */}
+            <span className="cp-stop__n cp-stop__dot" aria-hidden="true" />
             <div className="cp-stop__head">
               <button
                 type="button"
@@ -273,7 +274,7 @@ export default function MapPanel({
               )}
             </div>
             <div style={{ marginTop: 2 }}>
-              <span style={{ color: "var(--text-muted)", fontSize: "var(--fs-sm)", whiteSpace: "normal" }}>
+              <span className="cp-stop__time">
                 {item.arrive?.slice(0, 5)}~{item.depart?.slice(0, 5)}
                 {/* 상세를 열지 않아도 영업시간이 미확인이라는 걸 알 수 있어야 한다 */}
                 {item.place.hours_unverified && (
@@ -409,9 +410,7 @@ function CourseSummary({ course }: { course: Parameters<typeof courseStats>[0] }
     const suffix = costKnown < places ? " 이상" : costEstimated ? " 예상" : "";
     parts.push(`1인 ${cost}${suffix}`);
   }
-  return (
-    <span style={{ color: "var(--text-muted)", fontSize: "var(--fs-sm)" }}>{parts.join(" · ")}</span>
-  );
+  return <p className="cp-tl-stats">{parts.join(" · ")}</p>;
 }
 
 /** 코스를 메신저에 붙여넣을 수 있는 텍스트로 클립보드에 복사. */

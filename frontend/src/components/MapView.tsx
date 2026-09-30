@@ -37,7 +37,7 @@ export default function MapView({
         <polyline
           points={pts.map((p) => `${p.x},${p.y}`).join(" ")}
           fill="none"
-          stroke="var(--brand)"
+          stroke="var(--us)"
           strokeWidth={3}
           strokeDasharray="2 8"
           strokeLinecap="round"
@@ -65,19 +65,14 @@ export default function MapView({
 
       {pts.map((p, i) => (
         <g key={items[i].place.id} style={{ cursor: "pointer" }} onClick={() => onSelect?.(i)}>
-          <circle cx={p.x} cy={p.y} r={14} fill={pinColor(items[i].place.category)} stroke="var(--surface)" strokeWidth={3} />
-          <text x={p.x} y={p.y + 5} textAnchor="middle" fontSize={13} fill="var(--brand-contrast)" fontWeight={700}>
+          <circle cx={p.x} cy={p.y} r={14} fill="var(--us)" stroke="var(--surface)" strokeWidth={3} />
+          <text x={p.x} y={p.y + 5} textAnchor="middle" fontSize={13} fill="var(--surface)" fontWeight={700}>
             {i + 1}
           </text>
         </g>
       ))}
     </svg>
   );
-}
-
-function pinColor(category?: string | null): string {
-  if (!category) return "var(--danger)";
-  return /카페|cafe|디저트|베이커리|빵/i.test(category) ? "var(--accent)" : "var(--danger)";
 }
 
 function project(items: TimelineItem[]): { x: number; y: number }[] {
