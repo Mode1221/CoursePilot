@@ -238,3 +238,20 @@ def test_같은_칸이_두_번이면_초점_후보가_모자랄_때_거르지_�
     other = Place(id="o", name="이태원 칵테일", category="술집 > 칵테일바", lat=37.535, lng=126.995)
     kept = {p.id for p in _focus_slots([roof, other], c)}
     assert kept == {"r", "o"}
+
+
+async def test_1등이_닫혀_있으면_같은_칸_다음_후보로_채운다():
+    from app.pipeline.planner import plan_course
+
+    c = parse_constraints("강남역 저녁 7시")
+    meal = Place(id="m", name="김치찌개", category="음식점 > 한식", lat=37.498, lng=127.028,
+                 open_time=time(11), close_time=time(21), rating=4.8, rating_count=500)
+    early_bar = Place(id="b1", name="일찍 닫는 바", category="술집 > 칵테일바", lat=37.4985, lng=127.0285,
+                      open_time=time(17), close_time=time(20), rating=4.9, rating_count=500, blog_mentions=3000)
+    late_bar = Place(id="b2", name="늦게 여는 바", category="술집 > 호프", lat=37.499, lng=127.029,
+                     open_time=time(17), close_time=time(2), rating=4.0, rating_count=100)
+    cafe = Place(id="c", name="카페", category="카페", lat=37.4988, lng=127.0288,
+                 open_time=time(10), close_time=time(23), rating=4.0, rating_count=100)
+    timeline = await plan_course([meal, early_bar, late_bar, cafe], c, MockMapService())
+    ids = [it.place.id for it in timeline]
+    assert "b1" not in ids and ids[-1] == "b2" and len(ids) == 3

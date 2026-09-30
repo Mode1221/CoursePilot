@@ -647,6 +647,46 @@ def brand_key(place: Place) -> str:
     return (place.name or "").split()[0] if place.name.strip() else place.id
 
 
+REPAIR_CANDIDATES = 6  # 빠진 칸마다 다음 후보를 몇 곳까지 대 볼지
+
+
+async def _repair_slots(
+    seed: list[Place], ranked: list[Place], constraints: PlanConstraints, map_service: MapService
+) -> list[TimelineItem]:
+    """검증에서 빠진 칸을 같은 성격의 다음 후보로 채워 본다.
+
+    칸마다 1등 한 곳만 대 보고, 그곳이 그 시각에 닫혀 있으면 칸이 통째로 비었다 — 영업시간을 확인한 곳이
+    늘자 오히려 1~2곳 코스가 생겼다(운영 점검: 강남역 7시 → 김치찌개 한 곳, 홍대 밤 9시 → 와인바 한 곳).
+    """
+    current = list(seed)
+    best = await build_timeline(current, constraints, map_service)
+    kept = {it.place.id for it in best}
+    for i, place in enumerate(seed):
+        if place.id in kept:
+            continue
+        slot = classify(place)
+        used = {p.id for p in current}
+        options = [p for p in ranked if classify(p) == slot and p.id not in used][:REPAIR_CANDIDATES]
+        if not options:
+            continue
+        variants = [current[:i] + [opt] + current[i + 1 :] for opt in options]
+        results = await asyncio.gather(
+            *(build_timeline(v, constraints, map_service) for v in variants), return_exceptions=True
+        )
+        pick = None
+        for variant, tl in zip(variants, results, strict=True):
+            if isinstance(tl, BaseException) or len(tl) <= len(best):
+                continue
+            if pick is None or len(tl) > len(pick[1]) or (
+                len(tl) == len(pick[1]) and course_score(tl) > course_score(pick[1])
+            ):
+                pick = (variant, tl)
+        if pick is not None:
+            current, best = pick
+            kept = {it.place.id for it in best}
+    return best
+
+
 def _pick_by_template(
     ranked: list[Place], slots: list[str]
 ) -> list[Place]:
@@ -991,6 +1031,10 @@ async def plan_course(
         s = course_score(timeline)
         if s > best_score:
             best_score, best, best_label = s, timeline, label
+    if templated and len(best) < len(templated):
+        repaired = await _repair_slots(templated, ranked, constraints, map_service)
+        if len(repaired) > len(best):
+            best, best_label = repaired, "repair"
     # #15: 어떤 시드 전략이 채택됐는지 누적 → 목적함수 가중치 튜닝 데이터
     if best_label:
         from app.strategy import strategy_store
