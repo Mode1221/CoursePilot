@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
 
+import BrandMark from "@/components/BrandMark";
 import { Button, Card, EmptyState } from "@/components/ui";
 import { api } from "@/services/api";
 import { courseStats, formatDuration } from "@/services/courseStats";
@@ -74,7 +75,7 @@ export default function MyPage() {
 
   if (!userId) {
     return (
-      <main style={{ padding: "var(--sp-12) var(--sp-4)", maxWidth: 640, margin: "0 auto" }}>
+      <main className="cp-page" style={{ maxWidth: 640 }}>
         <EmptyState
           title="로그인이 필요해요"
           description="로그인하면 만든 코스와 북마크를 저장할 수 있어요."
@@ -89,20 +90,12 @@ export default function MyPage() {
   }
 
   return (
-    <main style={{ padding: "var(--sp-8) var(--sp-4)", maxWidth: 640, margin: "0 auto" }}>
-      <h1>마이페이지</h1>
+    <main className="cp-page" style={{ maxWidth: 640 }}>
+      <BrandMark />
+      <h1 className="cp-page__title" style={{ marginBottom: "var(--sp-5)" }}>마이페이지</h1>
 
       {kind === "guest" && (
-        <p
-          role="note"
-          style={{
-            padding: "var(--sp-3)",
-            border: "1px solid var(--border)",
-            borderRadius: "var(--r-md)",
-            fontSize: "var(--fs-sm)",
-            color: "var(--text-muted)",
-          }}
-        >
+        <p role="note" className="cp-note">
           체험 중이에요. 로그인하지 않으면 30일 뒤 기록이 지워져요.{" "}
           <Link href="/login?next=/mypage" style={{ color: "var(--brand-strong)", fontWeight: 600 }}>
             로그인하고 이어가기
@@ -111,16 +104,7 @@ export default function MyPage() {
       )}
 
       {bonus && (
-        <p
-          role="note"
-          style={{
-            padding: "var(--sp-3)",
-            border: "1px solid var(--border)",
-            borderRadius: "var(--r-md)",
-            fontSize: "var(--fs-sm)",
-            color: "var(--text-muted)",
-          }}
-        >
+        <p role="note" className="cp-note">
           초대 보상 적용 중 · {bonusUntil(bonus.until)}까지 하루{" "}
           {[
             bonus.extra.course ? `코스 +${bonus.extra.course}개` : null,
@@ -200,7 +184,7 @@ export default function MyPage() {
       </section>
       <section
         style={{
-          marginTop: "var(--sp-10)",
+          marginTop: "var(--sp-12)",
           paddingTop: "var(--sp-4)",
           borderTop: "1px solid var(--border)",
         }}
@@ -257,8 +241,8 @@ function CourseList({
             href={`${hrefBase}/${c.id}`}
             style={{ flex: 1, minWidth: 0, textDecoration: "none", color: "inherit" }}
           >
-            <Card interactive style={{ padding: "var(--sp-3) var(--sp-4)" }}>
-              <div style={{ fontWeight: 600 }}>{c.title}</div>
+            <Card interactive style={{ padding: "var(--sp-3) var(--sp-4)", height: "100%" }}>
+              <div style={{ fontWeight: 700, letterSpacing: "-.01em" }}>{c.title}</div>
               <div style={{ color: "var(--text-muted)", fontSize: "var(--fs-sm)" }}>
                 {summaryLine(c)}
               </div>
