@@ -35,6 +35,7 @@ class ScoreWeights:
     awareness: float = 0.1  # 블로그 검색 건수로 본 인지도
     hot: float = 0.6  # 요즘 뜨는 곳(검색 트렌드·리뷰 증가 중심, 광고만으로는 0)
     popup: float = 0.4  # 진행 중인 팝업·전시(할거리 칸)
+    verified_hours: float = 0.15  # 영업시간을 아는 곳(가서 닫혀 있을 위험이 적다)
     unknown_hours: float = 0.3  # 영업시간을 확인했는데 없고 인기 신호도 없는 곳(pipeline/hours_policy.py)
 
     def replace(self, **kwargs: float) -> ScoreWeights:

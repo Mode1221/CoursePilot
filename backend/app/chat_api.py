@@ -63,6 +63,7 @@ class GenerateResponse(BaseModel):
     needs_confirmation: bool  # 완화로도 부족 → 사용자 확인 필요 (7-4)
     # 운영 점검(QA 요청)에서만: 단계별 소요 ms 등. 일반 사용자 응답에는 없다.
     debug: list[tuple[str, int]] | None = None
+    debug_constraints: dict | None = None  # QA 요청만: 해석된 조건(지역·시각·개수·이동·칸 순서 등)
 
 
 def _charge_ai(actor_id: str, request: Request):
@@ -545,6 +546,15 @@ async def generate(
             relaxed=relaxed,
             needs_confirmation=needs_confirmation,
             debug=timing.snapshot(),
+            debug_constraints=(
+                gen_constraints.model_dump(
+                    mode="json",
+                    include={"region", "start_time", "end_time", "duration_min", "stop_count", "max_travel_min",
+                             "budget_max", "party_size", "companion", "keywords", "exclude_keywords", "slot_order"},
+                )
+                if timing.snapshot() is not None and gen_constraints is not None
+                else None
+            ),
         )
 
     if ticket is None:

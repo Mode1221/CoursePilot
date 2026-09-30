@@ -214,6 +214,8 @@ def score_place(
     # 알려진 곳은 감점하지 않는다 — 뽑히면 웹검색 보강으로 채운다(pipeline/hours_policy.py).
     if hours_missing(place) and not has_popularity(place, popularity):
         score -= w.unknown_hours
+    elif place.open_time is not None and not place.hours_unverified:
+        score += w.verified_hours
 
     # 데이트 코스: 저가 프랜차이즈는 크게, 일반 프랜차이즈는 조금 감점(그 동네에 그것뿐이면 그래도 나온다).
     level = franchise_level(place)
@@ -517,6 +519,11 @@ def _ordered_slots(constraints: PlanConstraints, n: int) -> list[str] | None:
     else:
         n = max(n, min(MAX_STOPS, len(order)))
     slots = list(order)
+    start = constraints.start_time
+    late = start is not None and (start.hour >= 21 or start.hour < 4)
+    if late and all(s == "bar" for s in slots) and "bar" not in excluded:
+        # 밤 10시 "루프탑 바 가고 2차는 칵테일" — 식사·카페는 닫았다. 말한 개수만큼 술집으로
+        return (slots + ["bar"] * n)[:n]
     fill = [s for s in ("meal", "cafe", "activity", "bar") if s not in excluded]
     tail_bar = slots[-1] == "bar"
     for s in fill:

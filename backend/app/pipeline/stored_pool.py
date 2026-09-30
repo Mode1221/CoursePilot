@@ -10,6 +10,7 @@ from __future__ import annotations
 import math
 import random
 import time
+from datetime import date
 
 from app.schemas import Place
 
@@ -141,7 +142,9 @@ def stored_candidates(
         _cache[key] = (time.monotonic(), pool)
     if not pool:
         return []
-    rng = rng or random.Random()
+    # 같은 날 같은 요청이면 같은 후보를 뽑는다 — 매번 다른 곳이 섞여 두 번 만들면 겹치는 장소가 35%뿐이었다.
+    # 다른 코스를 원하면 "다시 해줘"(지금 장소 제외)로 바꾼다.
+    rng = rng or random.Random(f"{region}|{slot_queries}|{date.today().isoformat()}")
     have = {p.id for p in vendor}
     by_slot: dict[str, list[Place]] = {}
     for p in pool:

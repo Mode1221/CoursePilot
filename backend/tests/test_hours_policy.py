@@ -29,7 +29,10 @@ def test_아직_안_채운_곳은_감점하지_않는다():
     """배치가 하루 할당량씩 채우는 중 — 인기 있는 곳도 비어 있을 수 있다."""
     unchecked = _p()  # hours_unverified False, open_time None
     known = _p(open_time=time(11), close_time=time(21))
-    assert _score(unchecked) == _score(known)
+    from app.pipeline.weights import PLACE_WEIGHTS
+
+    # 감점은 없다 — 영업시간을 아는 곳이 받는 작은 확인 가점만큼만 차이 난다
+    assert _score(unchecked) == pytest.approx(_score(known) - PLACE_WEIGHTS.verified_hours)
 
 
 @pytest.mark.parametrize(
