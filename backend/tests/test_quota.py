@@ -7,7 +7,7 @@ from app.adapters.google import GooglePlacesClient
 from app.quota import MONTHLY_FREE_LIMITS, WARN_RATIO, QuotaStore, quota_store
 
 JAN = datetime(2026, 1, 15, tzinfo=UTC)
-FEB = datetime(2026, 2, 1, tzinfo=UTC)
+FEB = datetime(2026, 2, 1, 12, tzinfo=UTC)
 
 
 @pytest.fixture()
