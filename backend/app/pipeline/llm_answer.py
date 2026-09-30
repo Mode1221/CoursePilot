@@ -73,10 +73,10 @@ async def _ask(prompt: str) -> str | None:
     client = get_anthropic_client()
     if client is None:
         return None
+    from app.llm_client import anthropic_params
+
     resp = await client.messages.create(
-        model=settings.anthropic_model,
-        max_tokens=MAX_TOKENS,
-        system=_SYSTEM,
+        **anthropic_params(MAX_TOKENS, _SYSTEM),
         messages=[{"role": "user", "content": prompt}],
     )
     return "".join(b.text for b in resp.content if getattr(b, "type", "") == "text")

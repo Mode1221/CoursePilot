@@ -104,12 +104,11 @@ async def _call_anthropic(prompt: str) -> dict | None:
     client = get_anthropic_client()
     if client is None:
         return None
+    from app.llm_client import anthropic_params
+
     resp = await client.messages.create(
-        model=settings.anthropic_model,
-        max_tokens=256,
-        system=_SYSTEM,
+        **anthropic_params(256, _SYSTEM, _TOOL),
         tools=[{"name": _TOOL, "description": "코스 수정 방법을 정한다.", "input_schema": _PARAMS}],
-        tool_choice={"type": "tool", "name": _TOOL},
         messages=[{"role": "user", "content": prompt}],
     )
     for block in resp.content:

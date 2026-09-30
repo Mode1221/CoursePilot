@@ -112,16 +112,15 @@ def _joined(reviews: list[str]) -> str:
 
 
 async def _summarize_anthropic(reviews: list[str]) -> str | None:
-    from app.config import settings
     from app.llm_client import get_anthropic_client
 
     client = get_anthropic_client()
     if client is None:
         return None
+    from app.llm_client import anthropic_params
+
     resp = await client.messages.create(
-        model=settings.anthropic_model,
-        max_tokens=512,
-        system=_SUMMARY_SYSTEM,
+        **anthropic_params(512, _SUMMARY_SYSTEM),
         messages=[{"role": "user", "content": _joined(reviews)}],
     )
     parts = [b.text for b in resp.content if getattr(b, "type", "") == "text"]
