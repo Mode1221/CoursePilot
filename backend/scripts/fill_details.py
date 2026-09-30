@@ -48,17 +48,32 @@ async def fill(limit: int | None, paid: bool) -> None:
     if not targets:
         print("채울 곳이 없거나 남은 한도가 없습니다.")
         return
+    from app import usage
+
+    day_cap = usage._global_limit("google.details")
+    day_used = usage.global_used("google.details")
+    if day_cap is not None and day_used >= day_cap:
+        print(f"✗ 오늘 하루 상한({day_cap}건)을 이미 다 썼습니다. .env 의 GOOGLE_DETAILS_PER_DAY 를 올리고 백엔드를 다시 띄우세요")
+        print("  (하루 상한 = GOOGLE_DETAILS_PER_DAY + 20. 월 상한 GOOGLE_DETAILS_MONTHLY 가 1000 이면 여전히 무료 안입니다)")
+        return
+    before = quota_store.used("google.details")
     filled = 0
     for i in range(0, len(targets), 10):  # 10곳씩 — 분당 할당량(600)에 여유
         chunk = targets[i : i + 10]
+        stamps = {p.id: p.hours_checked_at for p in chunk}
         await asyncio.gather(*(client.refresh_details(p) for p in chunk), return_exceptions=True)
-        place_repo.upsert_many(chunk)
-        filled += sum(1 for p in chunk if p.hours_checked_at is not None)
-        if quota_store.used("google.details") >= cap:
-            break
+        changed = [p for p in chunk if p.hours_checked_at != stamps[p.id]]
+        if changed:
+            place_repo.upsert_many(changed)
+        filled += len(changed)
+        if not changed or quota_store.used("google.details") >= cap:
+            break  # 하루·월 상한이나 콘솔 할당량에 걸렸다
+    spent = quota_store.used("google.details") - before
     done = sum(1 for p in core if not hours_stale(p))
-    print(f"채움 {filled}곳 · 핵심 후보 중 영업시간 확인 {done}/{len(core)}곳 ({done * 100 // max(1, len(core))}%)")
-    print(f"이번 달 사용 {quota_store.used('google.details')}건 (무료 {FREE_MONTHLY}건)")
+    print(f"실제 조회 {spent}건 · 새로 채움 {filled}곳 · 핵심 후보 중 영업시간 확인 {done}/{len(core)}곳 ({done * 100 // max(1, len(core))}%)")
+    print(f"이번 달 사용 {quota_store.used('google.details')}건 (무료 {FREE_MONTHLY}건) · 오늘 {usage.global_used('google.details')}/{day_cap}건")
+    if filled < len(targets):
+        print("  멈춘 이유: 하루 상한·월 상한 또는 Google 콘솔 일일 할당량(GetPlace/SearchText). 콘솔 할당량을 확인하세요")
 
 
 def main() -> int:
