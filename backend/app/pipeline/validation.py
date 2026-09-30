@@ -72,9 +72,13 @@ def is_open_at(place: Place, t: time) -> bool:
     return not _overlaps_break(t, place)
 
 
+MIN_LAST_STAY_MIN = 45  # 끝 시각에 맞춰 줄여도 되는 마지막 칸의 최소 체류
 LATE_NIGHT = time(21, 30)
 EARLY_MORNING = time(8, 0)
-_DAYTIME_WORDS = ("전시", "행사", "미술", "박물관", "기념관", "갤러리", "카페", "공방", "서점", "소품", "체험")
+_DAYTIME_WORDS = (
+    "전시", "행사", "미술", "박물관", "기념관", "갤러리", "카페", "공방", "서점", "소품", "체험",
+    "팝업", "스토어", "의류", "판매", "쇼핑", "편집숍",  # 밤 11시 44분 팝업스토어(운영 점검)
+)
 
 
 def _daytime_only(place: Place) -> bool:
@@ -178,11 +182,15 @@ async def build_timeline(
 
         arrive = arrive_dt.time()
         depart_dt = arrive_dt + timedelta(minutes=stay_minutes(place, constraints.party_size))
+        if end_dt is not None and depart_dt > end_dt:
+            # 끝나는 시각 안에 최소 체류가 들어가면 그 칸은 짧게 머문다. "7시부터 3시간"이 식사 한 곳으로
+            # 끝나던 문제(식사 90분 + 이동 + 술집 90분 = 3시간 초과) — 마지막 곳은 끝 시각까지 있으면 된다.
+            if timeline and arrive_dt + timedelta(minutes=MIN_LAST_STAY_MIN) <= end_dt:
+                depart_dt = end_dt
+            else:
+                break  # 전체 시간 초과 → 종료
         if not is_open_during(place, arrive, depart_dt.time()):
             continue  # 도착~출발 체류가 영업시간/브레이크 위반 → 폐기 (cursor 유지)
-
-        if end_dt is not None and depart_dt > end_dt:
-            break  # 전체 시간 초과 → 종료
 
         if timeline and route is not None:
             timeline[-1].travel_to_next = route

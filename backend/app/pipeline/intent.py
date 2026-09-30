@@ -7,6 +7,7 @@
 """
 from __future__ import annotations
 
+import re
 from dataclasses import dataclass
 
 from app.schemas import Place, PlanConstraints
@@ -84,12 +85,19 @@ _WANTS: dict[str, Want] = {
     "야경": Want("activity", "야경", ("전망", "야경", "공원", "타워")),
 }
 _ORDER = sorted(_WANTS, key=len, reverse=True)
+# "카페 두 군데" — 그 칸을 여러 번. 전체 개수("3곳")와 다르다(예전엔 코스 전체가 2곳이 됐다).
+_ITEM_COUNT = re.compile(r"^\s*(?:을|를|은|는|도)?\s*(두|세|네|2|3|4)\s*(?:군데|곳|개|번)")
+_NUM = {"두": 2, "세": 3, "네": 4, "2": 2, "3": 3, "4": 4}
 
 
 def wants_in_order(text: str, constraints: PlanConstraints | None = None) -> list[Want]:
     """문장에 나온 순서대로. 같은 칸·같은 검색어는 한 번만, 빼 달라고 한 말은 뺀다."""
+    return [w for w, _ in _wants_with_counts(text, constraints)]
+
+
+def _wants_with_counts(text: str, constraints: PlanConstraints | None = None) -> list[tuple[Want, int]]:
     excluded = " ".join(constraints.exclude_keywords) if constraints else ""
-    found: list[tuple[int, Want]] = []
+    found: list[tuple[int, Want, int]] = []
     taken: list[tuple[int, int]] = []  # 이미 쓴 글자 구간(“와인바” 안의 “와인”을 다시 잡지 않게)
     for word in _ORDER:
         start = text.find(word)
@@ -97,30 +105,59 @@ def wants_in_order(text: str, constraints: PlanConstraints | None = None) -> lis
             end = start + len(word)
             if not any(s < end and start < e for s, e in taken):
                 if not (excluded and word in excluded):
-                    found.append((start, _WANTS[word]))
+                    m = _ITEM_COUNT.match(text[end:])
+                    found.append((start, _WANTS[word], _NUM[m.group(1)] if m else 1))
                 taken.append((start, end))
             start = text.find(word, end)
     found.sort(key=lambda x: x[0])
-    out: list[Want] = []
-    for _, w in found:
-        if any(o.slot == w.slot and o.query == w.query for o in out):
+    out: list[tuple[Want, int]] = []
+    for _, w, n in found:
+        if any(o.slot == w.slot and o.query == w.query for o, _ in out):
             continue
         # 같은 칸이 연달아 나오면("한옥마을 산책") 더 구체적인 앞의 것 하나로 본다
-        if out and out[-1].slot == w.slot:
+        if out and out[-1][0].slot == w.slot:
             continue
-        out.append(w)
+        out.append((w, n))
     return out
 
 
 def apply(constraints: PlanConstraints, text: str) -> list[Want]:
     """문장 속 요청을 칸 순서·칸별 검색어·칸 초점으로 옮긴다(합의 코스가 아닐 때만 부른다)."""
-    wants = wants_in_order(text, constraints)
-    if not wants:
+    counted = _wants_with_counts(text, constraints)
+    if not counted:
         return []
-    constraints.slot_order = [w.slot for w in wants]
+    wants = [w for w, _ in counted]
+    constraints.slot_order = [w.slot for w, n in counted for _ in range(n)]
+    _start_before_meal(constraints, text)
+    if any(n > 1 for _, n in counted):
+        # "카페 두 군데 가고 저녁은 고기" → 카페·카페·식사. 규칙 해석이 "두 군데"를 전체 개수로 읽은 것을 바로잡는다
+        constraints.stop_count = len(constraints.slot_order)
     constraints.slot_queries = [[w.slot, w.query] for w in wants]
     constraints.slot_focus = [[w.slot, w.query] for w in wants if w.match]
     return wants
+
+
+_HOUR = re.compile(r"\d+\s*시|[한두세네다섯여섯일곱여덟아홉열]+\s*시(?!간)")
+_MEAL_WORD = re.compile(r"(저녁|점심)\s*(은|는|으로|엔|에는)?\s")
+SLOT_MINUTES = 100  # 한 칸 체류 90분 + 이동
+
+
+def _start_before_meal(constraints: PlanConstraints, text: str) -> None:
+    """"카페 두 군데 가고 저녁은 고기" — "저녁"은 식사 칸의 때이지 시작 시각이 아니다.
+
+    시각을 숫자로 말하지 않았고, 식사가 첫 칸이 아니면, 식사가 저녁(점심) 때에 오도록 시작을 앞당긴다.
+    (예전엔 18시에 카페부터 시작해 고기를 21시 반에 먹는 코스가 나왔다.)
+    """
+    from datetime import datetime, time, timedelta
+
+    order = constraints.slot_order
+    start = constraints.start_time
+    if start is None or "meal" not in order or order.index("meal") == 0:
+        return
+    if _HOUR.search(text) or not _MEAL_WORD.search(text + " "):
+        return
+    shifted = datetime.combine(datetime.today(), start) - timedelta(minutes=SLOT_MINUTES * order.index("meal"))
+    constraints.start_time = max(shifted.time(), time(10, 0))
 
 
 def match_words(query: str) -> tuple[str, ...] | None:
