@@ -6,6 +6,7 @@
 from __future__ import annotations
 
 import json
+import re
 
 from app.config import settings
 from app.pipeline.decomposition import parse_constraints
@@ -108,9 +109,33 @@ async def _decompose_openai(text: str) -> dict | None:
     return json.loads(call.function.arguments)
 
 
+# 문장에 없는 값을 LLM 이 "추정"하면 코스가 한두 곳으로 쪼그라들었다(운영 점검 2026-09-30, AI 켠 직후):
+# "파스타 먹고 와인바" → 개수 2, "부모님 모시고 점심, 많이 안 걷게" → 이동 5분·짧은 소요 → 1곳.
+# 개수·소요·종료 시각은 문장에 근거가 있을 때만 받고, 이동 상한은 너무 빡빡하지 않게 바닥을 둔다.
+MIN_TRAVEL_FLOOR = 15
+_DURATION_HINT = re.compile(r"\d+\s*(시간|분)|[한두세네]\s*시간|반나절|하루|종일")
+_END_HINT = re.compile(r"까지")
+_COUNT_HINT = re.compile(r"\d+\s*(곳|군데|차|개)|[한두세네]\s*(곳|군데|개)|다섯\s*(곳|군데)|\d\s*차|[이삼사]차")
+
+
+def _guard(args: dict, base: PlanConstraints, text: str) -> dict:
+    out = dict(args)
+    if base.stop_count is None and not _COUNT_HINT.search(text):
+        out.pop("stop_count", None)  # "N곳·N차·N군데"를 말하지 않았다
+    if base.duration_min is None and not _DURATION_HINT.search(text):
+        out.pop("duration_min", None)
+    if base.end_time is None and not _END_HINT.search(text):
+        out.pop("end_time", None)
+    travel = out.get("max_travel_min")
+    if travel is not None and base.max_travel_min is None:
+        out["max_travel_min"] = max(int(travel), MIN_TRAVEL_FLOOR)
+    return out
+
+
 def _to_constraints(args: dict, text: str) -> PlanConstraints:
     base = parse_constraints(text)  # 규칙 기반 결과를 기본값으로, LLM 값으로 덮어쓰기
     data = base.model_dump()
+    args = _guard(args, base, text)
     for key in (
         "region", "duration_min", "max_travel_min", "budget_max", "party_size", "stop_count"
     ):

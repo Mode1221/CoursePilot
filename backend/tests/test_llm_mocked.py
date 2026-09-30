@@ -92,7 +92,7 @@ async def test_anthropic_도구호출_결과를_제약으로_변환한다(monkey
     )
     _use_anthropic(monkeypatch, client)
 
-    c = await decompose("아무 문장")
+    c = await decompose("아무 문장 3시간 세 곳")
 
     assert c.region == "연남동"
     assert c.start_time.hour == 19

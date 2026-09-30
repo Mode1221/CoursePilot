@@ -163,3 +163,17 @@ def test_밤_9시_이후는_술집_두_곳():
     assert desired_slots(parse_constraints("금요일 밤 9시 홍대에서 심야 데이트")) == ["bar", "bar"]
     # 개수를 말했거나 순서를 말했으면 그걸 따른다
     assert _slots("금요일 밤 9시 홍대 파스타 먹고 와인바") == ["meal", "cafe", "bar"]
+
+
+def test_LLM_이_문장에_없는_개수_소요는_지어내지_못한다():
+    from app.pipeline.llm import _to_constraints
+
+    c = _to_constraints({"region": "북촌", "stop_count": 1, "duration_min": 60, "max_travel_min": 5}, "부모님 모시고 토요일 점심 북촌, 많이 안 걷게")
+    assert c.stop_count is None and c.duration_min is None
+    assert c.max_travel_min == 15  # 너무 빡빡한 이동 상한은 바닥까지
+    explicit = _to_constraints({"stop_count": 2, "duration_min": 180}, "강남역 저녁 7시부터 3시간 2차까지")
+    assert explicit.stop_count == 2 and explicit.duration_min == 180
+
+
+def test_밤_10시_루프탑_2차_칵테일은_술집_두_곳():
+    assert _slots("금요일 밤 10시 이태원 루프탑 바 가고 2차는 칵테일") == ["bar", "bar"]

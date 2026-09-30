@@ -9,7 +9,7 @@ def test_규칙_키워드가_LLM_결과에_묻히지_않는다():
 
 
 def test_LLM이_준_방문개수를_쓴다():
-    c = _to_constraints({"stop_count": 2}, "성수동에서 놀자")
+    c = _to_constraints({"stop_count": 2}, "성수동에서 두 곳 놀자")
     assert c.stop_count == 2
 
 

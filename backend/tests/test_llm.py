@@ -14,7 +14,7 @@ def test_to_constraints_overrides_rule_base():
         "keywords": ["루프탑"],
         "start_time": "18:30",
     }
-    c = _to_constraints(args, "대충 문장")
+    c = _to_constraints(args, "대충 문장 네 시간")
     assert c.region == "연남동"
     assert c.duration_min == 240
     assert c.travel_mode == TravelMode.CAR
