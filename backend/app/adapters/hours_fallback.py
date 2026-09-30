@@ -48,9 +48,10 @@ async def _lookup(place: Place) -> tuple[time, time] | None:
     client = get_anthropic_client()
     if client is None:
         return None
+    from app.llm_client import anthropic_params
+
     resp = await client.messages.create(
-        model=settings.anthropic_model,
-        max_tokens=256,
+        **anthropic_params(256),
         tools=[{"type": "web_search_20250305", "name": "web_search", "max_uses": 2}],
         messages=[
             {

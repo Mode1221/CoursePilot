@@ -64,3 +64,41 @@ def _anthropic_client() -> Any | None:
         timeout=LLM_TIMEOUT_SEC,
         max_retries=LLM_MAX_RETRIES,
     )
+
+
+# effort 를 쓰면 생각 토큰도 max_tokens 안에 들어간다 — 짧은 답이라도 생각할 자리를 준다.
+# 실측(scripts/llm_bench.py, 2026-09-30): 조건 분해 1회 출력 Sonnet 5.5 high 214·Opus 5.5 high 309·Fable 5.1 high 351 토큰.
+THINKING_ROOM = 4_000
+
+
+def _supports_forced_tool(model: str) -> bool:
+    """도구 강제 호출(tool_choice=tool). 5.x 세대(Sonnet 5.5 등)는 받지 않아 400 이 난다."""
+    return model.startswith("claude-haiku") or model.startswith("claude-3") or "-4-" in model
+
+
+def _supports_effort(model: str) -> bool:
+    return not model.startswith("claude-haiku") and not model.startswith("claude-3")
+
+
+def anthropic_params(max_tokens: int, system: str | None = None, tool: str | None = None) -> dict:
+    """Anthropic 호출 공통 인자 — 모델·effort·도구 강제 여부를 설정 하나로 맞춘다.
+
+    `ANTHROPIC_MODEL`/`ANTHROPIC_EFFORT` 만 바꾸면 모든 호출부가 따라온다. 강제 호출을 못 쓰는 모델이면
+    `auto` + "반드시 도구로 답하라"는 지시로 바꾼다(실측 5/5 도구 호출).
+    """
+    model = settings.anthropic_model
+    effort = (settings.anthropic_effort or "").strip().lower()
+    use_effort = bool(effort) and _supports_effort(model)
+    # effort 를 비워도 5.x 는 기본이 high 라 생각한다 — 자리는 늘 준다
+    params: dict = {"model": model, "max_tokens": max_tokens + (THINKING_ROOM if _supports_effort(model) else 0)}
+    if use_effort:
+        params["extra_body"] = {"output_config": {"effort": effort}}
+    if tool is not None:
+        if _supports_forced_tool(model):
+            params["tool_choice"] = {"type": "tool", "name": tool}
+        else:
+            params["tool_choice"] = {"type": "auto"}
+            system = f"{system or ''} 반드시 {tool} 도구 한 번으로 답한다.".strip()
+    if system:
+        params["system"] = system
+    return params
