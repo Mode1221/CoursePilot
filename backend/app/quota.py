@@ -12,6 +12,7 @@ from __future__ import annotations
 import logging
 from dataclasses import dataclass
 from datetime import UTC, datetime
+from zoneinfo import ZoneInfo
 
 logger = logging.getLogger("coursepilot")
 
@@ -34,8 +35,13 @@ WARN_RATIO = 0.8  # 이 비율을 넘으면 경고(남은 한도로 월말까지
 SOLD_OUT_RATIO = 1.0  # 한도 소진 — 이후 호출은 차단된다
 
 
+# Google Cloud 청구 월은 태평양 시간 기준이다. UTC 로 세면 한국 시각 매월 1일 09~16시(또는 17시)에
+# 우리 카운터는 새 달인데 Google 은 아직 지난달이라, 지난달 무료를 다 쓴 경우 그 사이 호출이 청구된다.
+_BILLING_TZ = ZoneInfo("America/Los_Angeles")
+
+
 def _month_key(now: datetime | None = None) -> str:
-    return (now or datetime.now(UTC)).strftime("%Y-%m")
+    return (now or datetime.now(UTC)).astimezone(_BILLING_TZ).strftime("%Y-%m")
 
 
 def _day_key(now: datetime | None = None) -> str:

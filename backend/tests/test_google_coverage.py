@@ -48,3 +48,11 @@ def test_배치를_늘리면_place_id_찾기_상한도_늘어난다(monkeypatch)
     monkeypatch.setattr(settings, "google_details_per_day", 300)
     assert usage._global_limit("google.map_id") == usage.GLOBAL_DAILY["google.map_id"] + 300
     assert quota_store.limit("google.map_id") >= 10_000 + 280 * 30
+
+
+def test_월_카운터는_Google_청구_월_태평양_시간_기준():
+    from app.quota import _month_key
+
+    # 한국 10월 1일 10시 = UTC 10월 1일 01시 = 태평양 9월 30일 18시 → 아직 9월
+    assert _month_key(datetime(2026, 10, 1, 1, 0, tzinfo=UTC)) == "2026-09"
+    assert _month_key(datetime(2026, 10, 1, 8, 0, tzinfo=UTC)) == "2026-10"

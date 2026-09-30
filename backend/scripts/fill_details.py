@@ -21,6 +21,7 @@ from app.batch.db_setup import connect_db  # noqa: E402
 from app.batch.lock import LockBusy, batch_lock  # noqa: E402
 
 FREE_MONTHLY = 1_000  # Place Details Enterprise 월 무료
+FREE_MARGIN = 40  # 무료만 채울 때 남겨 두는 몫
 
 
 async def fill(limit: int | None, paid: bool) -> None:
@@ -36,7 +37,8 @@ async def fill(limit: int | None, paid: bool) -> None:
     used = quota_store.used("google.details")
     cap = quota_store.limit("google.details") or FREE_MONTHLY
     if not paid:
-        cap = min(cap, FREE_MONTHLY)
+        # 무료만: 1,000건에서 여유분을 남긴다(코스 확정 시 갱신 등 다른 호출이 같은 달에 더 나간다)
+        cap = min(cap, FREE_MONTHLY - FREE_MARGIN)
     room = max(0, cap - used)
     budget = room if limit is None else min(limit, room)
     places = place_repo.all(limit=200_000)
