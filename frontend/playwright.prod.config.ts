@@ -1,10 +1,10 @@
 import { defineConfig, devices } from "@playwright/test";
 
 // 운영 사이트 자동 점검(GitHub Actions `qa.yml`). 로컬 서버를 띄우지 않고 실제 배포본을 친다.
-//   QA_BASE_URL  사이트 주소(기본 https://coursepilot-kr.duckdns.org)
+//   QA_BASE_URL  사이트 주소(기본 https://picknus.duckdns.org)
 //   QA_API_URL   API 주소(기본 https://api.<사이트 호스트>)
 //   QA_TOKEN     있으면 로그인 흐름까지(전용 QA 회원, 학습 신호 미기록). 없으면 헬스·페이지만.
-const base = process.env.QA_BASE_URL || "https://coursepilot-kr.duckdns.org";
+const base = process.env.QA_BASE_URL || "https://picknus.duckdns.org";
 
 export default defineConfig({
   testDir: "./e2e-prod",

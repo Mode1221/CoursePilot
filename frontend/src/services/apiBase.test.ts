@@ -36,8 +36,8 @@ describe("API 주소", () => {
 
   it("배포 화면에서는 localhost 를 가리키는 빌드 값을 무시하고 api 서브도메인을 쓴다", () => {
     vi.stubEnv("NEXT_PUBLIC_API_BASE", "http://localhost:8000");
-    atHost("https://coursepilot-kr.duckdns.org/onboarding");
-    expect(apiBase()).toBe("https://api.coursepilot-kr.duckdns.org");
+    atHost("https://picknus.duckdns.org/onboarding");
+    expect(apiBase()).toBe("https://api.picknus.duckdns.org");
   });
 
   it("로컬 개발에서는 localhost 빌드 값을 그대로 쓴다", () => {

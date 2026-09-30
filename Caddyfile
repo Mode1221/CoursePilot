@@ -30,3 +30,15 @@ api.{$DOMAIN} {
 	encode gzip
 	reverse_proxy backend:8000
 }
+
+# 옛 도메인 → 새 도메인 영구 이전(301). 주소 뒤 경로·검색어는 그대로 붙인다.
+# 주의: .env 의 DOMAIN 이 아직 coursepilot-kr.duckdns.org 이면 같은 주소 블록이 둘이 되어 Caddy 가 뜨지 않는다 —
+#       DOMAIN 을 picknus.duckdns.org 로 바꾼 뒤에 배포한다(docs/DEPLOY.md "도메인 이전").
+coursepilot-kr.duckdns.org {
+	redir https://{$DOMAIN}{uri} 301
+}
+
+# API 는 POST 가 GET 으로 바뀌지 않게 308(영구, 메서드 유지).
+api.coursepilot-kr.duckdns.org {
+	redir https://api.{$DOMAIN}{uri} 308
+}

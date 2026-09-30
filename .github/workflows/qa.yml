@@ -29,7 +29,7 @@ jobs:
       run:
         working-directory: frontend
     env:
-      QA_BASE_URL: ${{ vars.QA_BASE_URL || 'https://coursepilot-kr.duckdns.org' }}
+      QA_BASE_URL: ${{ vars.QA_BASE_URL || 'https://picknus.duckdns.org' }}
       QA_API_URL: ${{ vars.QA_API_URL }}
       QA_TOKEN: ${{ secrets.QA_TOKEN }}
     steps:

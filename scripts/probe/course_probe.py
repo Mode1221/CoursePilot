@@ -20,7 +20,7 @@ import time
 import urllib.error
 import urllib.request
 
-API = os.environ.get("QA_API_URL") or "https://api.coursepilot-kr.duckdns.org"
+API = os.environ.get("QA_API_URL") or "https://api.picknus.duckdns.org"
 TOKEN = os.environ["QA_TOKEN"]
 BAR = ["술", "호프", "주점", "와인", "칵테일", "이자카야", "포차", "펍", " 바", "바 "]
 

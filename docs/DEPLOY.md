@@ -43,6 +43,17 @@ CoursePilot는 키 없이도 Mock/폴백으로 완전히 동작한다. 실서비
 
 > 키는 배포 직전 주입 권장(개발 중엔 폴백으로 충분). 시크릿은 소스에 커밋하지 말 것(`.env`는 gitignore).
 
+## 도메인 이전 (coursepilot-kr.duckdns.org → picknus.duckdns.org)
+`Caddyfile` 에 옛 도메인 → 새 도메인 301(사이트)·308(API) 블록이 있다. **순서가 중요하다** — 새 도메인 DNS·`.env` 가 먼저, 코드 배포가 나중.
+1. DuckDNS 에서 `picknus` 가 운영 VM 공인 IP 를 가리키게 한다(`api.picknus.duckdns.org` 는 자동으로 같은 IP). 확인: `dig +short picknus.duckdns.org`.
+2. VM `.env`: `DOMAIN=picknus.duckdns.org` (그 밖에 도메인이 들어간 값이 있으면 같이). `CORS_ORIGINS` 는 DOMAIN 에서 자동.
+3. 카카오 디벨로퍼스(로그인 앱) 리다이렉트 URI 에 `https://picknus.duckdns.org/auth/kakao` 추가(옛 주소는 이전이 끝날 때까지 둔다).
+4. 네이버 클라우드 Maps 앱의 Web 서비스 URL 에 `https://picknus.duckdns.org` 추가(없으면 새 도메인에서 지도가 안 뜬다).
+5. 그다음 배포(`./scripts/ops/auto_deploy.sh`). Caddy 가 새 도메인 인증서를 받고, 옛 도메인 인증서도 계속 갱신하며 새 주소로 보낸다.
+6. 확인: `curl -sI https://coursepilot-kr.duckdns.org/x?y=1` → `301` + `location: https://picknus.duckdns.org/x?y=1`, `curl -s https://api.picknus.duckdns.org/health`.
+7. GitHub 저장소 Variables 에 `QA_BASE_URL` 이 있으면 새 주소로(없으면 코드 기본값이 새 주소).
+옛 도메인 블록은 옛 링크(단톡방·홍보 글)가 충분히 줄 때까지 둔다. DuckDNS 의 `coursepilot-kr` 도 그때까지 유지.
+
 ## 카카오 로그인 설정 (체험 1회 뒤 로그인)
 장소 검색에 쓰는 카카오 앱과 **다른 앱**을 하나 더 만든다. 로그인의 client_id(REST API 키)는 브라우저 주소창에
 그대로 보이는 값이라, 검색 키와 같으면 남이 우리 장소 검색 한도를 쓸 수 있다.
@@ -50,7 +61,7 @@ CoursePilot는 키 없이도 Mock/폴백으로 완전히 동작한다. 실서비
 1. [카카오 디벨로퍼스](https://developers.kakao.com/console/app) → 애플리케이션 추가(예: `CoursePilot 로그인`).
 2. **[앱] > [플랫폼 키] > [REST API 키]** 에서
    - 키 값을 `.env` 의 `KAKAO_LOGIN_CLIENT_ID` 에,
-   - **[리다이렉트 URI]** 에 `https://<도메인>/auth/kakao` 등록(예: `https://coursepilot-kr.duckdns.org/auth/kakao`),
+   - **[리다이렉트 URI]** 에 `https://<도메인>/auth/kakao` 등록(예: `https://picknus.duckdns.org/auth/kakao`),
    - **[클라이언트 시크릿]** 값을 `KAKAO_LOGIN_CLIENT_SECRET` 에(켜져 있으면 필수 — 없으면 토큰 교환이 실패한다).
 3. **[카카오 로그인] > [사용 설정]** 의 상태를 ON.
 4. 동의항목은 켜지 않아도 된다(회원번호만 쓴다).
