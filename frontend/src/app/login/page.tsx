@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 
 import SiteFooter from "@/components/SiteFooter";
-import { Button, Input } from "@/components/ui";
+import { BrandMark, Button, Input } from "@/components/ui";
 import { ApiError, api, type LoginResult } from "@/services/api";
 import { KAKAO_NEXT_KEY, KAKAO_STATE_KEY, finishLogin, kakaoRedirectUri } from "@/services/login";
 import { readQuery, safeNext } from "@/services/nextPath";
@@ -102,8 +102,13 @@ export default function Login() {
   const loggedIn = userId != null && kind === "member";
 
   return (
-    <main style={{ padding: "var(--sp-12) var(--sp-4)", maxWidth: 460, margin: "0 auto" }}>
+    <main className="cp-sheet-page cp-rise">
+      <Link href="/" className="cp-logo" style={{ marginBottom: "var(--sp-6)" }} aria-label="픽앤어스 처음으로">
+        <BrandMark size={28} decorative />
+        픽앤어스
+      </Link>
       <h1 style={{ marginBottom: "var(--sp-2)" }}>로그인</h1>
+      <p style={{ color: "var(--text-muted)", marginBottom: 0 }}>다시 만나서 반가워요. 만든 코스가 기다리고 있어요.</p>
       {reason && (
         <p role="status" style={{ color: "var(--text-muted)", lineHeight: 1.6 }}>
           {reason}
@@ -124,9 +129,10 @@ export default function Login() {
               type="button"
               onClick={kakao}
               style={{
-                minHeight: 48,
+                minHeight: 52,
                 border: "none",
-                borderRadius: "var(--r-md)",
+                borderRadius: "var(--r-full)",
+                boxShadow: "0 3px 0 #d8c300",
                 background: "#FEE500",
                 color: "rgba(0,0,0,0.85)",
                 fontSize: "var(--fs-md)",

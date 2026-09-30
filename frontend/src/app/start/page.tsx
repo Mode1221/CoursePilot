@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 
 import SiteFooter from "@/components/SiteFooter";
-import { Button, Input } from "@/components/ui";
+import { BrandMark, Button, Input } from "@/components/ui";
 import { ApiError, api } from "@/services/api";
 import { createCourseUrl } from "@/services/newCourse";
 import { NEW_COURSE, readQuery, safeNext } from "@/services/nextPath";
@@ -58,7 +58,11 @@ export default function StartTrial() {
   const loginHref = `/login?next=${encodeURIComponent(next === NEW_COURSE ? "/" : safeNext(next))}`;
 
   return (
-    <main style={{ padding: "var(--sp-12) var(--sp-4)", maxWidth: 460, margin: "0 auto" }}>
+    <main className="cp-sheet-page cp-rise">
+      <Link href="/" className="cp-logo" style={{ marginBottom: "var(--sp-6)" }} aria-label="픽앤어스 처음으로">
+        <BrandMark size={28} decorative />
+        픽앤어스
+      </Link>
       <h1 style={{ marginBottom: "var(--sp-2)" }}>가입 없이 한 번 써 보기</h1>
       <p style={{ color: "var(--text-muted)", lineHeight: 1.6 }}>
         코스 하나를 만들고, 상대에게 링크를 보내 같이 정하는 것까지 해 볼 수 있어요. 더 쓰고 싶으면 그때

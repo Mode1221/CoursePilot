@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 
-import { Button } from "@/components/ui";
+import { BrandMark, Button } from "@/components/ui";
 import { createCourseUrl } from "@/services/newCourse";
 import { NEW_COURSE } from "@/services/nextPath";
 import { useUserStore } from "@/store/userStore";
@@ -29,21 +29,12 @@ export default function AppNav() {
       : "/login";
 
   return (
-    <nav
-      aria-label="주 메뉴"
-      style={{
-        display: "flex",
-        alignItems: "center",
-        gap: "var(--sp-3)",
-        padding: "var(--sp-2) var(--sp-4)",
-        borderBottom: "1px solid var(--border)",
-        background: "var(--surface)",
-      }}
-    >
-      <Link href="/" style={{ fontWeight: 700, color: "var(--text)", textDecoration: "none" }}>
+    <nav aria-label="주 메뉴" className="cp-nav">
+      <Link href="/" className="cp-logo">
+        <BrandMark size={26} decorative />
         픽앤어스
       </Link>
-      <Link href="/mypage" style={{ color: "var(--text-muted)", textDecoration: "none", fontSize: "var(--fs-sm)" }}>
+      <Link href="/mypage" className="cp-nav__link">
         내 코스
       </Link>
       {kind === "guest" && (

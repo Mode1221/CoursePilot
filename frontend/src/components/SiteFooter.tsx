@@ -6,6 +6,7 @@ const LINK = { color: "var(--text-muted)" };
 export default function SiteFooter() {
   return (
     <footer
+      className="cp-footer"
       style={{ marginTop: "var(--sp-8)", fontSize: "var(--fs-sm)", color: "var(--text-faint)" }}
     >
       <Link href="/onboarding" style={LINK}>선호 설정</Link>

@@ -12,14 +12,11 @@ export default function LegalPage({
   children: ReactNode;
 }) {
   return (
-    <main
-      style={{
-        padding: "var(--sp-12) var(--sp-4)",
-        maxWidth: 720,
-        margin: "0 auto",
-        lineHeight: 1.7,
-      }}
-    >
+    <main className="cp-legal cp-rise">
+      <Link href="/" className="cp-logo" style={{ marginBottom: "var(--sp-6)" }} aria-label="픽앤어스 처음으로">
+        <BrandMark size={26} decorative />
+        픽앤어스
+      </Link>
       <p
         role="note"
         style={{
