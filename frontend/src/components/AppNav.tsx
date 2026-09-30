@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 
+import BrandMark from "@/components/BrandMark";
 import { Button } from "@/components/ui";
 import { createCourseUrl } from "@/services/newCourse";
 import { NEW_COURSE } from "@/services/nextPath";
@@ -29,28 +30,13 @@ export default function AppNav() {
       : "/login";
 
   return (
-    <nav
-      aria-label="주 메뉴"
-      style={{
-        display: "flex",
-        alignItems: "center",
-        gap: "var(--sp-3)",
-        padding: "var(--sp-2) var(--sp-4)",
-        borderBottom: "1px solid var(--border)",
-        background: "var(--surface)",
-      }}
-    >
-      <Link href="/" style={{ fontWeight: 700, color: "var(--text)", textDecoration: "none" }}>
-        픽앤어스
-      </Link>
-      <Link href="/mypage" style={{ color: "var(--text-muted)", textDecoration: "none", fontSize: "var(--fs-sm)" }}>
+    <nav aria-label="주 메뉴" className="cp-topbar" style={{ position: "relative", padding: "8px var(--sp-4)" }}>
+      <BrandMark />
+      <Link href="/mypage" className="cp-topbar__link">
         내 코스
       </Link>
       {kind === "guest" && (
-        <Link
-          href={loginHref}
-          style={{ marginLeft: "auto", fontSize: "var(--fs-sm)", color: "var(--text-muted)", textDecoration: "none" }}
-        >
+        <Link href={loginHref} className="cp-topbar__link" style={{ marginLeft: "auto" }}>
           체험 중 · <span style={{ color: "var(--brand-strong)", fontWeight: 600 }}>로그인</span>
         </Link>
       )}

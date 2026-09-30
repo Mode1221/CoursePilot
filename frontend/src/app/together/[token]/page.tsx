@@ -4,6 +4,7 @@ import { useParams } from "next/navigation";
 import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
 
+import BrandMark from "@/components/BrandMark";
 import TogetherCards from "@/components/TogetherCards";
 import { Button, Skeleton } from "@/components/ui";
 import { rememberInvite } from "@/services/acquisition";
@@ -61,7 +62,8 @@ export default function TogetherPage() {
   if (missing) {
     return (
       <main style={wrap}>
-        <h1>링크가 만료됐거나 잘못됐어요</h1>
+        <BrandMark />
+        <h1 className="cp-page__title">링크가 만료됐거나 잘못됐어요</h1>
         <p style={{ color: "var(--text-muted)" }}>보낸 사람에게 새 링크를 부탁해 주세요.</p>
         <Link href="/">처음으로</Link>
       </main>
@@ -83,8 +85,9 @@ export default function TogetherPage() {
     const loginNext = status.built ? `/plan/${status.course_id}` : `/together/${token}`;
     return (
       <main style={wrap}>
-        <h1>보냈어요 ✨</h1>
-        <p role="status" style={{ color: "var(--text-muted)" }}>
+        <BrandMark />
+        <h1 className="cp-page__title">보냈어요 ✨</h1>
+        <p role="status" className="cp-page__lead">
           {status.built
             ? "둘의 답을 합친 코스가 준비됐어요!"
             : status.submitted.includes(status.owner_name)
@@ -138,10 +141,13 @@ export default function TogetherPage() {
           )}
         </nav>
       )}
-      <p style={{ margin: 0, color: "var(--text-muted)", fontSize: "var(--fs-sm)" }}>
+      <p className="cp-invite">
+        <span className="cp-person__avatar cp-invite__avatar" aria-hidden="true">
+          {status.owner_name.slice(0, 1)}
+        </span>
         {status.owner_name}님이 같이 정하재요 · 30초 · 가입 없음
       </p>
-      <h1 style={{ marginTop: "var(--sp-1)" }}>{status.request_text}</h1>
+      <h1 className="cp-page__title" style={{ marginTop: "var(--sp-3)" }}>{status.request_text}</h1>
       <p style={{ color: "var(--text-muted)", marginBottom: "var(--sp-3)" }}>
         탭만 하면 돼요. 서로의 답은 합치기 전까지 안 보여요.
       </p>
@@ -157,7 +163,7 @@ export default function TogetherPage() {
           onChange={(e) => setMyName(e.target.value)}
           maxLength={10}
           aria-label="내 이름"
-          style={{ marginLeft: "var(--sp-2)", padding: "6px 10px", border: "1px solid var(--border)", borderRadius: "var(--r-md)", font: "inherit" }}
+          style={{ marginLeft: "var(--sp-2)", padding: "8px 12px", border: "1px solid var(--line)", borderRadius: "var(--r-md)", background: "var(--surface)", font: "inherit" }}
         />
       </label>
       <TogetherCards

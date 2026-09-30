@@ -55,7 +55,7 @@ export default function KakaoCallback() {
     <main style={{ padding: "var(--sp-12) var(--sp-4)", maxWidth: 460, margin: "0 auto" }}>
       {error ? (
         <>
-          <h1>로그인하지 못했어요</h1>
+          <h1 className="cp-page__title">로그인하지 못했어요</h1>
           <p role="alert" style={{ color: "var(--text-muted)" }}>
             {error}
           </p>

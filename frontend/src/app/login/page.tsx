@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 
+import BrandMark from "@/components/BrandMark";
 import SiteFooter from "@/components/SiteFooter";
 import { Button, Input } from "@/components/ui";
 import { ApiError, api, type LoginResult } from "@/services/api";
@@ -102,31 +103,32 @@ export default function Login() {
   const loggedIn = userId != null && kind === "member";
 
   return (
-    <main style={{ padding: "var(--sp-12) var(--sp-4)", maxWidth: 460, margin: "0 auto" }}>
-      <h1 style={{ marginBottom: "var(--sp-2)" }}>로그인</h1>
+    <main className="cp-page">
+      <BrandMark />
+      <h1 className="cp-page__title">로그인</h1>
       {reason && (
-        <p role="status" style={{ color: "var(--text-muted)", lineHeight: 1.6 }}>
+        <p role="status" className="cp-page__lead">
           {reason}
         </p>
       )}
 
       {loggedIn ? (
-        <div style={{ marginTop: "var(--sp-6)", display: "grid", gap: "var(--sp-3)" }}>
-          <p>이미 로그인했어요.</p>
+        <div className="cp-panel" style={{ marginTop: "var(--sp-5)", display: "grid", gap: "var(--sp-3)" }}>
+          <p style={{ margin: 0 }}>이미 로그인했어요.</p>
           <Button variant="primary" onClick={() => router.replace(next)}>
             계속하기
           </Button>
         </div>
       ) : (
-        <div style={{ marginTop: "var(--sp-6)", display: "grid", gap: "var(--sp-4)" }}>
+        <div className="cp-panel" style={{ marginTop: "var(--sp-5)", display: "grid", gap: "var(--sp-4)" }}>
           {kakaoId && (
             <button
               type="button"
               onClick={kakao}
               style={{
-                minHeight: 48,
+                minHeight: 50,
                 border: "none",
-                borderRadius: "var(--r-md)",
+                borderRadius: "var(--r-full)",
                 background: "#FEE500",
                 color: "rgba(0,0,0,0.85)",
                 fontSize: "var(--fs-md)",
@@ -190,7 +192,7 @@ export default function Login() {
             </p>
           )}
 
-          <p style={{ fontSize: "var(--fs-xs)", color: "var(--text-faint)" }}>
+          <p style={{ margin: 0, fontSize: "var(--fs-xs)", color: "var(--text-faint)" }}>
             카카오 로그인은 회원 구분용 번호만 받아요. 이름·이메일·프로필은 받지 않아요.
           </p>
         </div>

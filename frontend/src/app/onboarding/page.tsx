@@ -188,7 +188,7 @@ export default function Onboarding() {
   if (!userId && !phoneLogin) {
     return (
       <main style={{ padding: "var(--sp-12) var(--sp-4)", maxWidth: 460, margin: "0 auto" }}>
-        <h1>선호 설정</h1>
+        <h1 className="cp-page__title">선호 설정</h1>
         <p style={{ color: "var(--text-muted)" }}>
           취향은 로그인하거나 체험을 시작한 뒤에 저장할 수 있어요.
         </p>
@@ -206,7 +206,7 @@ export default function Onboarding() {
 
   return (
     <main style={{ padding: "var(--sp-12) var(--sp-4)", maxWidth: 460, margin: "0 auto" }}>
-      <h1>선호 설정</h1>
+      <h1 className="cp-page__title">선호 설정</h1>
       <p style={{ color: "var(--text-muted)" }}>
         모두 선택 사항이에요. 짧게 입력하면 AI가 나머지를 자동으로 보완합니다.
       </p>
