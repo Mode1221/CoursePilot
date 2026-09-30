@@ -415,6 +415,9 @@ A안: 상권 36 × 칸 4 × 20 ≈ 2,900곳을 약 10일에 채우고 60일마�
 (배치 하루 양 + 런타임 20), **SearchTextRequest per day 도 "기존 값 + 배치 하루 양"(예: 300 → 600)** 으로 올린다 —
 처음 채우는 곳은 Google place id 를 Text Search(IDs-only, 무료)로 먼저 찾는다. 콘솔 예산 알림을 걸어 둔다.
 
+지금 바로 채우기: `docker compose -f docker-compose.prod.yml exec -T backend python scripts/fill_details.py`
+(기본: 이번 달 남은 무료 건수까지만. `--paid` 면 `GOOGLE_DETAILS_MONTHLY` 까지).
+
 ## 장소 데이터 배치 (크론)
 장소 DB 는 검색 API 로 즉석에서 만드는 대신 배치로 쌓고 주기적으로 갱신한다.
 유료 콜은 무료 한도 안에서 페이싱되며, 한도를 넘기면 호출 자체가 차단된다(`app/quota.py`).
