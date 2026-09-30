@@ -9,10 +9,14 @@ from __future__ import annotations
 
 import argparse
 import asyncio
+import sys
 import time
+from pathlib import Path
 
-from app.config import settings
-from app.pipeline.llm import _ANTHROPIC_TOOL, _SYSTEM, _TOOL_NAME
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+
+from app.config import settings  # noqa: E402
+from app.pipeline.llm import _ANTHROPIC_TOOL, _SYSTEM, _TOOL_NAME  # noqa: E402
 
 # (모델, effort) — effort 미지원 모델은 None
 CONFIGS: list[tuple[str, str | None]] = [
