@@ -193,7 +193,9 @@ export default function Login() {
           )}
 
           <p style={{ margin: 0, fontSize: "var(--fs-xs)", color: "var(--text-faint)" }}>
-            카카오 로그인은 회원 구분용 번호만 받아요. 이름·이메일·프로필은 받지 않아요.
+            카카오 로그인은 회원 구분용 번호만 받아요. 이름·이메일·프로필은 받지 않아요. 계속하면{" "}
+            <Link href="/terms">이용약관</Link>과 <Link href="/privacy">개인정보처리방침</Link>(만 14세 이상, 생성형
+            AI 이용, 일본 서버·미국 AI 사업자로의 국외 이전 포함)에 동의하는 것으로 봐요.
           </p>
         </div>
       )}

@@ -25,9 +25,12 @@ def main() -> int:
     args = ap.parse_args()
     connect_db()
     report = purge_guests(args.days)
+    from app.referrals import referral_store
+
+    rewards = referral_store.prune_rewards()  # 1년 지난 초대 보상 기록(처리방침 3항)
     print(
         f"체험 계정 {report['guests']}개 · 코스 {report['courses']}개 삭제, "
-        f"지난 카운터 {report['counters']}행 정리"
+        f"지난 카운터 {report['counters']}행 정리, 1년 지난 보상 기록 {rewards}행 삭제"
     )
     return 0
 

@@ -57,6 +57,9 @@ def identity_key(login_identity: str) -> str:
     return hmac.new(key, f"invitee:{login_identity}".encode(), hashlib.sha256).hexdigest()[:32]
 
 
+REWARD_KEEP_DAYS = 365  # 보상 지급 기록 보관(부정 재가입 방지) — 처리방침 3항과 같다
+
+
 @dataclass
 class Acquisition:
     user_id: str
@@ -127,6 +130,46 @@ class ReferralStore:
                 s.commit()
             return
         self._acq.pop(user_id, None)
+
+    def anonymize_rewards(self, user_id: str) -> None:
+        """탈퇴: 보상 기록에서 계정 식별값을 지운다. 재보상 방지용 로그인 수단 변환값(invitee_key)만 남는다."""
+        gone = "deleted"
+        if is_ready():
+            from sqlalchemy import update
+
+            from app.db import SessionLocal
+            from app.models import InviteRewardModel
+
+            with SessionLocal() as s:
+                s.execute(update(InviteRewardModel).where(InviteRewardModel.inviter_id == user_id).values(inviter_id=gone))
+                s.execute(update(InviteRewardModel).where(InviteRewardModel.invitee_id == user_id).values(invitee_id=gone))
+                s.commit()
+            return
+        self._rewards = [
+            replace(
+                r,
+                inviter_id=gone if r.inviter_id == user_id else r.inviter_id,
+                invitee_id=gone if r.invitee_id == user_id else r.invitee_id,
+            )
+            for r in self._rewards
+        ]
+
+    def prune_rewards(self, keep_days: int = REWARD_KEEP_DAYS, now: datetime | None = None) -> int:
+        """보상 기록은 1년만 보관한다(개인정보처리방침 3항)."""
+        cutoff = (now or utcnow()) - timedelta(days=keep_days)
+        if is_ready():
+            from sqlalchemy import delete
+
+            from app.db import SessionLocal
+            from app.models import InviteRewardModel
+
+            with SessionLocal() as s:
+                res = s.execute(delete(InviteRewardModel).where(InviteRewardModel.created_at < cutoff))
+                s.commit()
+                return int(res.rowcount or 0)
+        before = len(self._rewards)
+        self._rewards = [r for r in self._rewards if r.created_at >= cutoff]
+        return before - len(self._rewards)
 
     def move(self, guest_id: str, member_id: str) -> None:
         """체험 계정을 회원으로 옮길 때: 유입 기록(회원에게 없을 때만 — first-touch)과

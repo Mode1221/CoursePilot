@@ -365,9 +365,9 @@ export default function Onboarding() {
           />
           <span>
             <Link href="/terms">이용약관</Link> 및{" "}
-            <Link href="/privacy">개인정보처리방침</Link>에 동의하며 만 14세 이상입니다. 서비스 서버가
-            일본(Oracle Cloud 오사카)에 있고 대화 내용은 미국의 AI 사업자가 처리해, 개인정보가
-            국외로 이전되는 점도 함께 동의합니다.
+            <Link href="/privacy">개인정보처리방침</Link>에 동의하며 만 14세 이상입니다. 코스 추천에 생성형
+            AI를 쓰고, 서비스 서버가 일본(Oracle Cloud 오사카)에 있으며 요청 문장은 미국의 AI 사업자
+            (Anthropic)가 처리해 개인정보가 국외로 이전되는 점도 함께 동의합니다.
           </span>
         </label>
       )}
