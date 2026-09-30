@@ -97,6 +97,12 @@ class Settings(BaseSettings):
     # 영업시간 LLM 웹검색 폴백 일일 상한. Google 영업시간이 쌓이기 전에는 거의 매 코스에서
     # 발동하므로 예산(몇만 원)을 지키려면 낮게 둔다. 50 이면 월 4만~8만원까지 나올 수 있다.
     hours_fallback_daily_cap: int = 10
+    # Google Place Details(Enterprise: 영업시간+평점 한 콜). 월 1,000 무료, 넘으면 1,000건당 $20.
+    # 기본값은 무료 안. 신뢰도를 올리려면 월 상한·하루 배치량을 올린다(docs/DEPLOY.md "영업시간·평점 채우기").
+    google_details_monthly: int = 1_000  # 월 상한(넘으면 호출 차단 — 청구서 상한)
+    google_details_per_day: int = 20  # 배치가 하루에 채우는 곳 수
+    google_hours_ttl_days: int = 30  # 영업시간 재확인 주기
+    google_core_per_slot: int = 20  # 상권 × 칸(식사·카페·술·할거리)마다 채울 상위 후보 수
     # AI 사용 고지 문구(AI 기본법 사전 고지). 코스 결과·공유 화면에 그대로 노출된다.
     ai_notice: str = "AI가 만든 추천이에요. 영업시간·휴무는 방문 전 한 번 더 확인해 주세요."
 

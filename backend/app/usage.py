@@ -260,9 +260,19 @@ def _global_key(name: str, now: datetime | None = None) -> str:
 
 
 # ── 서비스 전체 ───────────────────────────────────────────────────────────
+RUNTIME_DETAILS_PER_DAY = 20  # 코스 확정 시 영업시간 갱신 몫(배치 몫과 별도)
+
+
+def _global_limit(name: str) -> int | None:
+    if name == "google.details" and settings.google_details_per_day > 20:
+        # 배치 하루 몫을 기본(20)보다 올렸으면 하루 상한도 같이 오른다(콘솔 일일 할당량도 맞춰 올린다)
+        return settings.google_details_per_day + RUNTIME_DETAILS_PER_DAY
+    return GLOBAL_DAILY.get(name)
+
+
 def global_take(name: str, now: datetime | None = None) -> bool:
     """서비스 전체 하루 몫에서 1 을 가져온다. 상한이 없는 이름은 항상 허용."""
-    limit = GLOBAL_DAILY.get(name)
+    limit = _global_limit(name)
     if limit is None:
         return True
     ok = counters.take(_global_key(name, now), limit)

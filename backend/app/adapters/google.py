@@ -34,7 +34,7 @@ DETAILS_MASK = (
 )
 
 LOCATION_BIAS_M = 100.0  # 같은 이름의 다른 지점을 잡지 않도록 좁게
-HOURS_TTL_DAYS = 30
+HOURS_TTL_DAYS = 30  # 기본값. 실제 주기는 settings.google_hours_ttl_days
 RATING_TTL_DAYS = 90
 MIN_RATING_COUNT = 30  # 평가 수가 이보다 적으면 평점을 신뢰하지 않는다
 CLOSED_STATUSES = ("CLOSED_PERMANENTLY",)
@@ -56,7 +56,9 @@ def _expired(checked_at: datetime | None, ttl_days: int) -> bool:
 
 def hours_stale(place: Place) -> bool:
     """영업시간을 다시 물어봐야 하는지(30일 TTL)."""
-    return _expired(place.hours_checked_at, HOURS_TTL_DAYS)
+    from app.config import settings
+
+    return _expired(place.hours_checked_at, settings.google_hours_ttl_days or HOURS_TTL_DAYS)
 
 
 def rating_stale(place: Place) -> bool:

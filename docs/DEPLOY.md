@@ -399,6 +399,21 @@ python scripts/verify_places.py
 - 다중 백엔드 인스턴스로 확장 시 Socket.IO는 메시지 브로커(예: Redis) 어댑터가 필요(현재 단일 프로세스 기준).
 - 크레딧 원자적 차감은 DB 행 잠금(`FOR UPDATE`)에 의존 — 인메모리 폴백은 단일 프로세스에서만 정확.
 
+## 영업시간·평점 채우기 (Google Place Details)
+영업시간·평점은 Place Details **Enterprise** 한 콜(월 1,000건 무료, 넘으면 1,000건당 $20 ≈ 곳당 28원).
+배치는 상권 × 칸(식사·카페·술·할거리)별 상위 `GOOGLE_CORE_PER_SLOT` 곳만 채운다(`places_build.core_targets`).
+
+| 설정 | 기본(무료 안) | A안(신뢰도 올리기) |
+|---|---|---|
+| `GOOGLE_DETAILS_MONTHLY` 월 상한(넘으면 호출 차단) | 1000 | 3500 |
+| `GOOGLE_DETAILS_PER_DAY` 배치 하루 양 | 20 | 300 |
+| `GOOGLE_HOURS_TTL_DAYS` 영업시간 재확인 주기 | 30 | 60 |
+| `GOOGLE_CORE_PER_SLOT` 상권 × 칸별 상위 | 20 | 20 |
+
+A안: 상권 36 × 칸 4 × 20 ≈ 2,900곳을 약 10일에 채우고 60일마다 갱신. 첫 달 약 5만원, 이후 월 1만원대,
+최악(월 상한 3,500 소진) 약 7만원. **Google Cloud 콘솔의 Places API 일일 할당량도 320 이상으로** 올려야 한다
+(배치 하루 양 + 런타임 20). 콘솔 예산 알림을 걸어 둔다.
+
 ## 장소 데이터 배치 (크론)
 장소 DB 는 검색 API 로 즉석에서 만드는 대신 배치로 쌓고 주기적으로 갱신한다.
 유료 콜은 무료 한도 안에서 페이싱되며, 한도를 넘기면 호출 자체가 차단된다(`app/quota.py`).
