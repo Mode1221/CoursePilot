@@ -222,6 +222,7 @@ export default function TogetherPanel({ courseId }: { courseId: string }) {
               spec={status.cards}
               submitLabel={editing ? "수정한 카드 저장" : "내 카드 저장"}
               storageKey={`coursepilot_together_card:owner:${courseId}`}
+              who="owner"
               onSubmit={async (card) => {
                 try {
                   setStatus(await api.togetherOwnerInput(courseId, userId!, { ...card, name: status.owner_name }));

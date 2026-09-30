@@ -1,7 +1,9 @@
 "use client";
 
+import Link from "next/link";
 import { useEffect, useState } from "react";
 
+import BrandMark from "@/components/BrandMark";
 import MapPanel from "@/components/MapPanel";
 import ShareAccept from "@/components/ShareAccept";
 import NotFound from "@/components/NotFound";
@@ -81,44 +83,42 @@ export default function ShareView({ id }: { id: string }) {
   }
 
   return (
-    <div style={{ maxWidth: 640, margin: "0 auto" }}>
-      <header
-        style={{
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "space-between",
-          padding: "var(--sp-3) var(--sp-4)",
-          borderBottom: "1px solid var(--border)",
-        }}
-      >
-        <span style={{ display: "flex", flexDirection: "column", gap: 2, minWidth: 0 }}>
-          <strong
-            style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}
-          >
-            {course?.title || "공유된 코스"}
-          </strong>
-          {subtitle && (
-            <span style={{ fontSize: 12, color: "var(--muted)" }}>{subtitle}</span>
-          )}
-        </span>
-        <span style={{ display: "flex", gap: "var(--sp-2)" }}>
+    <>
+      <header className="cp-topbar">
+        <BrandMark />
+        <span style={{ marginLeft: "auto", display: "flex", gap: "var(--sp-2)" }}>
           <Button size="sm" onClick={() => saveCalendar(id)}>
             캘린더
           </Button>
           {userId && (
-            <Button
-              size="sm"
-              variant={saved ? "secondary" : "primary"}
-              onClick={bookmark}
-              disabled={saved}
-            >
+            <Button size="sm" variant={saved ? "secondary" : "primary"} onClick={bookmark} disabled={saved}>
               {saved ? "북마크됨" : "북마크"}
             </Button>
           )}
         </span>
       </header>
-      {course?.together && <ShareAccept course={course} />}
-      <MapPanel readOnly />
-    </div>
+      <main className="cp-share">
+        <div className="cp-share__hero">
+          <h1 className="cp-page__title" style={{ marginTop: 0 }}>
+            {course?.title || "공유된 코스"}
+          </h1>
+          {subtitle && <p className="cp-share__sub">{subtitle}</p>}
+        </div>
+        {course?.together && <ShareAccept course={course} />}
+        <MapPanel readOnly />
+        <div className="cp-share__cta">
+          <p>
+            <strong>우리도 이렇게 정해 볼까요?</strong>
+            <br />
+            <span style={{ color: "var(--text-muted)", fontSize: "var(--fs-sm)" }}>
+              링크 하나 보내면 상대는 30초. 가입 없이 써 볼 수 있어요.
+            </span>
+          </p>
+          <Link href="/" className="cp-btn cp-btn--primary" style={{ padding: "10px 18px", borderRadius: "var(--r-full)", fontWeight: 600, textDecoration: "none" }}>
+            나도 코스 만들기
+          </Link>
+        </div>
+      </main>
+    </>
   );
 }

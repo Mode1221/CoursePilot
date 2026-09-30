@@ -41,8 +41,11 @@ export default function TogetherCards({
   submitLabel = "보냈어요",
   onSubmit,
   storageKey,
+  who = "partner",
 }: {
   spec: TogetherStatus["cards"];
+  /** 답하는 사람 — 고른 칩을 그 사람 색으로 칠한다(시작한 사람 보라, 상대 청록) */
+  who?: "owner" | "partner";
   submitLabel?: string;
   onSubmit: (card: TogetherCard) => Promise<void>;
   /** 고른 그대로(아무거나·없음 포함)를 이 기기에 남겨, 수정할 때 다시 채운다. 서버엔 저장하지 않는다. */
@@ -91,7 +94,7 @@ export default function TogetherCards({
   }
 
   return (
-    <div style={{ display: "grid", gap: "var(--sp-6)" }}>
+    <div className={`cp-cards cp-cards--${who}`}>
       <Section title="그날 컨디션은?">
         <Chips
           options={spec.conditions}
@@ -107,7 +110,7 @@ export default function TogetherCards({
           onPick={(c) => toggle(cravings, setCravings, c, "아무거나")}
         />
         {anything && (
-          <p style={{ margin: "var(--sp-2) 0 0", color: "var(--partner)", fontSize: "var(--fs-sm)", fontWeight: 500 }}>
+          <p className="cp-cards__hint">
             좋아요, 그럼 이것만 피할게요 ↓
           </p>
         )}
@@ -133,14 +136,7 @@ export default function TogetherCards({
           aria-label="한마디"
           autoComplete="off"
           enterKeyHint="done"
-          style={{
-            width: "100%",
-            padding: "12px 14px",
-            border: "1.5px solid var(--line)",
-            borderRadius: "var(--r-md)",
-            font: "inherit",
-            background: "var(--surface)",
-          }}
+          className="cp-field"
         />
       </Section>
       {error && (
@@ -156,20 +152,11 @@ export default function TogetherCards({
 }
 
 function Section({ title, children, highlight }: { title: string; children: React.ReactNode; highlight?: boolean }) {
-  // 각 카드는 하나의 질문 = fieldset. 강조(아무거나 → 싫은 것)는 배경이 아니라 왼쪽 선으로.
+  // 각 카드는 하나의 질문 = fieldset. 질문은 실제로 차례가 있어 번호를 단다(CSS 카운터).
+  // 강조(아무거나 → 싫은 것)는 배경이 아니라 테두리 색으로.
   return (
-    <fieldset
-      style={{
-        border: 0,
-        margin: 0,
-        padding: "0 0 0 var(--sp-4)",
-        borderLeft: `3px solid ${highlight ? "var(--partner)" : "var(--line)"}`,
-        transition: "border-color var(--dur) var(--ease)",
-      }}
-    >
-      <legend style={{ padding: 0, marginBottom: "var(--sp-3)", fontWeight: 700, fontSize: "var(--fs-lg)", letterSpacing: "-.01em" }}>
-        {title}
-      </legend>
+    <fieldset className={`cp-q${highlight ? " cp-q--hl" : ""}`}>
+      <legend className="cp-q__title">{title}</legend>
       {children}
     </fieldset>
   );
@@ -187,28 +174,11 @@ function Chips({
   label?: (v: string) => string;
 }) {
   return (
-    <div role="group" style={{ display: "flex", flexWrap: "wrap", gap: "var(--sp-2)" }}>
+    <div role="group" className="cp-choices">
       {options.map((o) => {
         const on = selected.includes(o);
         return (
-          <button
-            key={o}
-            type="button"
-            aria-pressed={on}
-            onClick={() => onPick(o)}
-            style={{
-              padding: "11px 16px",
-              minHeight: 44,
-              borderRadius: "var(--r-full)",
-              border: `1.5px solid ${on ? "var(--brand)" : "var(--line)"}`,
-              background: on ? "var(--brand)" : "var(--surface)",
-              color: on ? "var(--brand-contrast)" : "var(--text)",
-              font: "inherit",
-              fontSize: "var(--fs-md)",
-              fontWeight: on ? 600 : 500,
-              cursor: "pointer",
-            }}
-          >
+          <button key={o} type="button" aria-pressed={on} onClick={() => onPick(o)} className="cp-choice">
             {label ? label(o) : o}
           </button>
         );

@@ -44,8 +44,12 @@ export default function ShareAccept({ course }: { course: Course }) {
   }
 
   return (
-    <div style={{ padding: "var(--sp-3) var(--sp-4)", display: "flex", alignItems: "center", gap: "var(--sp-2)", flexWrap: "wrap" }}>
-      <span style={{ fontSize: "var(--fs-sm)", color: "var(--text-muted)" }}>
+    <div className="cp-together-note">
+      <span className="cp-pair" aria-hidden="true">
+        <span className="cp-person__avatar" style={{ background: "var(--owner)" }}>{t.owner_name.slice(0, 1)}</span>
+        <span className="cp-person__avatar" style={{ background: "var(--partner)" }}>{t.partner_name.slice(0, 1)}</span>
+      </span>
+      <span className="cp-together-note__text">
         {t.owner_name}·{t.partner_name}의 카드를 합친 코스예요. 칸마다 누구 의견이 들어갔는지 표시했어요.
       </span>
       {done ? (
