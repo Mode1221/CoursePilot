@@ -4,7 +4,7 @@ import { useParams } from "next/navigation";
 import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
 
-import BrandMark from "@/components/BrandMark";
+import BrandMark, { LogoGlyph } from "@/components/BrandMark";
 import TogetherCards from "@/components/TogetherCards";
 import { Button, Skeleton } from "@/components/ui";
 import { rememberInvite } from "@/services/acquisition";
@@ -86,6 +86,9 @@ export default function TogetherPage() {
     return (
       <main style={wrap}>
         <BrandMark />
+        <div style={{ marginTop: "var(--sp-8)" }} aria-hidden="true">
+          <LogoGlyph size={44} />
+        </div>
         <h1 className="cp-page__title">보냈어요 ✨</h1>
         <p role="status" className="cp-page__lead">
           {status.built
@@ -141,14 +144,15 @@ export default function TogetherPage() {
           )}
         </nav>
       )}
-      <p className="cp-invite">
+      <BrandMark />
+      <p className="cp-invite" style={{ display: "flex", width: "fit-content" }}>
         <span className="cp-person__avatar cp-invite__avatar" aria-hidden="true">
           {status.owner_name.slice(0, 1)}
         </span>
         {status.owner_name}님이 같이 정하재요 · 30초 · 가입 없음
       </p>
       <h1 className="cp-page__title" style={{ marginTop: "var(--sp-3)" }}>{status.request_text}</h1>
-      <p style={{ color: "var(--text-muted)", marginBottom: "var(--sp-3)" }}>
+      <p className="cp-page__lead" style={{ marginBottom: "var(--sp-2)" }}>
         탭만 하면 돼요. 서로의 답은 합치기 전까지 안 보여요.
       </p>
       {offer && (
@@ -156,14 +160,15 @@ export default function TogetherPage() {
           가입 없이 답해도 돼요. {offer}
         </p>
       )}
-      <label style={{ display: "block", marginBottom: "var(--sp-5)", fontSize: "var(--fs-sm)" }}>
-        내 이름{" "}
+      <label style={{ display: "flex", alignItems: "center", gap: "var(--sp-3)", margin: "var(--sp-5) 0 var(--sp-3)", fontSize: "var(--fs-sm)", fontWeight: 600 }}>
+        내 이름
         <input
           value={myName}
           onChange={(e) => setMyName(e.target.value)}
           maxLength={10}
           aria-label="내 이름"
-          style={{ marginLeft: "var(--sp-2)", padding: "8px 12px", border: "1px solid var(--line)", borderRadius: "var(--r-md)", background: "var(--surface)", font: "inherit" }}
+          className="cp-field"
+          style={{ flex: 1, width: "auto", padding: "10px 14px", fontWeight: 400, "--who": "var(--partner)", "--who-weak": "var(--partner-weak)" } as React.CSSProperties}
         />
       </label>
       <TogetherCards
