@@ -267,6 +267,9 @@ def _global_limit(name: str) -> int | None:
     if name == "google.details" and settings.google_details_per_day > 20:
         # 배치 하루 몫을 기본(20)보다 올렸으면 하루 상한도 같이 오른다(콘솔 일일 할당량도 맞춰 올린다)
         return settings.google_details_per_day + RUNTIME_DETAILS_PER_DAY
+    if name == "google.map_id" and settings.google_details_per_day > 20:
+        # 처음 채우는 곳은 Google place id 부터 찾는다(Text Search IDs-only, 무료) — 배치 양만큼 더 쓴다
+        return GLOBAL_DAILY.get(name, 0) + settings.google_details_per_day
     return GLOBAL_DAILY.get(name)
 
 
