@@ -109,7 +109,7 @@ export default function NaverMapView({
             icon: {
               // box-sizing 을 고정하고 기준점을 정중앙으로 — 기준점이 없으면 네이버가 왼쪽 위 모서리를 좌표에 맞춰
               // 동선 끝이 핀 밖(왼쪽 위)으로 삐져나와 보였다
-              content: `<div style="box-sizing:border-box;background:#1c1917;color:#fff;border-radius:50%;width:28px;height:28px;line-height:24px;text-align:center;font-weight:700;font-size:13px;border:2px solid #fff;box-shadow:0 1px 4px rgba(0,0,0,.35)">${i + 1}</div>`,
+              content: `<div style="box-sizing:border-box;background:var(--us);color:var(--surface);border-radius:50%;width:28px;height:28px;line-height:24px;text-align:center;font-weight:700;font-size:13px;border:2px solid #fff;box-shadow:0 1px 4px rgba(0,0,0,.35)">${i + 1}</div>`,
               size: new naver.maps.Size(28, 28),
               anchor: new naver.maps.Point(14, 14),
             },
@@ -119,7 +119,7 @@ export default function NaverMapView({
         });
         if (path.length > 1) {
           overlaysRef.current.push(
-            new naver.maps.Polyline({ map, path, strokeColor: "#171412", strokeWeight: 4, strokeStyle: "shortdash" }),
+            new naver.maps.Polyline({ map, path, strokeColor: "#2b2a8c", strokeWeight: 4, strokeStyle: "shortdash" }),
           );
           const lats = items.map((it) => it.place.lat);
           const lngs = items.map((it) => it.place.lng);
