@@ -357,7 +357,8 @@ fieldset { min-width: 0; }
 .cp-demo .cp-person { margin-top: 6px; }
 
 /* 한 번의 연출: 답이 차례로 오고 → 두 선이 모이고 → 코스가 선다 */
-@keyframes cp-pop { from { opacity: 0; transform: translateY(8px) scale(.97); } to { opacity: 1; transform: none; } }
+/* 투명도는 쓰지 않는다: 반쯤 투명한 순간 글자 대비가 떨어져 접근성 검사(axe)가 실패한다 → 아래에서 걷히듯 드러낸다 */
+@keyframes cp-pop { from { clip-path: inset(0 0 100% 0); transform: translateY(8px); } to { clip-path: inset(-20px); transform: none; } }
 @keyframes cp-draw { from { stroke-dashoffset: 1; } to { stroke-dashoffset: 0; } }
 .cp-demo [data-step] { animation: cp-pop 480ms var(--ease) both; animation-delay: calc(var(--step) * 1ms); }
 .cp-demo__merge path { stroke-dasharray: 1; animation: cp-draw 700ms var(--ease-move) both; animation-delay: 700ms; }
