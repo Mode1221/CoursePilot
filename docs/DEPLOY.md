@@ -127,6 +127,11 @@ claude/… 푸시 → CI(린트·테스트·E2E·도커) → auto-merge.yml: PR 
    이 키는 authorized_keys 에 `command=` 로 묶여 배포 스크립트만 실행된다(셸 접속·포트 포워딩 불가).
 3. 비밀값이 없으면 deploy 잡은 건너뛰고 크론(5분)이 배포한다 — 설정 전에도 깨지지 않는다.
 
+### `.env` 를 고친 뒤 다시 띄우기
+`docker compose -f docker-compose.prod.yml up -d backend` 는 `IMAGE_TAG` 가 없으면 로컬 `latest` 이미지를 쓴다.
+deploy.sh 가 배포할 때마다 배포한 버전을 `latest` 로도 붙여 두므로 그대로 쓰면 된다. 그 전(2026-09-30 이전)에 설치한
+서버는 한 번 `IMAGE_TAG=$(git rev-parse HEAD) docker compose -f docker-compose.prod.yml up -d backend frontend` 로 띄운다.
+
 ### 개별 배포
 ```bash
 # backend

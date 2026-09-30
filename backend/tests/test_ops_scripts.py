@@ -223,3 +223,10 @@ def test_팝업은_하루_세_번_갱신한다():
 def test_품질_점검은_기준_미달을_알린다():
     text = (OPS / "quality_check.sh").read_text()
     assert "--fail-under" in text and "notify.sh" in text
+
+
+def test_배포한_버전을_로컬_latest_로도_붙인다():
+    """손으로 `docker compose up -d backend` 해도 배포된 버전이 떠야 한다(예전엔 설치 때 latest 로 되돌아갔다)."""
+    script = (ROOT / "deploy.sh").read_text()
+    tag = script.index('docker tag "$base:$IMAGE_TAG" "$base:latest"')
+    assert script.index("✓ 백엔드 정상") < tag < script.index("docker image prune")

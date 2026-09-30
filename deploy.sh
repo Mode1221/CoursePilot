@@ -151,6 +151,16 @@ if [ "$healthy" != true ]; then
 fi
 echo "✓ 백엔드 정상"
 
+# 배포한 버전을 로컬 latest 로도 붙여 둔다. 사람이 손으로 `docker compose up -d backend` 하면
+# IMAGE_TAG 가 없어 latest 를 쓰는데, 자동 배포는 sha 태그만 받아 latest 가 처음 설치 때 그대로였다
+# → .env 를 고치고 백엔드를 다시 띄우면 며칠 전 코드로 되돌아갔다(2026-09-30 실제로 겪음).
+if [ "${IMAGE_TAG:-latest}" != "latest" ]; then
+  for svc in backend frontend; do
+    base="${IMAGE_REGISTRY:-ghcr.io/mode1221/coursepilot}-${svc}"
+    docker tag "$base:$IMAGE_TAG" "$base:latest" 2>/dev/null || true
+  done
+fi
+
 # 교체되고 남은 이전 이미지는 지운다(100GB 디스크가 조용히 차는 것을 막는다).
 # 실행 중인 컨테이너가 쓰는 이미지는 대상이 아니다.
 echo "▶ 이전 이미지 정리..."
