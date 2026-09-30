@@ -378,7 +378,13 @@ async def delete_account(
     bookmark_store.remove_all(user_id)
     from app.referrals import referral_store
 
-    referral_store.forget(user_id)  # 유입 기록. 보상 기록(로그인 수단 해시)은 재가입 재보상 방지로 남는다
+    referral_store.forget(user_id)  # 유입 기록
+    referral_store.anonymize_rewards(user_id)  # 보상 기록은 로그인 수단 변환값만 남긴다(재보상 방지, 1년)
+    from app.behavior import behavior_store
+    from app.couples import couple_store
+
+    behavior_store.delete_user(user_id)  # 개인화용 행동 기록(카테고리 선호)
+    couple_store.delete_owner(user_id)  # 같이 정하기 상대별 기록
     user_store.delete(user_id)
     return {"ok": True, "deleted_courses": len(my_courses)}
 

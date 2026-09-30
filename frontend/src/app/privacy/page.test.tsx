@@ -17,17 +17,29 @@ describe("법률 문서 페이지", () => {
     expect(container.textContent).toContain("카카오 회원번호");
   });
 
-  it("두 문서 모두 법률 검토 전 초안임을 상단에 알린다", () => {
+  it("두 문서 모두 베타 적용본이며 바뀔 수 있음을 상단에 알린다", () => {
     for (const Page of [Privacy, Terms]) {
       const { container, unmount } = render(<Page />);
       const note = container.querySelector('[role="note"]');
-      expect(note?.textContent).toContain("법률 검토 전 초안");
+      expect(note?.textContent).toContain("베타 기간에 적용되는 내용");
       unmount();
     }
   });
 
+  it("국외 이전은 이전받는 자·국가·항목·거부 방법을 모두 적는다(제28조의8)", () => {
+    const text = render(<Privacy />).container.textContent ?? "";
+    for (const item of ["Anthropic PBC", "미국", "일본", "이전 항목", "거부할 수 있으나"]) {
+      expect(text).toContain(item);
+    }
+  });
+
+  it("약관은 생성형 AI 이용을 알린다(인공지능기본법 제31조)", () => {
+    const { container } = render(<Terms />);
+    expect(container.textContent).toContain("인공지능 이용 고지");
+  });
+
   it("약관은 장소 정보가 실제와 다를 수 있음을 밝힌다", () => {
     const { container } = render(<Terms />);
-    expect(container.textContent).toContain("방문 전 반드시 해당 매장에 확인");
+    expect(container.textContent).toContain("방문 전 매장에 직접 확인");
   });
 });

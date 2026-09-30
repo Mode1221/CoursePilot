@@ -17,8 +17,8 @@ export default function LegalPage({
     <main className="cp-page cp-page--wide" style={{ lineHeight: 1.7 }}>
       <BrandMark />
       <p role="note" className="cp-note" style={{ marginTop: "var(--sp-6)", marginBottom: "var(--sp-6)" }}>
-        <strong>법률 검토 전 초안입니다.</strong> 정식 서비스 개시 전 변호사 검토를 거쳐
-        확정합니다. 현재 내용은 참고용이며 그대로 효력을 갖지 않습니다.
+        <strong>베타 기간에 적용되는 내용입니다.</strong> 정식 서비스 개시 전 전문가 검토를 거쳐 바뀔 수 있으며,
+        바뀌면 적용 전에 미리 알려 드립니다.
       </p>
       <h1 className="cp-page__title">{title}</h1>
       <p style={{ color: "var(--text-muted)", fontSize: "var(--fs-sm)" }}>

@@ -166,6 +166,11 @@ export default function TogetherPage() {
           style={{ marginLeft: "var(--sp-2)", padding: "8px 12px", border: "1px solid var(--line)", borderRadius: "var(--r-md)", background: "var(--surface)", font: "inherit" }}
         />
       </label>
+      <p style={{ fontSize: "var(--fs-xs)", color: "var(--text-faint)", margin: "0 0 var(--sp-3)" }}>
+        입력한 호칭과 취향은 두 사람의 코스를 만드는 데만 쓰여요. 코스를 만든 사람이 코스를 지우거나 탈퇴하면
+        함께 삭제되고, 로그인하지 않은 체험 코스는 30일 뒤 삭제돼요. 이름 대신 별명을 써도 돼요.{" "}
+        <Link href="/privacy">개인정보처리방침</Link>
+      </p>
       <TogetherCards
         spec={status.cards}
         storageKey={`coursepilot_together_card:${token}`}
