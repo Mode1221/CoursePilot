@@ -794,7 +794,10 @@ def _focus_slots(candidates: list[Place], constraints: PlanConstraints) -> list[
             matching = [p for p in in_slot if satisfies(p, words)]
         else:
             matching = [p for p in in_slot if place_matches(p, attr)]
-        if matching and len(matching) < len(in_slot):
+        # 같은 칸이 여러 번이면("루프탑 바 가고 2차는 칵테일" → 술집·술집) 맞는 후보가 그 수보다 적을 때
+        # 거르지 않는다 — 루프탑이 한 곳뿐이라 두 번째 술집 칸이 통째로 비었다(운영 점검).
+        need = desired_slots(constraints).count(slot)
+        if matching and need <= len(matching) < len(in_slot):
             drop = {p.id for p in in_slot} - {p.id for p in matching}
             out = [p for p in out if p.id not in drop]
     return out

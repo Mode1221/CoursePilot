@@ -227,3 +227,14 @@ def test_저녁은_고기면_앞_칸만큼_일찍_시작한다():
     c2 = parse_constraints(t2)
     intent.apply(c2, t2)
     assert c2.start_time == time(18, 0)
+
+
+def test_같은_칸이_두_번이면_초점_후보가_모자랄_때_거르지_않는다():
+    from app.pipeline.planner import _focus_slots
+
+    c = parse_constraints("금요일 밤 10시 이태원 루프탑 바 가고 2차는 칵테일")
+    intent.apply(c, "금요일 밤 10시 이태원 루프탑 바 가고 2차는 칵테일")
+    roof = Place(id="r", name="하이 루프탑", category="술집 > 칵테일바", lat=37.534, lng=126.994)
+    other = Place(id="o", name="이태원 칵테일", category="술집 > 칵테일바", lat=37.535, lng=126.995)
+    kept = {p.id for p in _focus_slots([roof, other], c)}
+    assert kept == {"r", "o"}
