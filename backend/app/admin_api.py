@@ -53,6 +53,25 @@ async def admin_together(days: int = 90, x_admin_token: str | None = Header(defa
     return summarize(funnel_store.events(since=datetime.now() - timedelta(days=days)))
 
 
+@admin_router.get("/ops-stats")
+async def admin_ops_stats(
+    days: int = 14,
+    x_admin_token: str | None = Header(default=None),
+    x_qa_token: str | None = Header(default=None),
+) -> dict:
+    """운영 지표(Atelier 본부용): 날짜별 새 체험·가입·같이 정하기 흐름, 유입 출처. 개인정보 없음.
+
+    매일 수집하는 GitHub Actions 는 이미 가진 QA_TOKEN 으로 읽는다(새 비밀값 없이). 관리자 토큰도 된다.
+    """
+    from app.qa import token_ok
+
+    if not token_ok(x_qa_token):
+        _require_admin(x_admin_token)
+    from app.ops_stats import daily_stats
+
+    return daily_stats(days=max(1, min(days, 60)))
+
+
 @admin_router.get("/growth")
 async def admin_growth(x_admin_token: str | None = Header(default=None)) -> dict:
     """유입·초대: 최근 7·30일 체험·가입의 첫 방문 출처별 수, 보낸 초대(같이 정하기 링크),

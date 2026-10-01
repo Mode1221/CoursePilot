@@ -1,0 +1,54 @@
+# 운영 지표 수집 — Atelier 본부 "운영 지표"(새 체험·가입·같이 정하기 흐름·유입 출처)용 날짜별 집계를 매일 모은다.
+#
+# 운영 API /admin/ops-stats 를 이미 있는 QA_TOKEN 으로 읽어 atelier-stats 브랜치의 ops-stats.json 에 쓴다(새 비밀값 없음).
+# 집계 개수뿐(개인정보 없음). 공개 저장소라 이 파일도 공개다. 본부 데이터 부서가 raw 주소로 읽는다.
+name: Ops stats
+
+on:
+  schedule:
+    - cron: "23 15 * * *"  # 매일 한국 시각 0시 23분
+  workflow_dispatch:
+  push:  # 이 파일이 바뀌면 한 번 (배포가 끝날 때까지 기다렸다 읽는다)
+    branches: [main]
+    paths: [".github/workflows/ops-stats.yml"]
+
+permissions:
+  contents: write
+
+concurrency:
+  group: ops-stats
+  cancel-in-progress: false
+
+jobs:
+  collect:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    env:
+      API: ${{ vars.QA_API_URL || 'https://api.picknus.duckdns.org' }}
+      QA_TOKEN: ${{ secrets.QA_TOKEN }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: 모으기
+        run: |
+          [ -n "$QA_TOKEN" ] || { echo "QA_TOKEN 없음 — 건너뜀"; exit 0; }
+          # 배포 직후면 새 엔드포인트가 아직 없을 수 있다 — 최대 20분 기다린다
+          for i in $(seq 1 40); do
+            code=$(curl -sS -m 20 -o /tmp/ops-stats.json -w '%{http_code}' -H "X-QA-Token: $QA_TOKEN" "$API/admin/ops-stats?days=30" || echo 000)
+            [ "$code" = 200 ] && break
+            echo "응답 $code — 30초 뒤 다시"; sleep 30
+          done
+          [ "$code" = 200 ] || { echo "::error::운영 지표를 읽지 못했어요 ($code)"; exit 1; }
+          python3 -c "import json;d=json.load(open('/tmp/ops-stats.json'));assert d['days'] and d['series'];print(len(d['days']),'일', d['totals'])"
+      - name: 저장 (atelier-stats 브랜치)
+        run: |
+          [ -f /tmp/ops-stats.json ] || exit 0
+          git config user.name "atelier-bot"; git config user.email "atelier-bot@users.noreply.github.com"
+          git fetch origin atelier-stats || true
+          git switch --orphan atelier-stats-tmp
+          git rm -rq --cached . >/dev/null 2>&1 || true
+          find . -mindepth 1 -maxdepth 1 ! -name .git -exec rm -rf {} +
+          cp /tmp/ops-stats.json ops-stats.json
+          printf '# 운영 지표\n\nAtelier 본부가 읽는 집계 숫자만 있어요(개인정보 없음). 매일 .github/workflows/ops-stats.yml 이 갱신.\n' > README.md
+          git add ops-stats.json README.md
+          git commit -qm "stats: $(date -u +%F)"
+          git push -f origin HEAD:atelier-stats
