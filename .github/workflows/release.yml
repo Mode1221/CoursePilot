@@ -107,3 +107,9 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GH_REPO: ${{ github.repository }}
         run: gh workflow run qa.yml --ref main || echo "운영 QA 실행 요청 실패(3시간 주기 점검이 대신 돈다)"
+
+      - name: 운영 지표 갱신 (Atelier 본부)
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_REPO: ${{ github.repository }}
+        run: gh workflow run ops-stats.yml --ref main || echo "운영 지표 갱신 요청 실패(매일 0시 23분에 다시 돈다)"

@@ -7,10 +7,7 @@ name: Ops stats
 on:
   schedule:
     - cron: "23 15 * * *"  # 매일 한국 시각 0시 23분
-  workflow_dispatch:
-  push:  # 이 파일이 바뀌면 한 번 (배포가 끝날 때까지 기다렸다 읽는다)
-    branches: [main]
-    paths: [".github/workflows/ops-stats.yml"]
+  workflow_dispatch:  # 배포가 끝나면 release.yml 이 실행한다(자동 머지가 만든 push 는 워크플로를 깨우지 않아서)
 
 permissions:
   contents: write
