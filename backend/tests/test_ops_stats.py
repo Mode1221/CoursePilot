@@ -25,7 +25,7 @@ def test_날짜별_체험_가입_퍼널과_출처를_센다():
     assert today["guests"] == 2 and today["signups"] == 1
     assert s["days"][-2]["guests"] == 1
     assert s["sources"] == {"threads": 1, "direct": 1, "x": 1}
-    assert list(s["series"]) == list(SERIES) and next(iter(s["series"])) == "guests"
+    assert list(s["series"]) == list(SERIES) and next(iter(s["series"])) == "visitors"
     assert s["totals"]["최근 7일 새 체험"] == 3
 
 

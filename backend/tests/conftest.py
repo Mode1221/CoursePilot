@@ -70,9 +70,12 @@ def _reset_usage_counters():
 
 @pytest.fixture(autouse=True)
 def _reset_referrals():
-    """유입 경로·초대 보상(인메모리)은 프로세스 전역이다 — 테스트마다 비운다."""
+    """유입 경로·초대 보상·방문 수(인메모리)는 프로세스 전역이다 — 테스트마다 비운다."""
     from app.referrals import referral_store
+    from app.visits import visit_store
 
     referral_store.clear()
+    visit_store.clear()
     yield
     referral_store.clear()
+    visit_store.clear()

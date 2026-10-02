@@ -8,8 +8,9 @@ from __future__ import annotations
 
 from datetime import UTC, datetime, timedelta
 
-# 화면에 보일 이름. 첫 키가 주 지표(방문자 기록이 없어 "새 체험 사용자"가 가장 가까운 숫자다).
+# 화면에 보일 이름. 첫 키가 주 지표.
 SERIES = {
+    "visitors": "새 방문(기기)",
     "guests": "새 체험 사용자",
     "signups": "가입",
     "started": "같이 정하기 링크 만들기",
@@ -52,6 +53,13 @@ def daily_stats(days: int = 14, now: datetime | None = None) -> dict:
             d = _kst_date(a.member_at, utc=True)
             if d in rows:
                 rows[d]["signups"] += 1
+    from app.visits import visit_store
+
+    visit_sources: dict[str, int] = {}
+    for day, src, n in visit_store.since(dates[0]):
+        if day in rows:
+            rows[day]["visitors"] += n
+            visit_sources[src] = visit_sources.get(src, 0) + n
     for e in funnel_store.events(since=datetime.now() - timedelta(days=days + 1)):
         if e.name in FUNNEL_KEYS:
             d = _kst_date(e.at, utc=False)
@@ -64,7 +72,10 @@ def daily_stats(days: int = 14, now: datetime | None = None) -> dict:
         "series": SERIES,
         "days": out_days,
         "sources": dict(sorted(sources.items(), key=lambda kv: -kv[1])),
+        # 출처별 방문 → 체험 시작 (홍보 글이 사람을 데려왔는지, 들어와서 시작했는지)
+        "visit_sources": dict(sorted(visit_sources.items(), key=lambda kv: -kv[1])),
         "totals": {
+            "최근 7일 새 방문": sum(r["visitors"] for r in last7),
             "최근 7일 새 체험": sum(r["guests"] for r in last7),
             "최근 7일 가입": sum(r["signups"] for r in last7),
             "최근 7일 코스 만들기": sum(r["built"] for r in last7),

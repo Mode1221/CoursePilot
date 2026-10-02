@@ -177,6 +177,16 @@ class AcquisitionModel(Base):
     member_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True, index=True)
 
 
+class VisitDailyModel(Base):
+    """날짜(한국)·첫 방문 출처별 새 방문 기기 수 (app/visits.py). 개수만 — 기기·IP 는 남기지 않는다."""
+
+    __tablename__ = "visit_daily"
+
+    day: Mapped[str] = mapped_column(String(10), primary_key=True)
+    source: Mapped[str] = mapped_column(String(32), primary_key=True)
+    n: Mapped[int] = mapped_column(Integer, default=0)
+
+
 class InviteRewardModel(Base):
     """초대 보상 지급 기록. invitee_key(로그인 수단 해시) 유니크로 새 회원 1명당 1번만."""
 
