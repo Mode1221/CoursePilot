@@ -2,7 +2,7 @@
 
 > 이 문서는 기능 추가/변경 시 **같은 PR 에서** 함께 갱신한다.
 > 문서를 건드리지 않은 PR 은 설명에 "문서 변경 불필요" 이유를 한 줄 남긴다.
-> 최종 갱신: 2026-10-01 (PR 번호는 git log 로 — 이 줄에 번호를 적으면 PR 마다 충돌한다)
+> 최종 갱신: 2026-10-02 (PR 번호는 git log 로 — 이 줄에 번호를 적으면 PR 마다 충돌한다)
 
 상태 표기
 - ✅ 완료 — 구현 + 테스트 + CI 통과 (키 없으면 폴백 동작)
@@ -298,7 +298,7 @@
 ## 3-2. 관측성
 - ✅ `GET /admin/metrics` — 라우트별 요청 수·4xx/5xx·p50/p95, 외부 연동 폴백 비율(externals: 지도·리뷰·LLM), 유료 API 월 사용량(`quotas`), 임계 초과 알림(`alerts`)
 - ✅ `GET /admin/signals` — 학습 신호 관측 + 온보딩 설문 응답률·문항별 분포 (둘 다 ADMIN_TOKEN 필요)
-- ✅ `GET /admin/ops-stats?days=14` — Atelier 본부 "운영 지표"용 날짜별 집계(새 체험·가입·같이 정하기 링크·상대가 엶·코스 만들기·둘 다 확정·다녀왔어요, 체험 유입 출처). QA_TOKEN 또는 ADMIN_TOKEN, QA 제외, 개인정보 없음. `.github/workflows/ops-stats.yml` 이 매일 0시 23분(KST) `atelier-stats` 브랜치 `ops-stats.json` 에 저장(공개 저장소라 공개 — 개수뿐). 순수 방문자(체험 없이 보고 나간 사람)는 아직 기록하지 않는다(BACKLOG).
+- ✅ `GET /admin/ops-stats?days=14` — Atelier 본부 "운영 지표"용 날짜별 집계(새 체험·가입·같이 정하기 링크·상대가 엶·코스 만들기·둘 다 확정·다녀왔어요, 체험 유입 출처). QA_TOKEN 또는 ADMIN_TOKEN, QA 제외, 개인정보 없음. `.github/workflows/ops-stats.yml` 이 매일 0시 23분(KST) `atelier-stats` 브랜치 `ops-stats.json` 에 저장(공개 저장소라 공개 — 개수뿐). 첫 줄은 **새 방문(기기)** — 기기의 첫 방문을 프론트가 `POST /visit` 로 한 번 알리고, 서버는 한국 날짜·출처별 개수만 남긴다(같은 IP·출처 하루 1회, QA 제외, IP 는 저장 안 함). `visit_sources` 와 `sources`(체험 출처)를 비교하면 "홍보 글 → 들어옴 → 체험 시작" 중 어디서 끊기는지 보인다.
 - ✅ 요청 ID(`X-Request-Id`) 발급·반환, 2초 이상 요청은 warning 로깅
 - ✅ 미처리 예외도 요청 ID를 담아 안내(내부 스택은 서버 로그로만)
 - ✅ 임계 진입·회복 웹훅 알림(`ALERT_WEBHOOK_URL`, 미설정 시 로그 폴백, 15분 재알림 억제)

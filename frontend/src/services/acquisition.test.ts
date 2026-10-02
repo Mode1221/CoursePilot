@@ -6,8 +6,10 @@ import {
   captureAcquisition,
   clearAcquisition,
   inviteTokenFromPath,
+  isFirstVisit,
   readAcquisition,
   rememberInvite,
+  reportVisit,
   sanitizeSource,
 } from "./acquisition";
 
@@ -98,5 +100,28 @@ describe("유입 경로 기억", () => {
     captureAcquisition("?src=kakao", "/together/AbC_def-123456", 1);
     clearAcquisition();
     expect(arrivalPayload(2)).toEqual({});
+  });
+});
+
+describe("첫 방문 알리기", () => {
+  beforeEach(() => localStorage.clear());
+
+  it("기기의 첫 방문만 첫 방문이다", () => {
+    expect(isFirstVisit()).toBe(true);
+    captureAcquisition("?src=threads", "/", 1);
+    expect(isFirstVisit()).toBe(false);
+  });
+
+  it("출처를 담아 /visit 로 한 번 보내고, 실패해도 던지지 않는다", async () => {
+    const send = vi.fn().mockResolvedValue(new Response(null, { status: 204 }));
+    reportVisit("threads", send as unknown as typeof fetch);
+    expect(send).toHaveBeenCalledTimes(1);
+    const [url, init] = send.mock.calls[0];
+    expect(String(url)).toMatch(/\/visit$/);
+    expect(JSON.parse(init.body)).toEqual({ source: "threads" });
+    expect(init.keepalive).toBe(true);
+    const failing = vi.fn().mockRejectedValue(new Error("offline"));
+    expect(() => reportVisit(undefined, failing as unknown as typeof fetch)).not.toThrow();
+    expect(JSON.parse(failing.mock.calls[0][1].body)).toEqual({});
   });
 });

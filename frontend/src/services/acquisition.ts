@@ -6,6 +6,8 @@
 // 그 토큰도 기억한다(가입하면 두 사람 모두 보상 — 초대자는 서버가 토큰으로 찾는다).
 // 값 정리 규칙은 서버(app/referrals.py `clean_source`)와 같다: 소문자, [a-z0-9_-], 32자.
 
+import { apiBase } from "./apiBase";
+
 const KEY = "coursepilot_acq";
 const MAX_LEN = 32;
 // 초대 토큰은 이 기간이 지나면 보내지 않는다(오래전 링크로 뒤늦게 보상이 붙지 않게)
@@ -110,6 +112,28 @@ export function arrivalPayload(now = Date.now()): ArrivalPayload {
 export function clearAcquisition(): void {
   try {
     window.localStorage.removeItem(KEY);
+  } catch {
+    /* 무시 */
+  }
+}
+
+/** 이 기기의 첫 방문인가(아직 첫 방문을 기억하지 않았다). captureAcquisition 보다 먼저 부른다. */
+export function isFirstVisit(): boolean {
+  return !readAcquisition().at;
+}
+
+/**
+ * 첫 방문 한 번을 서버에 알린다(날짜·출처별 개수만 — backend app/visits.py).
+ * 홍보 글을 보고 들어왔다가 체험 없이 나간 사람도 세기 위해서다. 실패해도 화면에는 영향이 없다.
+ */
+export function reportVisit(source: string | undefined, send: typeof fetch = fetch): void {
+  try {
+    void send(`${apiBase()}/visit`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(source ? { source } : {}),
+      keepalive: true,
+    }).catch(() => undefined);
   } catch {
     /* 무시 */
   }

@@ -5,6 +5,8 @@
 """
 from __future__ import annotations
 
+import re
+
 from fastapi import APIRouter, Header, HTTPException, Request
 from pydantic import BaseModel, Field
 
@@ -238,3 +240,22 @@ async def rate_satisfaction(course_id: str, req: SatisfactionRequest) -> dict:
 
         outcome_store.record(course.predicted_score, req.liked)
     return {"ok": True, "already": False}
+
+
+_BOT_RE = re.compile(r"bot|crawl|spider|preview|headless|facebookexternalhit|slurp")
+
+
+class VisitRequest(BaseModel):
+    source: str | None = Field(default=None, max_length=64)
+
+
+@signals_router.post("/visit", status_code=204)
+async def record_visit(req: VisitRequest, request: Request) -> None:
+    """기기의 첫 방문 한 번(프론트가 보냄). 날짜·출처별 개수만 남는다 — app/visits.py."""
+    from app.middleware import client_ip
+    from app.qa import learning_on
+    from app.visits import visit_store
+
+    ua = request.headers.get("user-agent", "").lower()
+    if learning_on() and not _BOT_RE.search(ua):  # 링크 미리보기 봇·크롤러는 세지 않는다
+        visit_store.record(req.source, client_ip(request))

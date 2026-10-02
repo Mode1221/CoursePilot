@@ -73,6 +73,7 @@
   `charge()` 가 `Ticket` 을 돌려주고, 결과를 못 준 요청(실패·질문·되묻기)은 `release()` 로 되돌린다.
   LLM 상한은 `llm_client.get_*_client()` 한 곳에서(넘으면 None → 호출부가 규칙 폴백), Google 은 `_consume`·리뷰 소스에서.
   한도 초과는 `UsageDenied` → `main.py` 핸들러가 `{"detail","code"}`(guest_required·login_required·daily_limit·service_busy).
+- (방문) `visits.py` — 기기 첫 방문을 날짜·출처별 개수로(`visit_daily`), `POST /visit`(signals_api), 프론트 `AcquisitionCapture` 가 첫 방문에만 보냄. `ops_stats.py` 의 `visitors`·`visit_sources`.
 - (유입·초대) `referrals.py` — 첫 방문 출처(first-touch)와 초대 보상. 체험 시작(`/auth/guest`)·가입(`/signup`)·카카오 로그인
   요청의 `source`·`campaign`·`invite`(같이 정하기 링크 토큰)를 받아 `clean_source`(소문자 `[a-z0-9_-]` 32자)로 정리해 남긴다.
   **초대자는 요청 값이 아니라 링크 토큰으로 찾은 코스의 주인**(`resolve_invite`). 보상은 계정을 새로 만들 때만(`_logged_in(new_member=True)`

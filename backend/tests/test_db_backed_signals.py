@@ -151,3 +151,18 @@ def test_장소_카탈로그가_DB_에_저장되고_지워진다(db):
     assert [p.id for p in place_repo.all()] != []
     assert place_repo.delete_many(["k1"]) == 1
     assert place_repo.get_many(["k1"]) == {}
+
+
+def test_첫_방문_수가_DB_에_날짜_출처별로_쌓인다(db):
+    from datetime import UTC, datetime
+
+    from app.visits import visit_store
+
+    now = datetime(2026, 10, 2, 3, 0, tzinfo=UTC)
+    visit_store.clear()
+    assert visit_store.record("threads", "1.1.1.1", now)
+    assert visit_store.record("threads", "2.2.2.2", now)
+    assert not visit_store.record("threads", "2.2.2.2", now)
+    assert visit_store.record(None, "3.3.3.3", now)
+    rows = {(d, s): n for d, s, n in visit_store.since("2026-10-01")}
+    assert rows == {("2026-10-02", "threads"): 2, ("2026-10-02", "direct"): 1}
